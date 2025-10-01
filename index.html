@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Sentinel Connector Visualizer</title>
+  <script src="https://7.min.js
+  <style>
+    body { font-family: Arial; margin: 0; padding: 0; }
+    #controls { padding: 10px; background: #f4f4f4; }
+    svg { width: 100%; height: 90vh; }
+  </style>
+</head>
+<body>
+  <div id="controls">
+    <input id="repoInput" placeholder="owner/repo (e.g., Azure/Azure-Sentinel)">
+    <button onclick="loadGraph()">Visualize</button>
+  </div>
+  <svg></svg>
+  <script src="app.js"></script>
+</body>
+</html>
