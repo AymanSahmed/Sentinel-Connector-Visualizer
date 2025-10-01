@@ -1,12 +1,15 @@
 async function loadGraph() {
   const repo = document.getElementById('repoInput').value.trim();
+  const folder = document.getElementById('folderInput').value.trim() || 'DataConnectors';
+
   if (!repo.includes('/')) {
     alert('Enter a valid repo like Azure/Azure-Sentinel');
     return;
   }
 
   const [owner, name] = repo.split('/');
-  const url = `https://api.github.com/repos/${owner}/${name}/contents/DataConnectors`;
+  const encodedFolder = encodeURIComponent(folder).replace(/%2F/g, '/'); // keep slashes
+  const url = `https://api.github.com/repos/${owner}/${name}/contents/${encodedFolder}`;
 
   try {
     const res = await fetch(url);
@@ -14,7 +17,7 @@ async function loadGraph() {
     const files = await res.json();
 
     if (!Array.isArray(files) || files.length === 0) {
-      alert('No DataConnectors folder or JSON files found in this repo.');
+      alert('No files found in this folder.');
       return;
     }
 
@@ -37,6 +40,20 @@ async function loadGraph() {
         addNode(connectorName, 'connector');
         addNode(publisher, 'source');
         links.push({ source: publisher, target: connectorName });
+
+        // Dependency parsing
+        const rawText = JSON.stringify(raw).toLowerCase();
+        const deps = [];
+        if (rawText.includes('data collection rule') || rawText.includes('dcr')) deps.push('DCR');
+        if (rawText.includes('data collection endpoint') || rawText.includes('dce')) deps.push('DCE');
+        if (rawText.includes('log analytics')) deps.push('Log Analytics');
+        if (rawText.includes('logic app')) deps.push('Logic Apps');
+        if (rawText.includes('azure function')) deps.push('Azure Functions');
+
+        for (const dep of deps) {
+          addNode(dep, 'dependency');
+          links.push({ source: dep, target: connectorName });
+        }
       }
     }
 
@@ -59,7 +76,12 @@ function drawGraph(nodes, links) {
   const width = window.innerWidth;
   const height = window.innerHeight * 0.9;
 
-  const color = d => d.type === 'connector' ? '#ff7f0e' : '#1f77b4';
+  const color = d => {
+    if (d.type === 'connector') return '#ff7f0e';
+    if (d.type === 'source') return '#1f77b4';
+    if (d.type === 'dependency') return '#2ca02c';
+    return '#7f7f7f';
+  };
 
   const simulation = d3.forceSimulation(nodes)
     .force('link', d3.forceLink(links).id(d => d.id).distance(120))
