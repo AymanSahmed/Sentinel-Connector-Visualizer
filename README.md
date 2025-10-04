@@ -1,6 +1,5 @@
-# Sentinel-Connector-Visualizer
-Sentinel connector visualizer
 # Sentinel Solution Dependency Visualizer
+https://aymansahmed.github.io/Sentinel-Connector-Visualizer/
 
  Overview
 
