@@ -1,0 +1,1110 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sentinel Artifact Visualizer</title>
+    <!-- Tailwind CSS for modern aesthetics and responsiveness -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- D3.js library for graph visualization -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap');
+        body { font-family: 'Inter', sans-serif; background-color: #f7f7f7; }
+        .container { max-width: 1400px; }
+        #visualization-container {
+            border: 2px solid #e5e7eb;
+            background-color: #ffffff;
+            border-radius: 12px;
+            box-shadow: 0 10px 15px rgba(0, 0, 0, 0.1);
+        }
+        /* Custom styles for the graph nodes to ensure visibility */
+        .node-group rect { transition: all 0.2s ease-in-out; }
+        .node-group:hover rect {
+            transform: scale(1.05);
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+    </style>
+</head>
+<body class="p-4 sm:p-8">
+
+    <div class="container mx-auto space-y-6">
+        <header class="text-center">
+            <h1 class="text-3xl font-bold text-gray-800">Sentinel Solution Dependency Visualizer</h1>
+            <p id="status" class="mt-2 text-sm text-gray-600">Enter GitHub details and click "Load Solutions" to begin.</p>
+        </header>
+
+        <!-- Control Panel -->
+        <div class="bg-white p-6 rounded-xl shadow-lg border border-gray-200 grid grid-cols-1 md:grid-cols-6 gap-4 items-end">
+            <!-- Repo Input -->
+            <div class="md:col-span-2">
+                <label for="repoInput" class="block text-sm font-medium text-gray-700">GitHub Repo (Owner/Repo)</label>
+                <input type="text" id="repoInput" value="Azure/Azure-Sentinel" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 p-2 border">
+            </div>
+            <!-- Branch Input -->
+            <div>
+                <label for="branchInput" class="block text-sm font-medium text-gray-700">Branch</label>
+                <input type="text" id="branchInput" value="master" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 p-2 border">
+            </div>
+            <!-- PAT Input -->
+            <div>
+                <label for="tokenInput" class="block text-sm font-medium text-gray-700">GitHub PAT (Optional)</label>
+                <input type="password" id="tokenInput" placeholder="Token" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 p-2 border">
+            </div>
+            <!-- Buttons -->
+            <button id="btnLoad" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded-xl shadow-md transition duration-150">Load Solutions</button>
+            <button id="btnViz" class="w-full bg-green-600 hover:bg-green-700 text-white font-semibold py-2 px-4 rounded-xl shadow-md transition duration-150">Visualize</button>
+        </div>
+        
+        <div class="grid grid-cols-1 lg:grid-cols-4 gap-6">
+            <!-- Solution Selector and Metadata Panel -->
+            <div class="lg:col-span-1 bg-white p-6 rounded-xl shadow-lg border border-gray-200">
+                <h3 class="text-lg font-semibold mb-3 border-b pb-2">Select Solution</h3>
+                <select id="solutionSelect" class="block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 p-2 border">
+                    <option value="">(Load solutions first)</option>
+                </select>
+
+                <!-- Connector Selector -->
+                <h3 class="text-lg font-semibold mt-6 mb-3 border-b pb-2">Select Connector</h3>
+                <select id="connectorSelect" class="block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 p-2 border" disabled>
+                    <option value="">(Visualize a solution first)</option>
+                </select>
+
+                <!-- Connector Details Panel -->
+                <div id="connectorDetails" class="mt-6 p-4 bg-white rounded-xl border border-gray-200 shadow-inner">
+                    <p class="text-sm text-gray-500">Select a connector above to view its technical classification (e.g., CCF vs. Legacy HTTP).</p>
+                </div>
+                
+                <!-- General Solution Metadata Panel -->
+                <div id="solutionMeta" class="mt-6 p-4 bg-gray-50 rounded-lg">
+                    <p class="text-sm text-gray-500">General Solution metadata will appear here after visualization.</p>
+                </div>
+            </div>
+
+            <!-- Visualization Area -->
+            <div id="visualization-container" class="lg:col-span-3 h-[900px] overflow-hidden">
+                <svg id="viz" class="w-full h-full"></svg>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- The complete application logic -->
+    <script>
+        'use strict';
+
+/* ===========================
+   Helpers & shared utilities
+   =========================== */
+
+const qs = (s) => document.querySelector(s);
+// Global state to store fetched connectors for the dropdown
+let currentConnectors = []; 
+let currentMaintemplateMeta = {};
+
+function setStatus(msg, isError = false) {
+  const el = qs('#status');
+  if (!el) return;
+  el.textContent = msg;
+  el.style.color = isError ? '#b91c1c' : '#6b7280';
+}
+
+function ghHeaders() {
+  const tokenInput = qs('#tokenInput');
+  // Safely check for tokenInput element
+  const t = tokenInput ? (tokenInput.value || '').trim() : ''; 
+  return t ? { Authorization: `token ${t}` } : {};
+}
+
+// Simple utility to find tables mentioned in a KQL query
+function extractTablesFromQuery(query) {
+    if (!query) return [];
+    // A simple regex to catch common table names or 'im<schema>' function calls
+    // Also includes _CL suffix for Custom Logs
+    const tableRegex = /\b([A-Za-z0-9_]+_CL)\b|\b([A-Za-z]+Events?)\b|\b(im[A-Z][A-Za-z0-9_]*)\b/g;
+    const matches = Array.from(query.matchAll(tableRegex)).map(match => match.find(m => m !== undefined && m !== match[0]));
+    return Array.from(new Set(matches)).filter(t => t && t.length > 2);
+}
+
+// Map common stream names to default tables
+const STREAM_TO_TABLE = {
+  'microsoft-syslog': 'Syslog',
+  'microsoft-windowsevent': 'WindowsEvents',
+  'microsoft-commonsecuritylog': 'CommonSecurityLog',
+  'microsoft-azurefirewall': 'AzureDiagnostics',
+  'microsoft-perf': 'Perf',
+};
+
+function mapStreamToTable(streamName) {
+  if (!streamName) return null;
+  const key = String(streamName).toLowerCase().trim();
+  if (STREAM_TO_TABLE[key]) return STREAM_TO_TABLE[key];
+  if (key.startsWith('custom-')) {
+    const suffix = key.replace(/^custom-/, '').replace(/[^a-z0-9]/gi, '');
+    if (suffix) return `${suffix}_CL`;
+  }
+  return null;
+}
+
+/* ===========================
+   1) Load Solutions into dropdown
+   =========================== */
+async function loadSolutions() {
+  try {
+    const repoStr = (qs('#repoInput').value || '').trim();
+    if (!repoStr.includes('/')) {
+      setStatus('Repo must be like Owner/Repo', true); 
+      return;
+    }
+    const [owner, repo] = repoStr.split('/');
+    // Use the Branch input for the path
+    const branch = qs('#branchInput').value.trim(); 
+    const url = `https://api.github.com/repos/${owner}/${repo}/contents/Solutions?ref=${encodeURIComponent(branch)}`;
+    setStatus('Loading Solutions ...');
+
+    const res = await fetch(url, { headers: ghHeaders() });
+    if (!res.ok) {
+      let detail = '';
+      try { detail = await res.text(); } catch {}
+      throw new Error(`GitHub API error ${res.status}: ${res.statusText}. Check repo name, branch, and GitHub token (if used).`);
+    }
+
+    const list = await res.json();
+    const dirs = (list || [])
+      .filter((x) => x.type === 'dir')
+      .map((x) => x.name)
+      .sort((a, b) => a.localeCompare(b));
+
+    const sel = qs('#solutionSelect');
+    sel.innerHTML = '';
+    if (dirs.length === 0) {
+      sel.innerHTML = '<option value="">(no solutions found)</option>';
+      setStatus('No Solutions found under /Solutions', true);
+      return;
+    }
+
+    for (const name of dirs) {
+      const opt = document.createElement('option');
+      opt.value = name;
+      opt.textContent = name;
+      sel.appendChild(opt);
+    }
+    setStatus(`Loaded ${dirs.length} solutions. Select one and click Visualize.`);
+  } catch (err) {
+    console.error(err);
+    setStatus(err.message || 'Error loading solutions', true);
+  }
+}
+
+/* ===========================
+   2) Enumerate JSON files recursively in a solution
+   =========================== */
+async function listJsonPathsForSolution(owner, repo, branch, solutionName) {
+  setStatus(`Resolving branch ${branch} tree ...`);
+  const bres = await fetch(
+    `https://api.github.com/repos/${owner}/${repo}/branches/${encodeURIComponent(branch)}`,
+    { headers: ghHeaders() }
+  );
+  if (!bres.ok) {
+    let detail = '';
+    try { detail = await bres.text(); } catch {}
+    throw new Error(`Branch API error ${bres.status}: ${detail || bres.statusText}`);
+  }
+  const b = await bres.json();
+  const treeSha = b?.commit?.commit?.tree?.sha;
+  if (!treeSha) throw new Error('Could not resolve branch tree SHA.');
+
+  setStatus('Listing repository tree (recursive) ...');
+  const tres = await fetch(
+    `https://api.github.com/repos/${owner}/${repo}/git/trees/${treeSha}?recursive=1`,
+    { headers: ghHeaders() }
+  );
+  if (!tres.ok) {
+    let detail = '';
+    try { detail = await tres.text(); } catch {}
+    throw new Error(`Trees API error ${tres.status}: ${detail || tres.statusText}`);
+  }
+
+  const t = await tres.json();
+  const prefix = `Solutions/${solutionName}/`;
+  const paths = (t.tree || [])
+    .filter((it) => it.type === 'blob' && it.path.startsWith(prefix) && it.path.toLowerCase().endsWith('.json'))
+    .map((it) => it.path);
+
+  return paths;
+}
+
+async function extractCreateUiDefinition(owner, repo, branch, solutionName, paths) {
+  const uiDefPath = paths.find(p => /Package\/createUIDefinition\.json$/i.test(p));
+  if (!uiDefPath) return null;
+  const url = `https://raw.githubusercontent.com/${owner}/${repo}/${encodeURIComponent(branch)}/${uiDefPath}`;
+  const res = await fetch(url, { headers: ghHeaders() });
+  if (!res.ok) return null;
+  let json;
+  try { json = await res.json(); } catch { return null; }
+  return {
+    description: json?.parameters?.basics?.description || '',
+    steps: json?.parameters?.steps || [],
+    resourceProviders: json?.parameters?.subscription?.resourceProviders || [],
+    outputs: json?.parameters?.outputs || []
+  };
+}
+
+/* ===========================
+   3) Classification & Enrichment
+   =========================== */
+
+/**
+ * Determine ingestion mechanism and connection type based on JSON content.
+ * This logic is updated to reflect the explicit kind checks provided by the user.
+ */
+function classifyMechanismAndType(jsonObj) {
+  const text = JSON.stringify(jsonObj).toLowerCase();
+  const ui = jsonObj?.properties?.connectorUiConfig || jsonObj?.properties?.connectorUiConfig;
+  const kind = (jsonObj?.kind || jsonObj?.properties?.kind || '').toLowerCase();
+
+  let connectionType = 'N/A';
+  let mechanism = 'Unknown';
+  
+  // 1. Specific 'kind' checks for precise classification (CCF vs. Legacy)
+  
+  // CCF - API Polling (RestApiPoller is the modern kind, APIPolling is sometimes seen)
+  if (kind === 'restapipoller' || kind === 'apipolling') {
+      connectionType = 'Pull';
+      mechanism = 'CCF (Codeless) - API Polling';
+      return { connectionType, mechanism };
+  } 
+  
+  // Legacy - Azure Functions / HTTP Data Collector API
+  if (kind === 'azurefunction' || kind === 'datacollector') {
+      connectionType = 'Push';
+      mechanism = 'Azure Functions / HTTP Data Collector API';
+      return { connectionType, mechanism };
+  }
+  
+  // 2. Fallback to general classification logic
+  
+  // Check for general CCF/Codeless signals (e.g., UI config without specific kind or kind: customizable)
+  if (ui || kind === 'customizable') {
+    connectionType = 'Pull';
+    mechanism = 'CCF (Codeless) - UI Driven';
+    return { connectionType, mechanism };
+  } 
+  
+  // Check for DCR/AMA/MMA signals (Data Collection Rules)
+  const isDCR = text.includes('microsoft.insights/datacollectionrules') ||
+          jsonObj?.properties?.dataSources || jsonObj?.dataSources || jsonObj?.dataFlows;
+  
+  if (isDCR) {
+    const ds = jsonObj?.properties?.dataSources || jsonObj?.dataSources || {};
+    const hasSyslog = !!ds.syslog || text.includes('syslog');
+    const hasWindows = !!ds.windowsEvent || text.includes('windowsevent');
+    mechanism = (hasSyslog || hasWindows) ? 'AMA/MMA Agent' : 'Logs Ingestion API';
+    connectionType = 'Push'; 
+    return { connectionType, mechanism };
+  } 
+  
+  // Check for Logic Apps (text search)
+  if (text.includes('logic app') || text.includes('workflows')) {
+    connectionType = 'Pull';
+    mechanism = 'Logic Apps';
+    return { connectionType, mechanism };
+  } 
+  
+  // Check for other custom code/legacy API interaction (text search fallback)
+  if (text.includes('azure function') || text.includes('functionapp') || text.includes('data collector api') || text.includes('log analytics api')) {
+    connectionType = 'Pull/Push';
+    mechanism = 'Custom Code/Legacy API Interaction';
+    return { connectionType, mechanism };
+  }
+
+  // Default to Service-to-Service if no other signal is present
+  connectionType = 'Pull';
+  mechanism = 'Service-to-Service';
+  
+  return { connectionType, mechanism };
+}
+
+// Extract connector name and data source
+function extractConnectorName(jsonObj, fallbackName) {
+  const ui = jsonObj?.properties?.connectorUiConfig || jsonObj?.properties?.connectorUIConfig;
+  const title = ui?.title || ui?.displayName || jsonObj?.name;
+  return (title || fallbackName || 'Unnamed Connector').trim();
+}
+
+function extractDataSource(jsonObj, filePath, solutionName) {
+  const ui = jsonObj?.properties?.connectorUiConfig || jsonObj?.properties?.connectorUiConfig;
+  const publisher = ui?.publisherName || ui?.publisher;
+  if (publisher) return publisher.trim();
+  if (solutionName) return solutionName.trim();
+  const last = filePath?.split('/')?.pop()?.replace(/\.json$/i, '') || 'Unknown';
+  return last;
+}
+
+// Pick tables from DCR by looking at streams and transformation KQL
+function pickTablesFromDcr(dcrObj) {
+  const out = new Set();
+  const props = dcrObj?.properties || dcrObj;
+  const dataFlows = props?.dataFlows || [];
+  const transform = (df) => (df?.transformKql ? String(df.transformKql) : '');
+  for (const df of dataFlows) {
+    const streams = Array.isArray(df.streams) ? df.streams : [];
+    for (const s of streams) {
+      const tableGuess = mapStreamToTable(s);
+      if (tableGuess) out.add(tableGuess);
+    }
+    const kql = transform(df).toLowerCase();
+    // Look for 'into table <TableName>'
+    const m = kql.match(/into\s+table\s+([a-z0-9_]+)/i);
+    if (m && m[1]) out.add(m[1]);
+  }
+  return Array.from(out);
+}
+
+function pickStreamsFromDcr(dcrObj) {
+  const out = new Set();
+  const props = dcrObj?.properties || dcrObj;
+  const dataFlows = props?.dataFlows || [];
+  for (const df of dataFlows) {
+    const streams = Array.isArray(df.streams) ? df.streams : [];
+    streams.forEach((s) => out.add(s));
+  }
+  return Array.from(out);
+}
+
+// Maintemplate metadata extraction (Solution metadata)
+async function extractMaintemplateMetadata(owner, repo, branch, solutionName, paths) {
+  const maintemplatePath = 
+    paths.find(p => /Package\/mainTemplate\.json$/i.test(p)) ||
+    paths.find(p => /Maintemplate\.json$/i.test(p));
+
+  if (!maintemplatePath) return null;
+
+  const url = `https://raw.githubusercontent.com/${owner}/${repo}/${encodeURIComponent(branch)}/${maintemplatePath}`;
+  const res = await fetch(url, { headers: ghHeaders() });
+  
+  if (!res.ok) {
+    console.warn(`Failed to fetch mainTemplate.json from ${url}. Status: ${res.status}`);
+    return null;
+  }
+  
+  let json;
+  try { json = await res.json(); } catch { 
+    console.warn('Failed to parse mainTemplate.json content.');
+    return null; 
+  }
+
+  const findParamValue = (params, keys) => {
+    if (!params) return '';
+    for (const key of keys) {
+      const param = Object.keys(params).find(k => k.toLowerCase() === key.toLowerCase());
+      if (param && params[param]?.defaultValue) return String(params[param].defaultValue);
+    }
+    return '';
+  };
+
+  const params = json?.parameters;
+  const metadata = {
+    solutionName: findParamValue(params, ['SolutionName', 'solutionName']),
+    publisher: findParamValue(params, ['Publisher', 'publisher']),
+    contactEmail: findParamValue(params, ['ContactEmail', 'contactEmail']),
+  };
+  
+  if (!metadata.solutionName) {
+      metadata.solutionName = solutionName;
+  }
+
+  return metadata;
+}
+
+// Fetch and classify connectors and DCRs
+async function fetchConnectorsAndDcrs(owner, repo, branch, paths, solutionName) {
+  const baseRaw = `https://raw.githubusercontent.com/${owner}/${repo}/${encodeURIComponent(branch)}/`;
+  const connectors = [];
+  const dcrs = [];
+  let filesProcessed = 0;
+
+  // Pass 1: Collect DCRs
+  for (const p of paths) {
+    const url = baseRaw + p;
+    const r = await fetch(url, { headers: ghHeaders() });
+    if (!r.ok) continue;
+    let json;
+    try { json = await r.json(); } catch { continue; }
+    filesProcessed++;
+
+    const text = JSON.stringify(json).toLowerCase();
+    const looksLikeDcr = text.includes('microsoft.insights/datacollectionrules') ||
+                         json?.properties?.dataSources || json?.dataSources || json?.dataFlows;
+    
+    if (looksLikeDcr) {
+      const dcrId = json?.name?.replace(/\[parameters\(['"](.*)['"]\)\]/g, '$1') || p.split('/').pop().replace(/\.json$/i, '');
+      
+      dcrs.push({
+        id: dcrId, // Unique ID for deduplication
+        name: json?.properties?.displayName || dcrId,
+        streams: pickStreamsFromDcr(json),
+        tables: pickTablesFromDcr(json),
+        raw: json,
+        path: p,
+      });
+    }
+  }
+
+  const finalDcrs = Array.from(new Map(dcrs.map(d => [d.id, d])).values());
+
+  // Pass 2: Collect Connectors and link them to DCRs
+  for (const p of paths) {
+    const url = baseRaw + p;
+    const r = await fetch(url, { headers: ghHeaders() });
+    if (!r.ok) continue;
+    let json;
+    try { json = await r.json(); } catch { continue; }
+
+    const text = JSON.stringify(json).toLowerCase();
+    const ui = json?.properties?.connectorUiConfig || json?.properties?.connectorUiConfig;
+    const hasConnectorSignals = ui || text.includes('dataconnector');
+
+    if (hasConnectorSignals) {
+      const mechanismInfo = classifyMechanismAndType(json);
+      const name = extractConnectorName(json, p.split('/').pop());
+      const dataSource = extractDataSource(json, p, solutionName);
+      
+      // Attempt to link connector to DCRs by checking if the DCR name/ID is present in the connector's template
+      const linkedDcrIds = finalDcrs
+        .filter(dcr => text.includes(dcr.id.toLowerCase()) || text.includes(dcr.name.toLowerCase()))
+        .map(dcr => dcr.id);
+
+      connectors.push({
+        name,
+        dataSource,
+        connectionType: mechanismInfo.connectionType,
+        mechanism: mechanismInfo.mechanism,
+        path: p,
+        raw: json,
+        linkedDcrIds: linkedDcrIds, // Store DCR IDs for graph building
+        // Use the DCR's tables as the connector's output tables if directly linked
+        outputTables: linkedDcrIds.flatMap(id => finalDcrs.find(d => d.id === id)?.tables || [])
+      });
+    }
+  }
+
+  return { connectors, dcrs: finalDcrs, filesProcessed };
+}
+
+
+// Collect artifacts (Hunting, Workbooks, Analytics Rules)
+async function collectQueryArtifacts(owner, repo, branch, paths) {
+  const baseRaw = `https://raw.githubusercontent.com/${owner}/${repo}/${encodeURIComponent(branch)}/`;
+  const artifacts = { hunting: [], workbooks: [], analyticsRules: [] };
+
+  const looksLike = {
+    hunting: (p) => /\/hunting( queries)?\//i.test(p),
+    workbook: (p) => /\/workbooks?\//i.test(p),
+    analyticsRule: (p) => /\/analytics\s?rules?\//i.test(p) || /\/alertrules\//i.test(p),
+  };
+
+  for (const p of paths) {
+    if (!looksLike.hunting(p) && !looksLike.workbook(p) && !looksLike.analyticsRule(p)) continue;
+
+    const r = await fetch(baseRaw + p, { headers: ghHeaders() });
+    if (!r.ok) continue;
+    let json;
+    try { json = await r.json(); } catch { continue; }
+
+    const name = json?.properties?.displayName || json?.properties?.title || json?.name || p.split('/').pop();
+    const query = json?.properties?.query || json?.query || json?.properties?.kql || '';
+    
+    let finalQuery = query;
+    if (looksLike.workbook(p) && json?.properties?.content) {
+        const contentStr = JSON.stringify(json.properties.content);
+        // Simple regex to extract KQL from query properties within the workbook structure
+        const kqlMatches = contentStr.match(/\"query\":\s*\"(.*?)\"/g);
+        if (kqlMatches) {
+            finalQuery = kqlMatches.map(m => m.replace(/\"query\":\s*\"(.*?)\"/, '$1')).join('\n');
+        }
+    }
+    
+    if (typeof finalQuery === 'string' && finalQuery.trim()) {
+      const tables = extractTablesFromQuery(finalQuery);
+      const artifact = { name, query: finalQuery, tables, path: p };
+
+      if (looksLike.hunting(p)) {
+        artifacts.hunting.push(artifact);
+      } else if (looksLike.workbook(p)) {
+        artifacts.workbooks.push(artifact);
+      } else if (looksLike.analyticsRule(p)) {
+        artifacts.analyticsRules.push(artifact);
+      }
+    }
+  }
+  return artifacts;
+}
+
+// Extract ASIM/im tokens from query (kept for enrichment)
+function extractNormalizationTokens(query) {
+  const tokens = new Set();
+  (query.match(/\bASIM[_A-Za-z0-9]+/g) || []).forEach(t => tokens.add(t));
+  (query.match(/\bim[A-Z][A-Za-z0-9_]*/g) || []).forEach(t => tokens.add(t));
+  return Array.from(tokens);
+}
+
+// Enrich connectors with hunting and normalization metadata
+function enrichConnectors(connectors, huntingQueries) {
+  for (const c of connectors) {
+    const hits = [];
+    const norms = new Set();
+    
+    // Use the connector's detected output tables to link to hunting queries
+    const tablesToCheck = Array.from(new Set(c.outputTables || []));
+    
+    for (const h of huntingQueries) {
+      let isHit = false;
+      for(const table of tablesToCheck) {
+        // Simple check: does the hunting query string contain the table name?
+        if (h.query.includes(table)) {
+          isHit = true;
+          break;
+        }
+      }
+
+      if (isHit) {
+        hits.push({ name: h.name, path: h.path });
+        extractNormalizationTokens(h.query).forEach(tok => norms.add(tok));
+      }
+    }
+    c.hunting = hits;
+    c.huntingCount = hits.length;
+    c.normalization = Array.from(norms);
+  }
+}
+
+/* ===========================
+   4) Display Metadata
+   =========================== */
+
+function displayMaintemplateInfo(meta, uiDefMeta) {
+    const metaDiv = qs('#solutionMeta');
+    let html = '';
+    if (meta && meta.solutionName) {
+        html += `
+            <h3 class="text-lg font-semibold border-b pb-1 mb-2">General Solution Metadata</h3>
+            <ul class="text-sm space-y-0.5">
+                <li><b>Solution Name:</b> ${meta.solutionName || 'N/A'}</li>
+                <li><b>Contact E-mail:</b> ${meta.contactEmail || 'N/A'}</li>
+                <li><b>Publisher:</b> ${meta.publisher || 'N/A'}</li>
+            </ul>
+        `;
+    } else {
+        html += `<span class="text-red-700 text-sm p-2">Solution metadata (Maintemplate.json) could not be loaded or is incomplete.</span>`;
+    }
+    if (uiDefMeta) {
+        html += `
+            <h3 class="text-lg font-semibold border-b pb-1 mt-4 mb-2">Connector UI Definition</h3>
+            <div class="text-sm mb-2"><b>Description:</b> ${uiDefMeta.description || 'N/A'}</div>
+            <div class="text-sm mb-2"><b>Resource Providers:</b> ${uiDefMeta.resourceProviders.join(', ') || 'N/A'}</div>
+            <div class="text-sm mb-2"><b>Wizard Steps:</b> ${uiDefMeta.steps.map(s => s.label || '').join(', ') || 'N/A'}</div>
+        `;
+    }
+    metaDiv.innerHTML = html;
+}
+
+function displayConnectorInfo(connectorName) {
+    const detailsDiv = qs('#connectorDetails');
+    const connector = currentConnectors.find(c => c.name === connectorName);
+    
+    if (connector) {
+        // Use color coding based on CCF vs. Legacy for clear identification
+        const isCcf = connector.mechanism.includes('CCF (Codeless)');
+        const colorClass = isCcf ? 'bg-green-100 text-green-800' : 'bg-orange-100 text-orange-800';
+        
+        detailsDiv.innerHTML = `
+            <h3 class="text-lg font-semibold border-b pb-1 mb-2 text-blue-600">Connector Classification</h3>
+            <ul class="text-sm space-y-2">
+                <li class="p-2 rounded-lg font-bold ${colorClass}">
+                    <span class="text-base">${connector.mechanism}</span>
+                </li>
+                <li class="p-2 rounded-lg bg-gray-100 text-gray-800">
+                    <b>Data Flow:</b> ${connector.connectionType}
+                </li>
+                <li class="p-2 rounded-lg bg-gray-100 text-gray-800">
+                    <b>Data Source:</b> ${connector.dataSource}
+                </li>
+                <li class="p-2 rounded-lg bg-gray-100 text-gray-800">
+                    <b>Query Artifacts Linked:</b> ${connector.huntingCount || 0}
+                </li>
+            </ul>
+        `;
+    } else {
+        detailsDiv.innerHTML = `
+            <p class="text-sm text-gray-500">Select a connector above to view its technical classification (e.g., CCF vs. Legacy HTTP).</p>
+        `;
+    }
+}
+
+/* ===========================
+   5) Build graph from all artifacts 
+   =========================== */
+function buildGraph(allArtifacts) {
+  const { connectors, dcrs, workbooks, analyticsRules } = allArtifacts;
+  const nodes = [];
+  const links = [];
+  const map = Object.create(null); // Map for deduplication
+
+  const addNode = (id, type, meta) => {
+    if (!id) return null;
+    const k = String(id);
+    if (!map[k]) {
+      map[k] = { id: k, type, meta: { ...meta } };
+      nodes.push(map[k]);
+    } else {
+      // Merge metadata for existing nodes (e.g., if a table is linked multiple times)
+      map[k].meta = { ...(map[k].meta || {}), ...(meta || {}) }; 
+    }
+    return map[k];
+  };
+
+  const addLink = (s, t, type) => {
+    if (!s || !t) return;
+    const sId = typeof s === 'string' ? s : s.id;
+    const tId = typeof t === 'string' ? t : t.id;
+
+    // Use a unique ID pair for link deduplication
+    const linkKey = `${sId}->${tId}`;
+    const isDuplicate = links.some(l => 
+        (l.source === sId && l.target === tId) || (l.source.id === sId && l.target.id === tId));
+
+    if (!isDuplicate) {
+        links.push({ source: sId, target: tId, type });
+    }
+  };
+  
+  // 1. DCR Normalization Pre-processing: Map DCR ID to its associated normalization schemas (via connector link)
+  const dcrNormalizationMap = new Map();
+  for (const c of connectors) {
+      if (c.normalization && c.normalization.length > 0) {
+          for (const dcrId of c.linkedDcrIds || []) {
+              dcrNormalizationMap.set(dcrId, c.normalization);
+          }
+      }
+  }
+
+  // Filter out DCRs without detected tables and create a map for quick lookup
+  const filteredDcrs = dcrs.filter(d => d.tables && d.tables.length > 0);
+  const dcrMap = new Map(filteredDcrs.map(d => [d.id, d]));
+  
+  // 2. CREATE DCR and Target Table/Normalization Nodes (Layer 3 & 4)
+  dcrMap.forEach(d => {
+    // DCR Node (Layer 3)
+    addNode(d.id, 'dependency', { 
+        name: d.name, 
+        tables: d.tables,
+        tableCount: d.tables.length
+    });
+    
+    // Link DCR to Target Tables (Endpoint - Layer 4)
+    for (const table of d.tables || []) {
+      addNode(table, 'table', {}); 
+      addLink(d.id, table, 'writes-to-table'); // DCR -> Target Table
+    }
+
+    // Link DCR to Normalization Schemas (Endpoint - Layer 4)
+    const normalizationTokens = dcrNormalizationMap.get(d.id);
+    if (normalizationTokens && normalizationTokens.length > 0) {
+        // Use the primary normalization token or the first table name for the node ID
+        const normId = `Norm Schema (${normalizationTokens[0].split('_')[0]})`; 
+        addNode(normId, 'normalization', { tokens: normalizationTokens });
+        addLink(d.id, normId, 'normalizes-to'); // DCR -> Normalization Schema
+    }
+  });
+
+  // 3. CREATE Connector and Source Nodes (Layer 2 & 1)
+  for (const c of connectors) {
+    // Connector node (Layer 2)
+    addNode(c.name, 'connector', {
+      dataSource: c.dataSource,
+      mechanism: c.mechanism,
+      connectionType: c.connectionType,
+      huntingCount: c.huntingCount || 0,
+    });
+
+    // Source node (Layer 1)
+    addNode(c.dataSource, 'source', {});
+    
+    // Links: Source -> Connector (Layer 1 -> 2)
+    addLink(c.dataSource, c.name, 'ingests'); 
+
+    // Links: Connector -> DCR (Layer 2 -> 3)
+    for (const dcrId of c.linkedDcrIds || []) {
+      if (dcrMap.has(dcrId)) { 
+          addLink(c.name, dcrId, 'connector-to-dcr');
+      }
+    }
+
+    // Fallback: If no DCR is explicitly linked, but the connector has output tables (e.g., legacy HTTP API)
+    if ((c.linkedDcrIds?.length === 0) && c.outputTables?.length > 0) {
+        // This is a direct table output scenario, typical of legacy connectors
+        for (const table of c.outputTables) {
+            addNode(table, 'table', {});
+            addLink(c.name, table, 'writes-to-table-direct');
+        }
+    }
+  }
+  
+  // 4. Add Workbook and Analytics Rule Flow (Layer 5) 
+
+  // Workbooks (Layer 5)
+  for (const wb of workbooks) {
+    const wbId = `WB: ${wb.name}`;
+    addNode(wbId, 'workbook', { query: wb.query });
+    
+    // Link Tables/Norm Schemas to Workbook (Layer 4 -> 5)
+    for (const table of wb.tables) {
+        addNode(table, 'table', {}); // Ensure table node exists
+        addLink(table, wbId, 'queries'); 
+    }
+  }
+
+  // Analytics Rules (Layer 5)
+  for (const ar of analyticsRules) {
+    const arId = `AR: ${ar.name}`;
+    addNode(arId, 'analyticrule', { query: ar.query });
+
+    // Link Tables/Norm Schemas to Rule (Layer 4 -> 5)
+    for (const table of ar.tables) {
+        addNode(table, 'table', {}); // Ensure table node exists
+        addLink(table, arId, 'queries');
+    }
+  }
+
+  return { nodes, links };
+}
+
+/* ===========================
+   6) Render the graph
+   =========================== */
+function renderGraph(svg, data) {
+  const { nodes, links } = data;
+  svg.selectAll('*').remove();
+
+  // Define SVG size and viewBox
+  svg
+    .attr('width', 1400)
+    .attr('height', 900)
+    .attr('viewBox', '0 0 1400 900');
+
+  const width = 1400;
+  const height = 900;
+
+  // Color mapping by connector type/mechanism 
+  const typeColor = {
+    // Connector Mechanisms (Solution Type)
+    'CCF (Codeless) - API Polling': '#4caf50', // Green for modern API
+    'CCF (Codeless) - UI Driven': '#81c784', // Lighter Green for general CCF
+    'Azure Functions / HTTP Data Collector API': '#ff9800', // Orange for custom/push (Legacy)
+    'AMA/MMA Agent': '#ffccbc', // Light Orange (Agent-based)
+    'Logic Apps': '#c5e1a5', // Light Green (Orchestration/Pull)
+    'Logs Ingestion API': '#ffe082', // Light Peach/Yellow (DCR Push)
+    'Custom Code/Legacy API Interaction': '#bbdefb', // Fallback Blue (Legacy Push)
+    'Service-to-Service': '#cfd8dc', // Grey
+
+    // Functional Layers
+    'source': '#4dd0e1', // Cyan (Source)
+    'connector': '#26a69a', // Teal (Connector/Solution Type)
+    'dependency': '#81c784', // Light Green (DCR/Transformation)
+
+    // Endpoints / Data Layer
+    'table': '#ff8a65', // Coral (Target Tables)
+    'normalization': '#9575cd', // Purple (Normalization Schemas)
+
+    // Analysis Layer
+    'workbook': '#ffb74d', // Orange (Workbooks)
+    'analyticrule': '#e57373', // Red (Analytics Rules)
+  };
+
+  function getNodeColor(d) {
+    if (d.type === 'connector') {
+      const mech = d.meta?.mechanism || '';
+      return typeColor[mech] || typeColor[d.type] || '#eeeeee';
+    }
+    return typeColor[d.type] || '#eeeeee';
+  }
+
+  function wrapText(text, maxChars) {
+    const words = text.split(' ');
+    const lines = [];
+    let line = '';
+    words.forEach(word => {
+      if ((line + word).length > maxChars) {
+        lines.push(line.trim());
+        line = word + ' ';
+      } else {
+        line += word + ' ';
+      }
+    });
+    if (line.trim()) lines.push(line.trim());
+    return lines;
+  }
+
+  // Sort nodes by layer for better initial layout
+  nodes.sort((a, b) => {
+    const order = { source: 0, connector: 1, dependency: 2, table: 3, normalization: 3, workbook: 4, analyticrule: 4 };
+    return (order[a.type] ?? 99) - (order[b.type] ?? 99);
+  });
+
+  const g = svg.append('g');
+  svg.call(d3.zoom().scaleExtent([0.5, 2]).on('zoom', (e) => g.attr('transform', e.transform)))
+    .on('dblclick.zoom', null);
+
+  // Define Arrow Marker
+  svg.append('defs').append('marker')
+    .attr('id', 'arrow')
+    .attr('viewBox', '0 -5 10 10')
+    .attr('refX', 20)
+    .attr('refY', 0)
+    .attr('markerWidth', 8)
+    .attr('markerHeight', 8)
+    .attr('orient', 'auto')
+    .append('path')
+    .attr('d', 'M0,-5L10,0L0,5')
+    .attr('fill', '#333');
+
+  // --- D3 FORCES FOR STABLE CASCADED LAYOUT ---
+  const sim = d3.forceSimulation(nodes)
+    .force('link', d3.forceLink(links).id((d) => d.id).distance(120).strength(0.6))
+    .force('charge', d3.forceManyBody().strength(-100)) 
+    .force('collide', d3.forceCollide(80))
+
+    // Enforce X-positions for each layer (High strength for stability) - 5 Layers
+    .force('layerX', d3.forceX().x(d => {
+        switch (d.type) {
+            case 'source': return width * 0.10;         // Layer 1 (Data Source)
+            case 'connector': return width * 0.25;      // Layer 2 (Connector)
+            case 'dependency': return width * 0.40;     // Layer 3 (DCR)
+            case 'table': 
+            case 'normalization': return width * 0.60;  // Layer 4 (Target Tables / Normalization)
+            case 'workbook': 
+            case 'analyticrule': return width * 0.85;   // Layer 5 (Query Artifacts - Final Layer)
+            default: return width / 2;
+        }
+    }).strength(2.0)) 
+
+    .force('centerY', d3.forceY(height / 2).strength(0.6)) 
+    .force('center', d3.forceCenter(width / 2, height / 2).strength(0.1)); 
+
+  const link = g.append('g')
+    .attr('stroke', '#4b5563')
+    .attr('stroke-opacity', 0.8)
+    .selectAll('line')
+    .data(links)
+    .enter().append('line')
+    .attr('stroke-width', 2)
+    .attr('marker-end', 'url(#arrow)'); 
+
+  const rectWidth = 220;
+  const rectHeight = 110;
+  const rectRx = 12;
+  const maxCharsPerLine = 28;
+  const maxLines = 5;
+
+  const nodeGroup = g.append('g')
+    .selectAll('g')
+    .data(nodes)
+    .enter().append('g')
+    .attr('class', 'node-group')
+    .call(
+      d3.drag()
+        .on('start', (e, d) => {
+          if (!e.active) sim.alphaTarget(0.3).restart();
+          d.fx = d.x;
+          d.fy = d.y;
+        })
+        .on('drag', (e, d) => {
+          d.fx = e.x;
+          d.fy = e.y;
+        })
+        .on('end', (e, d) => {
+          if (!e.active) sim.alphaTarget(0); // Stop simulation oscillation after manual drag
+        })
+    );
+
+  nodeGroup.append('rect')
+    .attr('width', rectWidth)
+    .attr('height', rectHeight)
+    .attr('x', -rectWidth / 2)
+    .attr('y', -rectHeight / 2)
+    .attr('rx', rectRx)
+    .attr('fill', d => getNodeColor(d))
+    .attr('stroke', '#333')
+    .attr('stroke-width', 1.5)
+    .style('filter', 'drop-shadow(3px 3px 2px rgba(0,0,0,0.2))');
+
+  nodeGroup.append('title').text(d => d.id);
+
+  // --- Node Text Generation ---
+  nodeGroup.each(function (d) {
+    const g = d3.select(this);
+    let lines = [];
+    if (d.type === 'connector') {
+      const m = d.meta || {};
+      lines.push(`Connector: ${d.id}`);
+      lines.push(`Source: ${m.dataSource || 'N/A'}`);
+      lines.push(`Framework: ${m.mechanism || 'Unknown'}`); 
+      lines.push(`Method: ${m.connectionType || 'N/A'} (Flow)`);
+    } else if (d.type === 'dependency') {
+      // DCR Node content
+      const m = d.meta || {};
+      lines.push(`Resource: Data Collection Rule (DCR)`); 
+      lines.push(`Name: ${m.name || d.id}`); 
+      lines.push(`Role: Transformation/Mapping`);
+      lines.push(`Outputs: ${m.tableCount} Tables`); 
+    } else if (d.type === 'source') {
+      lines.push(`Data Source:`);
+      lines.push(`Platform: ${d.id}`);
+    } else if (d.type === 'table') { 
+      lines.push(`Target Table (Output)`);
+      lines.push(`Name: ${d.id}`);
+    } else if (d.type === 'normalization') { 
+        const m = d.meta || {};
+        lines.push(`Normalization Schema`);
+        lines.push(`Type: ${d.id.replace('Norm Schema (', '').replace(')', '')}`);
+        lines.push(`Tokens: ${m.tokens.slice(0, 2).join(', ')}${m.tokens.length > 2 ? '...' : ''}`);
+    } else if (d.type === 'workbook') {
+        lines.push(`Artifact: Workbook`);
+        lines.push(`Name: ${d.id.replace(/^WB: /, '')}`);
+    } else if (d.type === 'analyticrule') {
+        lines.push(`Artifact: Analytic Rule`);
+        lines.push(`Name: ${d.id.replace(/^AR: /, '')}`);
+    } else {
+      lines.push(d.id);
+    }
+
+    let wrappedLines = lines.flatMap(line => wrapText(line, maxCharsPerLine));
+    if (wrappedLines.length > maxLines) {
+      wrappedLines = wrappedLines.slice(0, maxLines);
+      wrappedLines[maxLines - 1] += ' ...';
+    }
+
+    const text = g.append('text')
+      .attr('font-size', 14)
+      .attr('font-family', 'Inter, sans-serif')
+      .attr('fill', '#222')
+      .attr('text-anchor', 'start')
+      .attr('x', -rectWidth / 2 + 10)
+      .attr('y', -rectHeight / 2 + 20);
+
+    wrappedLines.forEach((line, i) => {
+      text.append('tspan')
+        .attr('x', -rectWidth / 2 + 10)
+        .attr('dy', i === 0 ? 0 : 18)
+        .text(line);
+    });
+  });
+
+  sim.on('tick', () => {
+    link
+      .attr('x1', d => d.source.x).attr('y1', d => d.source.y)
+      .attr('x2', d => d.target.x).attr('y2', d => d.target.y);
+    nodeGroup
+      .attr('transform', d => `translate(${d.x},${d.y})`);
+  });
+
+  window.onresize = () => {
+    // Only call restart for minor adjustments, maintaining the layer strength
+    sim.alpha(0.2).restart();
+  };
+}
+
+/* ===========================
+   7) Visualization flow
+   =========================== */
+async function visualizeSolution() {
+  try {
+    const repoStr = qs('#repoInput').value.trim();
+    const branch = qs('#branchInput').value.trim();
+    const sol = qs('#solutionSelect').value.trim();
+
+    if (!repoStr.includes('/') || !sol) {
+      setStatus('Please enter a valid GitHub repo and select a Solution.', true);
+      return;
+    }
+
+    const [owner, repo] = repoStr.split('/');
+    setStatus(`Listing all JSON paths in "${sol}" on branch "${branch}"...`);
+    const paths = await listJsonPathsForSolution(owner, repo, branch, sol);
+    if (paths.length === 0) {
+      setStatus('No JSON files found in this solution. Check the repo and branch.', true);
+      return;
+    }
+
+    setStatus(`Fetching & classifying connectors and DCRs in "${sol}" ...`);
+    const { connectors, dcrs, filesProcessed } = await fetchConnectorsAndDcrs(owner, repo, branch, paths, sol);
+
+    setStatus(`Collecting Workbooks, Analytics Rules, and Hunting Queries...`);
+    const { hunting: huntingQueries, workbooks, analyticsRules } = await collectQueryArtifacts(owner, repo, branch, paths);
+
+    enrichConnectors(connectors, huntingQueries);
+
+    // Extract Maintemplate and UI Definition metadata
+    const maintemplateMeta = await extractMaintemplateMetadata(owner, repo, branch, sol, paths);
+    const uiDefMeta = await extractCreateUiDefinition(owner, repo, branch, sol, paths);
+
+    currentMaintemplateMeta = maintemplateMeta;
+
+    // Display both metadata panels
+    displayMaintemplateInfo(currentMaintemplateMeta, uiDefMeta);
+
+    // Deduplicate connectors by name
+    const uniqueConnectors = Array.from(new Map(connectors.map(c => [c.name, c])).values());
+
+    currentConnectors = uniqueConnectors;
+    const connSel = qs('#connectorSelect');
+    connSel.innerHTML = '<option value="">-- Select a specific Connector --</option>';
+    connSel.disabled = false;
+    for (const c of uniqueConnectors) {
+        const opt = document.createElement('option');
+        opt.value = c.name;
+        opt.textContent = c.name;
+        connSel.appendChild(opt);
+    }
+    displayConnectorInfo(null);
+
+    const allArtifacts = { connectors: uniqueConnectors, dcrs, workbooks, analyticsRules };
+    const { nodes, links } = buildGraph(allArtifacts);
+    const svg = d3.select('svg');
+    renderGraph(svg, { nodes, links });
+    setStatus(`Done. Files processed: ${filesProcessed}. Rendered ${nodes.length} nodes / ${links.length} links.`, false);
+  } catch (err) {
+    console.error(err);
+    setStatus(err.message || 'Error', true);
+  }
+}
+
+/* ===========================
+   8) Button bindings
+   ===========================*/
+document.addEventListener('DOMContentLoaded', () => {
+  const btnLoad = qs('#btnLoad');
+  const btnViz = qs('#btnViz');
+  const connSel = qs('#connectorSelect');
+
+  if (btnLoad) {
+    btnLoad.addEventListener('click', loadSolutions);
+  }
+
+  if (btnViz) {
+    btnViz.addEventListener('click', visualizeSolution);
+  }
+  
+  if (connSel) {
+    connSel.addEventListener('change', (e) => displayConnectorInfo(e.target.value));
+  }
+
+  // Set default repo for quick testing
+  if (!qs('#repoInput').value) {
+    qs('#repoInput').value = 'Azure/Azure-Sentinel'; 
+  }
+});
+    </script>
+</body>
+</html>
