@@ -3,6 +3,8 @@
 An interactive single‑page tool for exploring Microsoft Sentinel solution repositories.  
 It fetches solution artifacts directly from a GitHub repo, classifies them (connectors, DCRs, tables, analytics rules, hunting queries, workbooks, playbooks, infra, deployments, etc.), builds a relationship graph, and analyzes connector architecture (CCF vs Legacy). Includes filtering, search, exports, dark mode, and diagnostics.
 
+Go to  : https://aymansahmed.github.io/Sentinel-Connector-Visualizer/ 
+
 ---
 
 Core Features
