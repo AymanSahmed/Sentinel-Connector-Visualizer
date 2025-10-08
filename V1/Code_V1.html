@@ -74,7 +74,7 @@ body { font-family: Inter, system-ui, sans-serif; background:#f7f7f7; }
               <option value="">(Load solutions first)</option>
             </select>
           <div class="mt-3 flex items-center gap-2 text-xs">
-            <input id="includeNonCore" type="checkbox" class="h-4 w-4" checked />
+            <input id="includeNonCore" type="checkbox" class="h-4 w-4" />
             <label for="includeNonCore" class="text-gray-700">Include Non-Core JSON</label>
           </div>
         </div>
@@ -154,14 +154,12 @@ const STATE = {
   connectors: [],
   meta: {},
   graph: { nodes:[], links:[] },
-  fullGraph: null,
   layoutMode: 'force',
   cache: new Map(),
   artifacts: null,
   simulation: null,
   zoom: null,
-  transform: d3.zoomIdentity,
-  lastIncludeNonCore: true      
+  transform: d3.zoomIdentity
 };
 
 const TYPE_ORDER = [
@@ -278,18 +276,18 @@ async function fetchAll(owner,repo,branch,paths,includeNonCore){
     'dcr.json','tableschema.json','host.json','functionapp.json','azuredeploy.json',
     'createuidefinition.json'
   ]);
-  const skipNames = new Set(['testparameters.json']);
-  let skippedTestParams=0;
+  const skipNames = new Set(['testparameters.json']); // <- new
+  let skippedTestParams = 0;                          // <- new
   const out=[];
   for(const p of paths){
     const name=p.split('/').pop().toLowerCase();
-    if(skipNames.has(name)){ skippedTestParams++; continue; }
+    if (skipNames.has(name)) { skippedTestParams++; continue; } // <- new (skip)
     const isCore=coreNames.has(name);
     if(!includeNonCore && !isCore) continue;
     const js=await fetchJson(base+p,'artifact');
     if(js) out.push({path:p,json:js,core:isCore});
   }
-  if(skippedTestParams) logStatus(`Skipped ${skippedTestParams} TestParameters file(s).`);
+  if (skippedTestParams) logStatus(`Skipped ${skippedTestParams} TestParameters file(s).`);
   logStatus(`Fetched ${out.length} JSON files (${includeNonCore?'core+non-core':'core only'})`);
   return out;
 }
@@ -408,28 +406,28 @@ function buildArtifacts(files){
       default: acc.others.push(c); break;
     }
   });
-
-  // Heuristic connector->DCR link
+  // heuristic connector->DCR linking
   const dcrIdsLower=new Map(acc.dcrs.map(d=>[d.id.toLowerCase(),d.id]));
   acc.connectors.forEach(c=>{
-    const text=JSON.stringify(c.raw||{}).toLowerCase();
+    const text=JSON.stringify(c.raw).toLowerCase();
     c.linkedDcrIds=[];
-    dcrIdsLower.forEach((orig,low)=>{ if(text.includes(low)) c.linkedDcrIds.push(orig); });
+    dcrIdsLower.forEach((orig,low)=>{
+      if(text.includes(low)) c.linkedDcrIds.push(orig);
+    });
   });
 
-  // Presence flags (add solutionmetadata)
+  // presence flags
   const nameSet=new Set(files.map(f=>f.path.split('/').pop().toLowerCase()));
   acc.filePresence={
     hasPollerConfig:nameSet.has('pollerconfig.json'),
     hasDcr:nameSet.has('dcr.json'),
     hasHost:nameSet.has('host.json'),
     hasFunctionApp:nameSet.has('functionapp.json'),
-    hasCreateUiDefinition:nameSet.has('createuidefinition.json'),
-    hasSolutionMetadata:nameSet.has('solutionmetadata.json')
+    hasCreateUiDefinition:nameSet.has('createuidefinition.json')
   };
-
   return acc;
 }
+
 async function extractMaintemplate(owner,repo,branch,solution,paths){
   const mt=paths.find(p=>/main(template)?\.json$/i.test(p));
   if(!mt) return { solutionName:solution, publisher:'Unknown', contactEmail:'Unknown' };
@@ -768,9 +766,12 @@ function highlightNode(id){
 function updateMetadataPanel(meta, art){
   const div=qs('#solutionMeta');
   if(!meta){ div.innerHTML='<p class="text-xs text-gray-500">No metadata.</p>'; return; }
-  const uniqueTables=new Set();
-  art.connectors.forEach(c=>(c.tables||[]).forEach(t=>uniqueTables.add(t)));
-  art.dcrs.forEach(d=>(d.tables||[]).forEach(t=>uniqueTables.add(t)));
+
+  // New aggregated info
+  const uniqueTables = new Set();
+  art.connectors.forEach(c=> (c.tables||[]).forEach(t=>uniqueTables.add(t)));
+  art.dcrs.forEach(d=> (d.tables||[]).forEach(t=>uniqueTables.add(t)));
+
   const fp=art.filePresence||{};
   div.innerHTML=`
     <h4 class="text-xs font-semibold tracking-wide uppercase text-gray-600 mb-1">Solution Metadata</h4>
@@ -778,16 +779,18 @@ function updateMetadataPanel(meta, art){
       <li><b>Name:</b> ${meta.solutionName}</li>
       <li><b>Publisher:</b> ${meta.publisher}</li>
       <li><b>Contact:</b> ${meta.contactEmail}</li>
-      <li><b>Published (Content Hub):</b> ${meta.published}</li>
       <li><b>Artifacts:</b>
-        Conn ${art.connectors.length} | DCR ${art.dcrs.length} | Wkb ${art.workbooks.length} |
-        Analytic ${art.analytics.length} | Playbook ${art.playbooks.length} | Hunting ${art.hunting.length}
+        Conn ${art.connectors.length} |
+        DCR ${art.dcrs.length} |
+        Wkb ${art.workbooks.length} |
+        Analytic ${art.analytics.length} |
+        Playbook ${art.playbooks.length} |
+        Hunting ${art.hunting.length}
       </li>
       <li><b>Unique Tables (Conn + DCR):</b> ${uniqueTables.size}</li>
       <li><b>Non-Core Included:</b> ${STATE.lastIncludeNonCore ? 'Yes' : 'No'}</li>
       <li><b>Core Files:</b>
-        <span class="${fp.hasSolutionMetadata?'text-green-600':'text-gray-400'}">solutionMetadata</span>,
-        <span class="${fp.hasCreateUiDefinition?'text-green-600':'text-gray-400'}">createUiDef</span>,
+        <span class="${fp.hasCreateUiDefinition?'text-green-600':'text-gray-400'}">UI Def</span>,
         <span class="${fp.hasPollerConfig?'text-green-600':'text-gray-400'}">pollerConfig</span>,
         <span class="${fp.hasDcr?'text-green-600':'text-gray-400'}">dcr</span>,
         <span class="${fp.hasHost?'text-green-600':'text-gray-400'}">host</span>,
@@ -806,62 +809,6 @@ function populateConnectorSelect(connectors){
     o.value=c.id; o.textContent=c.id; sel.appendChild(o);
   });
   sel.disabled=false;
-}
-
-function normalizeMechanism(mech){
-  if(!mech) return '';
-  if(/CCF.*API Poll/i.test(mech) || /API Polling/i.test(mech))
-    return 'CCF (Codeless) - API Poller';
-  if(/CCF.*UI/i.test(mech) || /CCF - UI/i.test(mech))
-    return 'CCF (Codeless) - UI Driven';
-  if(/Logs Ingestion API/i.test(mech))
-    return 'Logs Ingestion API';
-  if(/Legacy/i.test(mech))
-    return 'Legacy - Function';
-  return mech;
-}
-function deriveDataFlow(conn){
-  const mech = (conn.mechanism||'').toLowerCase();
-  if(mech.includes('poll')) return 'Pull';
-  return 'Push';
-}
-function deriveDataSource(conn){
-  // Take id, strip parentheses e.g. "1Password (Serverless)" -> "1Password"
-  return (conn.id||'').replace(/\(.*?\)/,'').trim();
-}
-function displayConnectorInfo(name){
-  const c=STATE.connectors.find(x=>x.id===name);
-  const div=qs('#connectorDetails');
-  if(!c){
-    div.innerHTML='<p class="text-xs text-gray-500">Select a connector above to view its technical classification.</p>';
-    highlightNode(null);
-    return;
-  }
-  const mechNorm=normalizeMechanism(c.mechanism);
-  const isCcf=/CCF \(Codeless\)/i.test(mechNorm);
-  const badgeClass=isCcf?'bg-green-100 text-green-800':'bg-orange-100 text-orange-800';
-  const dataFlow=deriveDataFlow(c);
-  const dataSource=deriveDataSource(c);
-  const streams=(c.streams||[]).join(', ') || 'N/A';
-  const tables=(c.tables||[]).join(', ') || 'N/A';
-  const uiConfig = c.raw?.properties?.connectorUiConfig || c.raw?.properties?.connectorUIConfig ? 'Yes' : 'No';
-  const queryArtifactsLinked = (c.analyticCount||0)+(c.huntingCount||0);
-  div.innerHTML=`
-    <h3 class="text-xs font-semibold border-b pb-1 mb-2 text-blue-600 uppercase">Connector Classification</h3>
-    <ul class="text-[11px] space-y-2">
-      <li class="p-2 rounded-lg font-bold ${badgeClass}">
-        <span class="text-[12px]">${mechNorm||'Unknown Mechanism'}</span>
-      </li>
-      <li class="p-2 rounded-lg bg-gray-100 text-gray-800"><b>Data Flow:</b> ${dataFlow}</li>
-      <li class="p-2 rounded-lg bg-gray-100 text-gray-800"><b>Data Source:</b> ${dataSource||'N/A'}</li>
-      <li class="p-2 rounded-lg bg-gray-100 text-gray-800"><b>Streams:</b> ${streams}</li>
-      <li class="p-2 rounded-lg bg-gray-100 text-gray-800"><b>Tables:</b> ${tables}</li>
-      <li class="p-2 rounded-lg bg-gray-100 text-gray-800"><b>UI Config:</b> ${uiConfig}</li>
-      <li class="p-2 rounded-lg bg-gray-100 text-gray-800"><b>Query Artifacts Linked:</b> ${queryArtifactsLinked}</li>
-    </ul>
-    <div class="mt-2 text-[10px] text-gray-500 break-all"><b>Path:</b> ${c.path||''}</div>
-  `;
-  highlightNode(name);
 }
 
 function displayConnectorInfo(id){
@@ -884,40 +831,27 @@ function displayConnectorInfo(id){
 
 function buildFiltersUI(){
   const cont=qs('#filterContainer');
-  const types=new Set(STATE.fullGraph?.nodes.map(n=>n.type));
+  const types=new Set(STATE.graph.nodes.map(n=>n.type));
   cont.innerHTML='';
   TYPE_ORDER.forEach(t=>{
     if(!types.has(t)) return;
-    const isSolution = t==='solution';
     const lbl=document.createElement('label');
     lbl.className='flex items-center gap-1';
-    lbl.innerHTML=`
-      <input type="checkbox" data-filter="${t}" ${isSolution?'checked disabled':'checked'}>
-      ${TYPE_LABEL[t]||t}`;
+    lbl.innerHTML=`<input type="checkbox" data-filter="${t}" checked>${TYPE_LABEL[t]||t}`;
     cont.appendChild(lbl);
   });
-  qsa('[data-filter]').forEach(cb=>!cb.disabled && cb.addEventListener('change',applyFilters));
+  qsa('[data-filter]').forEach(cb=>cb.addEventListener('change',applyFilters));
 }
 
 function applyFilters(){
-  if(!STATE.fullGraph) return;
-  const active=new Set(
-    qsa('[data-filter]').filter(cb=>cb.checked).map(cb=>cb.getAttribute('data-filter'))
-  );
-  // Always force include solution
-  active.add('solution');
-
-  const all=STATE.fullGraph;
-  const fnodes=all.nodes.filter(n=>active.has(n.type));
+  const active=new Set(qsa('[data-filter]').filter(cb=>cb.checked).map(cb=>cb.getAttribute('data-filter')));
+  const fnodes=STATE.graph.nodes.filter(n=>active.has(n.type));
   const ids=new Set(fnodes.map(n=>n.id));
-
-  // Keep links only where both endpoints remain
-  const flinks=all.links.filter(l=>ids.has(l.source)&&ids.has(l.target));
-
+  const flinks=STATE.graph.links.filter(l=>ids.has(l.source)&&ids.has(l.target));
   STATE.graph={nodes:fnodes,links:flinks};
   renderGraph({preserveTransform:true});
-  buildLegend();
 }
+
 function buildLegend(){
   const legend=qs('#legendItems');
   legend.innerHTML='';
@@ -1022,7 +956,7 @@ async function visualizeHandler(){
     const sol=qs('#solutionSelect').value.trim();
     const branch=qs('#branchInput').value.trim();
     const includeNonCore=qs('#includeNonCore').checked;
-    STATE.lastIncludeNonCore = includeNonCore;
+    STATE.lastIncludeNonCore = includeNonCore; // <- new
     if(!repoStr.includes('/')||!sol) return setStatus('Select repo & solution first',true);
     const [owner,repo]=repoStr.split('/');
     setStatus(`Gathering JSON file paths for ${sol}...`);
@@ -1030,48 +964,15 @@ async function visualizeHandler(){
     if(!paths.length) return setStatus('No JSON for solution',true);
     setStatus(`Downloading JSON (${includeNonCore?'core + non-core':'core only'})...`);
     const files=await fetchAll(owner,repo,branch,paths,includeNonCore);
-
     setStatus('Classifying artifacts...');
     const art=buildArtifacts(files);
-
-    // Compute query artifact linkage counts per connector (analytics + hunting)
-    const analyticsByTable=new Map();
-    art.analytics.forEach(a=>{
-      (a.tables||[]).forEach(t=>{
-        if(!analyticsByTable.has(t)) analyticsByTable.set(t,[]);
-        analyticsByTable.get(t).push(a);
-      });
-    });
-    const huntingByTable=new Map();
-    art.hunting.forEach(h=>{
-      (h.tables||[]).forEach(t=>{
-        if(!huntingByTable.has(t)) huntingByTable.set(t,[]);
-        huntingByTable.get(t).push(h);
-      });
-    });
-    art.connectors.forEach(c=>{
-      const tables=c.tables||[];
-      let analyticCount=0, huntingCount=0;
-      tables.forEach(t=>{
-        analyticCount += (analyticsByTable.get(t)||[]).length;
-        huntingCount  += (huntingByTable.get(t)||[]).length;
-      });
-      c.analyticCount=analyticCount;
-      c.huntingCount=huntingCount;
-    });
-
     STATE.artifacts=art;
     STATE.connectors=art.connectors;
     populateConnectorSelect(STATE.connectors);
-
     const meta=await extractMaintemplate(owner,repo,branch,sol,paths);
-    // Heuristic published flag
-    meta.published = art.filePresence.hasSolutionMetadata ? 'Yes' : 'Unknown / No metadata';
     STATE.meta=meta;
     updateMetadataPanel(meta, art);
-
     const graph=buildGraph(art, meta.solutionName||sol);
-    STATE.fullGraph=graph;          // snapshot full graph
     STATE.graph=graph;
     buildFiltersUI();
     buildLegend();
