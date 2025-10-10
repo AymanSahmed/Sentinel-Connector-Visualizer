@@ -482,10 +482,15 @@ Add a `LICENSE` file (e.g., MIT) if you plan to distribute externally.
 
 ---
 
- Disclaimer
-
-Heuristics provided are best‑effort inference and not authoritative indicators of ingestion architecture. Always verify connector ingestion design via official Microsoft Sentinel documentation or code artifacts.
-
+  Disclaimer
+This visualizer applies heuristic pattern matching to infer connector architecture (CCF vs HTTP Data Collector API), publication status, resource relationships, and other metadata. The output is an aid for exploration—not an authoritative source.  
+Because detection relies on convention, file naming, partial JSON content, and text patterns, it can generate false positives, false negatives, or omit emerging features not yet reflected in the logic.  
+DO NOT rely on these results alone for compliance, security, operational, billing, or architectural decisions. Always confirm findings against:
+1. Official Microsoft Sentinel / Azure documentation
+2. Actual deployed Azure resources and portal configuration
+3. The underlying source JSON and change history
+4. Internal review / approval workflows  
+No warranty is provided, and the maintainers accept no liability for actions taken based on this tool’s output.
 ---
 
  Appendix: Optional Improved Architecture Function (Scoring)
@@ -502,5 +507,6 @@ function analyzeSolutionArchitecture(art){
 Integrate and test across a mix of known pure HTTP, hybrid, and confirmed CCF solutions; adjust thresholds if false positives remain.
 
 ---
+
 
 Happy hunting & visualizing!

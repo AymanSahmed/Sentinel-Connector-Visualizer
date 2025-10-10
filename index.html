@@ -2,7 +2,10 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8" />
-<title>Sentinel Solution Dependency Visualizer</title>
+<title>Sentinel Solution Visualizer</title>
+<div class="disclaimer">
+ DISCLAIMER:- The insights, classifications (e.g., CCF vs HTTP Data Collector), and metadata produced by this tool are heuristic best‑effort interpretations of repository JSON files. They are not guaranteed to be complete, current, or correct. Always validate results against official Microsoft Sentinel documentation, the actual deployed resources, and your own review processes.
+</div>
 <meta name="viewport" content="width=device-width,initial-scale=1" />
 <meta name="description" content="Visualize Microsoft Sentinel solution artifacts, packaging core files, and relationships." />
 
@@ -80,6 +83,33 @@ body {font-family:Inter,system-ui,sans-serif;background:var(--bg);color:var(--te
 .status-pub-yes{background:#166534;color:#dcfce7;}
 .dark .panel {background:#1f2b3a;}
 /* Tailwind fallback minimal */
+
+  .disclaimer {
+    position: fixed;
+    left: 10px;
+    bottom: 10px;
+    max-width: 360px;
+    font-size: 11px;
+    line-height: 1.3;
+    font-weight: 500;
+    color: #b91c1c;           /* red-700 */
+    background: rgba(255,255,255,0.85);
+    border: 1px solid #fca5a5; /* red-300 edge */
+    padding: 6px 8px 7px;
+    border-radius: 6px;
+    z-index: 9999;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.15);
+    backdrop-filter: blur(4px);
+  }
+  .dark .disclaimer {
+    color: #fecaca;           /* red-200 */
+    background: rgba(31,41,55,0.75);
+    border-color: #b91c1c;
+  }
+  /* Optional: hide on very small screens */
+  @media (max-width: 520px) {
+    .disclaimer { font-size: 10px; max-width: 70%; }
+  }
 </style>
 <script>
 (function(){
