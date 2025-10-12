@@ -1,0 +1,901 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Sentinel Solution Dependency Visualizer (Restored Model)</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap');
+body { font-family: 'Inter', sans-serif; background:#f7f7f7; }
+.container { max-width: 1480px; }
+#visualization-container {
+  border:2px solid #e5e7eb;
+  background:#ffffff;
+  border-radius:14px;
+  box-shadow:0 10px 18px -6px rgba(0,0,0,0.15);
+  position:relative;
+}
+.node-group rect { transition:all .18s ease; }
+.node-group:hover rect { transform:scale(1.04); }
+.graph-link { transition:stroke-width .2s, stroke-opacity .25s; }
+.graph-link:hover { stroke-width:3; stroke-opacity:1; }
+#tooltip { pointer-events:none; }
+.badge {
+  display:inline-block;
+  background:#eef2ff;
+  color:#1d4ed8;
+  padding:2px 6px;
+  border-radius:6px;
+  font-size:.6rem;
+  font-weight:600;
+  letter-spacing:.5px;
+}
+.badge-arch-ccf { background:#064e3b; color:#a7f3d0; }
+.badge-arch-http { background:#92400e; color:#ffedd5; }
+.badge-arch-unk { background:#374151; color:#d1d5db; }
+pre.mini-tree {
+  background:#1e293b;
+  color:#e2e8f0;
+  padding:.75rem .85rem;
+  border-radius:10px;
+  font-size:.7rem;
+  line-height:1.25rem;
+  font-family:ui-monospace,Menlo,Consolas,monospace;
+  max-height:340px;
+  overflow:auto;
+  box-shadow:inset 0 0 0 1px #334155;
+}
+.label-block b { color:#334155; }
+.connector-badge {
+  background:#1d4ed8;
+  color:#fff;
+  padding:2px 6px;
+  font-size:.55rem;
+  border-radius:6px;
+  font-weight:600;
+  letter-spacing:.4px;
+}
+table.meta-table { width:100%; font-size:.72rem; border-collapse:collapse; }
+table.meta-table th, table.meta-table td {
+  border:1px solid #e2e8f0;
+  padding:4px 6px;
+  vertical-align:top;
+}
+table.meta-table th {
+  background:#f1f5f9;
+  font-weight:600;
+  color:#334155;
+  text-transform:uppercase;
+  font-size:.6rem;
+  letter-spacing:.5px;
+}
+.small-dim { font-size:.65rem; color:#64748b; }
+.warn-text { color:#b45309; font-size:.65rem; font-weight:600; }
+.core-chip { background:#f1f5f9; padding:2px 6px; font-size:.6rem; border-radius:6px; margin:2px 4px 2px 0; display:inline-block; }
+hr.section { border:none; height:1px; background:#e2e8f0; margin:1rem 0; }
+</style>
+</head>
+<body class="p-5 space-y-8">
+
+<header class="text-center space-y-2">
+  <h1 class="text-3xl font-bold tracking-tight text-gray-800">Sentinel Solution Dependency Visualizer</h1>
+  <p id="status" class="text-sm text-gray-600">Enter details and click "Load Solutions".</p>
+</header>
+
+<!-- Controls -->
+<div class="bg-white p-6 rounded-xl shadow-md border border-gray-200 grid grid-cols-1 md:grid-cols-8 gap-4 items-end">
+  <div class="md:col-span-2">
+    <label class="block text-sm font-medium text-gray-700">GitHub Repo (owner/repo)</label>
+    <input id="repoInput" value="Azure/Azure-Sentinel" class="mt-1 w-full border rounded-md p-2 focus:ring-blue-500 focus:border-blue-500">
+  </div>
+  <div>
+    <label class="block text-sm font-medium text-gray-700">Branch</label>
+    <input id="branchInput" value="master" class="mt-1 w-full border rounded-md p-2 focus:ring-blue-500 focus:border-blue-500">
+  </div>
+  <div>
+    <label class="block text-sm font-medium text-gray-700">GitHub PAT (optional)</label>
+    <input id="tokenInput" type="password" class="mt-1 w-full border rounded-md p-2 focus:ring-blue-500 focus:border-blue-500" placeholder="Token">
+  </div>
+  <div>
+    <label class="block text-sm font-medium text-gray-700">Mode</label>
+    <select id="modeInput" class="mt-1 w-full border rounded-md p-2">
+      <option value="all" selected>All JSON</option>
+      <option value="core">Core Only</option>
+    </select>
+  </div>
+  <div>
+    <label class="block text-sm font-medium text-gray-700">Solution</label>
+    <select id="solutionSelect" class="mt-1 w-full border rounded-md p-2">
+      <option value="">(Load solutions first)</option>
+    </select>
+  </div>
+  <div class="flex flex-col gap-2 md:col-span-2">
+    <button id="btnLoad" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 rounded-lg shadow">Load Solutions</button>
+    <button id="btnVisualize" class="w-full bg-green-600 hover:bg-green-700 text-white font-semibold py-2 rounded-lg shadow">Visualize</button>
+  </div>
+</div>
+
+<div class="grid grid-cols-1 lg:grid-cols-4 gap-7">
+  <!-- LEFT: Selection + Metadata -->
+  <div class="space-y-7 lg:col-span-1">
+    <div class="bg-white p-5 rounded-xl shadow-md border border-gray-200">
+      <h3 class="text-lg font-semibold mb-3 border-b pb-2">Connector Selector</h3>
+      <select id="connectorSelect" class="w-full border rounded-md p-2" disabled>
+        <option value="">(Visualize a solution first)</option>
+      </select>
+      <div id="connectorDetails" class="mt-5 text-sm text-gray-600">
+        <p class="text-gray-500">Select a connector after visualization to see details.</p>
+      </div>
+    </div>
+
+    <div class="bg-white p-5 rounded-xl shadow-md border border-gray-200">
+      <h3 class="text-lg font-semibold mb-3 border-b pb-2">Solution Metadata</h3>
+      <div id="solutionMeta" class="text-sm text-gray-600 space-y-2">
+        <p class="text-gray-500">Will populate after visualization.</p>
+      </div>
+    </div>
+
+    <div class="bg-white p-5 rounded-xl shadow-md border border-gray-200">
+      <h3 class="text-lg font-semibold mb-3 border-b pb-2">Logic Analyzing (Minimal)</h3>
+      <pre id="logicTree" class="mini-tree">[No Data]</pre>
+      <p class="small-dim mt-2">Strictly derived from createUiDefinition.json only.</p>
+    </div>
+
+  </div>
+
+  <!-- CENTER+RIGHT: Visualization & Hierarchy -->
+  <div class="lg:col-span-3 space-y-7">
+    <div id="visualization-container" class="h-[900px]">
+      <div id="tooltip" class="absolute p-2 bg-gray-900 text-white rounded-md shadow-xl text-xs opacity-0"></div>
+      <svg id="viz" class="w-full h-full"></svg>
+    </div>
+
+    <div class="bg-white p-6 rounded-xl shadow-md border border-gray-200">
+      <h3 class="text-lg font-semibold mb-4 border-b pb-2">Detailed Hierarchy</h3>
+      <pre id="detailedHierarchy" class="mini-tree">[No Data]</pre>
+      <div id="archSummary" class="mt-4 text-xs text-gray-600"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+'use strict';
+
+/* =========================
+   State
+========================= */
+const STATE = {
+  cache: new Map(),
+  files: [],
+  createUi: null,
+  artifacts: {
+    connectors: [],
+    dcrs: [],
+    workbooks: [],
+    analytics: [],
+    hunting: [],
+    playbooks: []
+  },
+  dcrTables: new Set(),
+  dcrStreams: new Set(),
+  arch: null,
+  solutionName: '',
+  meta: {},
+  corePresence: {},
+  connectorJsons: [],
+  minimalTree: '',
+  hierarchyTree: ''
+};
+
+/* =========================
+   Basic Utilities
+========================= */
+const $ = s => document.querySelector(s);
+function setStatus(msg, err=false){
+  const el = $('#status');
+  if(el){
+    el.textContent = msg;
+    el.style.color = err? '#b91c1c' : '#6b7280';
+    el.title = msg;
+  }
+  console.log('[STATUS]', msg);
+}
+function ghHeaders(){
+  const t = ($('#tokenInput')?.value||'').trim();
+  const h = { 'Accept':'application/vnd.github+json' };
+  if(t) h.Authorization = `token ${t}`;
+  return h;
+}
+async function fetchJson(url, label){
+  if(STATE.cache.has(url)) return STATE.cache.get(url);
+  const r = await fetch(url, { headers: ghHeaders() });
+  if(!r.ok) throw new Error(label + ' HTTP ' + r.status);
+  const j = await r.json();
+  STATE.cache.set(url,j);
+  return j;
+}
+function escapeHtml(str){
+  return String(str)
+    .replace(/&/g,'&amp;')
+    .replace(/</g,'&lt;')
+    .replace(/>/g,'&gt;')
+    .replace(/"/g,'&quot;')
+    .replace(/'/g,'&#39;');
+}
+
+/* =========================
+   Step 1: Load Solutions
+========================= */
+async function loadSolutions(){
+  try{
+    const repoStr = ($('#repoInput').value||'').trim();
+    if(!repoStr.includes('/')) return setStatus('Repo must be owner/repo', true);
+    const [owner,repo] = repoStr.split('/');
+    const branch = $('#branchInput').value.trim() || 'master';
+    setStatus('Listing solutions ...');
+    const url = `https://api.github.com/repos/${owner}/${repo}/contents/Solutions?ref=${encodeURIComponent(branch)}`;
+    const res = await fetch(url,{headers:ghHeaders()});
+    if(!res.ok) throw new Error('HTTP '+res.status);
+    const data = await res.json();
+    const dirs = (data||[]).filter(x=>x.type==='dir').map(x=>x.name).sort();
+    const sel = $('#solutionSelect');
+    sel.innerHTML='';
+    if(!dirs.length){
+      sel.innerHTML='<option value="">(none)</option>';
+      return setStatus('No Solutions found',true);
+    }
+    dirs.forEach(d=>{
+      const o=document.createElement('option');
+      o.value=d; o.textContent=d;
+      sel.appendChild(o);
+    });
+    setStatus(`Loaded ${dirs.length} solutions. Select + Visualize.`);
+  }catch(e){
+    setStatus('Load error: '+e.message,true);
+  }
+}
+
+/* =========================
+   Step 2: List JSON paths
+========================= */
+async function listJsonPaths(owner,repo,branch,solution){
+  const branchRes = await fetch(`https://api.github.com/repos/${owner}/${repo}/branches/${encodeURIComponent(branch)}`,{headers:ghHeaders()});
+  if(!branchRes.ok) throw new Error('Branch fetch '+branchRes.status);
+  const branchJson = await branchRes.json();
+  const sha = branchJson?.commit?.commit?.tree?.sha;
+  if(!sha) throw new Error('Missing tree SHA');
+  const treeRes = await fetch(`https://api.github.com/repos/${owner}/${repo}/git/trees/${sha}?recursive=1`,{headers:ghHeaders()});
+  if(!treeRes.ok) throw new Error('Tree fetch '+treeRes.status);
+  const tree = await treeRes.json();
+  const prefix = `Solutions/${solution}/`;
+  return (tree.tree||[])
+    .filter(n=> n.type==='blob' && n.path.startsWith(prefix) && n.path.toLowerCase().endsWith('.json'))
+    .map(n=>n.path);
+}
+
+/* =========================
+   Step 3: Fetch relevant files
+   - Core always kept
+   - Connector JSON retained even in core mode
+========================= */
+const CORE_FILES = new Set([
+  'createuidefinition.json',
+  'maintemplate.json',
+  'solutionmetadata.json',
+  'pollerconfig.json',
+  'dcr.json',
+  'tableschema.json',
+  'host.json',
+  'functionapp.json'
+]);
+function isConnectorPath(p){
+  return /connector/i.test(p) || /dataconnector/i.test(p) || /data[-_ ]connectors?/i.test(p);
+}
+async function fetchSolutionFiles(owner,repo,branch,paths,mode){
+  const base=`https://raw.githubusercontent.com/${owner}/${repo}/${encodeURIComponent(branch)}/`;
+  const fetched=[];
+  for(const p of paths){
+    const fn = p.split('/').pop().toLowerCase();
+    const core = CORE_FILES.has(fn);
+    if(mode==='core' && !core && !isConnectorPath(p)) continue;
+    try{
+      const json = await fetchJson(base+p, fn);
+      fetched.push({ path:p, fileName:fn, json, core });
+    }catch(e){
+      console.warn('Fetch fail', p, e.message);
+    }
+  }
+  return fetched;
+}
+
+/* =========================
+   Step 4: createUiDefinition deep analyzer
+========================= */
+function analyzeCreateUiDefinition(json){
+  if(!json || typeof json!=='object') return null;
+  // Basics detection
+  const basicsCandidates = [];
+  (function crawl(o){
+    if(!o || typeof o!=='object') return;
+    if((o.label||o.displayName||o.name) && (o.description||o.longDescription)) basicsCandidates.push(o);
+    if(Array.isArray(o)){ o.forEach(crawl); return; }
+    for(const k in o){
+      if(typeof o[k]==='object') crawl(o[k]);
+    }
+  })(json);
+  const basics =
+      json?.parameters?.config?.basics ||
+      json?.parameters?.basics ||
+      basicsCandidates.find(b=>b.label) ||
+      basicsCandidates[0] || {};
+  const solutionName =
+    basics.label || basics.displayName || basics.name ||
+    json.label || json.name || 'Unknown Solution';
+  const description =
+    basics.description || basics.longDescription || json.description || '';
+  const icon = basics.icon || basics.logo || basics.smallIcon || '';
+
+  const artifacts = {
+    dataConnectors: [],
+    workbooks: [],
+    analyticRules: [],
+    huntingQueries: [],
+    playbooks: []
+  };
+
+  function harvest(r){
+    if(!r || typeof r!=='object') return;
+    const type=(r.type||'').toLowerCase();
+    const name=r.name||r.displayName||r.label||r.id||'';
+    const desc=r.description||r.properties?.description||'';
+    if(!type) return;
+    if(type.includes('microsoft.securityinsights/dataconnectors')) artifacts.dataConnectors.push({name,desc});
+    else if(type.includes('microsoft.insights/workbooks')) artifacts.workbooks.push({name,desc});
+    else if(type.includes('microsoft.securityinsights/alertrules')) artifacts.analyticRules.push({name,desc});
+    else if((r.tags && r.tags['hidden-sentinelContentType']==='HuntingQuery') || type.includes('huntingquery')) artifacts.huntingQueries.push({name,desc});
+    else if(type.includes('microsoft.logic/workflows')) artifacts.playbooks.push({name,desc});
+  }
+  (function deep(o){
+    if(!o || typeof o!=='object') return;
+    if(Array.isArray(o)){ o.forEach(deep); return; }
+    if(Array.isArray(o.resources)) o.resources.forEach(harvest);
+    ['steps','elements','items','children','blades'].forEach(k=>{
+      if(Array.isArray(o[k])) o[k].forEach(deep);
+    });
+    for(const k in o){
+      if(typeof o[k]==='object') deep(o[k]);
+    }
+  })(json?.parameters?.config || json);
+
+  // Deduplicate names
+  for(const k in artifacts){
+    const seen=new Set();
+    artifacts[k] = artifacts[k].filter(a=>{
+      const key=(a.name||'').toLowerCase();
+      if(!key||seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+  }
+
+  return { solutionName, description, icon, artifacts, raw:json };
+}
+
+/* =========================
+   Step 5: classify architecture
+========================= */
+function classifyArchitecture(corePresence, connectorJsons){
+  const ccf = new Set();
+  const http = new Set();
+  function add(set,label){ set.add(label); }
+
+  if(corePresence.pollerConfig) add(ccf,'pollerConfig.json');
+  if(corePresence.dcr) add(ccf,'dcr.json');
+  if(corePresence.tableSchema) add(ccf,'tableSchema.json');
+
+  connectorJsons.forEach(j=>{
+    const txt = JSON.stringify(j).toLowerCase();
+    const kind=(j.kind||j.properties?.kind||'').toLowerCase();
+    if(/restapipoller|apipolling/.test(kind)) add(ccf,'RestApiPoller kind');
+    if(/connectoruiconfig/.test(txt)) add(ccf,'connectorUiConfig');
+    if(/"dcrconfig":/.test(txt)) add(ccf,'dcrConfig');
+    if(/codeless/.test(kind)) add(ccf,'codeless kind');
+    if(/workspaceid/.test(txt) && /sharedkey/.test(txt)) add(http,'workspaceId+sharedKey');
+    if(/x-ms-signature/.test(txt)) add(http,'x-ms-signature');
+    if(/opinsights\.azure\.com|ods\.opinsights|oms\./.test(txt)) add(http,'opinsights endpoint');
+  });
+
+  if(corePresence.host || corePresence.functionApp) add(http,'function infra');
+
+  let type='Unknown';
+  if(ccf.size>=2 && ccf.size>=http.size) type='CCF';
+  else if(http.size>0 && ccf.size===0) type='HTTP';
+  else if(ccf.size>0 && http.size>0) type = ccf.size>http.size? 'CCF':'HTTP';
+  else if(ccf.size===1) type='CCF (weak)';
+  return { type, ccfSignals:[...ccf], httpSignals:[...http] };
+}
+
+/* =========================
+   Step 6: Extract DCR Data
+========================= */
+function extractDcrData(dcrJson){
+  if(!dcrJson) return;
+  const flows=(dcrJson?.properties?.dataFlows)||dcrJson.dataFlows||[];
+  flows.forEach(f=>{
+    (f.streams||[]).forEach(s=>STATE.dcrStreams.add(s));
+    const tf = (f.transformKql||'').toLowerCase();
+    const m = tf.match(/into\s+table\s+([a-z0-9_]+)/g);
+    if(m) m.forEach(seg=>{
+      const t=seg.split(/\s+/).pop();
+      if(t) STATE.dcrTables.add(t);
+    });
+    (f.destinations||[]).forEach(d=>{
+      if(d.table) STATE.dcrTables.add(String(d.table));
+    });
+  });
+}
+
+/* =========================
+   Step 7: Minimal Logic Tree
+========================= */
+function buildMinimalLogicTree(){
+  const ui=STATE.createUi;
+  const name = ui?.solutionName || STATE.solutionName || 'Unknown Solution';
+  const lines=[];
+  lines.push(`[${name}]`);
+  lines.push('├── Data Connector');
+  lines.push('├── Workbooks');
+  lines.push('├── Analytics Rules');
+  lines.push('├── Hunting Queries');
+  lines.push('└── Playbooks');
+  STATE.minimalTree = lines.join('\n');
+  $('#logicTree').textContent = STATE.minimalTree;
+}
+
+/* =========================
+   Step 8: Detailed Hierarchy
+========================= */
+function buildDetailedHierarchy(){
+  const ui = STATE.createUi;
+  const name = ui?.solutionName || STATE.solutionName || 'Unknown Solution';
+  const desc = (ui?.description||'').replace(/\s+/g,' ').trim();
+  const icon = ui?.icon || '';
+  const arch = STATE.arch?.type || 'Unknown';
+  const hasPoller = !!STATE.corePresence.pollerConfig;
+  const hasDcr = !!STATE.corePresence.dcr;
+  const hasTableSchema = !!STATE.corePresence.tableSchema;
+
+  // Consolidate artifact names from createUi + DCR (tables/streams)
+  const workbooks = ui?.artifacts?.workbooks.map(w=>w.name).filter(Boolean)||[];
+  const analytics = ui?.artifacts?.analyticRules.map(a=>a.name).filter(Boolean)||[];
+  const hunting = ui?.artifacts?.huntingQueries.map(h=>h.name).filter(Boolean)||[];
+  const playbooks = ui?.artifacts?.playbooks.map(p=>p.name).filter(Boolean)||[];
+
+  const lines=[];
+  lines.push(`[${name}]`);
+  lines.push('│');
+  lines.push('├── UI View');
+  if(desc) lines.push(`│   ├── Description: ${desc.slice(0,120)}${desc.length>120?'…':''}`);
+  if(icon) lines.push(`│   ├── Icon: ${icon}`);
+  if(!desc && !icon) lines.push('│   └── (No description/icon)');
+  lines.push('├── Connector');
+  lines.push(`│   ├── Type: ${arch}`);
+  if(hasPoller) lines.push('│   ├── pollerConfig.json → API polling logic');
+  if(hasDcr) lines.push('│   ├── dcr.json → Data mapping');
+  if(hasTableSchema) lines.push('│   ├── tableSchema.json → Custom schema');
+  if(!hasPoller && !hasDcr && !hasTableSchema) lines.push('│   └── (No connector core files)');
+  // Workbooks
+  lines.push('├── Workbooks');
+  if(workbooks.length){
+    workbooks.forEach((w,i)=> lines.push(`│   ${i===workbooks.length-1?'└':'├'}── ${w}`));
+  }
+  // Analytics
+  lines.push('├── Analytics Rules');
+  if(analytics.length){
+    analytics.forEach((a,i)=> lines.push(`│   ${i===analytics.length-1?'└':'├'}── ${a}`));
+  }
+  // Hunting
+  lines.push('├── Hunting Queries');
+  if(hunting.length){
+    hunting.forEach((h,i)=> lines.push(`│   ${i===hunting.length-1?'└':'├'}── ${h}`));
+  }
+  // Playbooks
+  lines.push('└── Playbooks');
+  if(playbooks.length){
+    playbooks.forEach((p,i)=> lines.push(`    ${i===playbooks.length-1?'└':'├'}── ${p}`));
+  }
+  STATE.hierarchyTree = lines.join('\n');
+  $('#detailedHierarchy').textContent = STATE.hierarchyTree;
+  const archSummary = [];
+  archSummary.push(`<span class="font-semibold">Architecture:</span> ${escapeHtml(arch)}`);
+  if(STATE.arch?.ccfSignals?.length) archSummary.push(`<span class="ml-2 badge badge-arch-ccf">CCF Evidence: ${STATE.arch.ccfSignals.length}</span>`);
+  if(STATE.arch?.httpSignals?.length) archSummary.push(`<span class="ml-2 badge badge-arch-http">HTTP Evidence: ${STATE.arch.httpSignals.length}</span>`);
+  $('#archSummary').innerHTML = archSummary.join(' ');
+}
+
+/* =========================
+   Step 9: Metadata Extraction
+========================= */
+function extractSolutionMetadata(fetched){
+  const metaFile = fetched.find(f=>f.fileName==='solutionmetadata.json');
+  const meta = {};
+  if(metaFile){
+    const j=metaFile.json;
+    meta.version = j.version || j.Version || '';
+    meta.offerId = j.offerId || j.offerID || j.marketplaceOfferId || '';
+    meta.publisher = j.publisher || j.publisherName || j.author || '';
+    meta.contentHubId = j.contentHubId || j.listingId || j.solutionId || '';
+    meta.categories = normalizeList(j.categories || j.category);
+    meta.domains = normalizeList(j.domains || j.domain);
+    meta.name = j.name || j.displayName || '';
+  }
+  return meta;
+}
+function normalizeList(v){
+  if(!v) return [];
+  if(Array.isArray(v)) return v.map(x=> typeof x==='string'?x:JSON.stringify(x)).filter(Boolean);
+  if(typeof v==='string') return v.split(/[,;]+/).map(s=>s.trim()).filter(Boolean);
+  if(typeof v==='object'){
+    const out=[];
+    for(const k in v){
+      const val=v[k];
+      if(typeof val==='string') out.push(val);
+      else if(val && typeof val==='object'){
+        for(const kk of ['name','displayName','title']) if(typeof val[kk]==='string') out.push(val[kk]);
+      } else if(val===true) out.push(k);
+    }
+    return out;
+  }
+  return [];
+}
+
+/* =========================
+   Step 10: Build Graph
+========================= */
+function buildGraph(){
+  const nodes=[], links=[];
+  const rootId = STATE.solutionName || 'Solution';
+  nodes.push({ id:rootId, type:'solution', meta:{} });
+
+  // Core file nodes
+  for(const k of Object.keys(STATE.corePresence)){
+    if(STATE.corePresence[k]){
+      const labelMap={
+        createUiDefinition:'createUiDefinition.json',
+        mainTemplate:'mainTemplate.json',
+        solutionMetadata:'solutionMetadata.json',
+        pollerConfig:'pollerConfig.json',
+        dcr:'dcr.json',
+        tableSchema:'tableSchema.json',
+        host:'host.json',
+        functionApp:'functionApp.json'
+      };
+      const lbl=labelMap[k]||k;
+      nodes.push({ id:lbl, type:'core', meta:{ kind:k } });
+      links.push({ source:rootId, target:lbl, edge:'core' });
+    }
+  }
+
+  // DCR tables & streams
+  [...STATE.dcrTables].forEach(t=>{
+    nodes.push({ id:t, type:'table', meta:{} });
+    links.push({ source:rootId, target:t, edge:'table' });
+  });
+  [...STATE.dcrStreams].forEach(s=>{
+    nodes.push({ id:s, type:'stream', meta:{} });
+    links.push({ source:rootId, target:s, edge:'stream' });
+  });
+
+  // Artifacts from UI
+  (STATE.createUi?.artifacts?.workbooks||[]).forEach(w=>{
+    nodes.push({ id:w.name, type:'workbook', meta:{} });
+    links.push({ source:rootId, target:w.name, edge:'workbook' });
+  });
+  (STATE.createUi?.artifacts?.analyticRules||[]).forEach(a=>{
+    nodes.push({ id:a.name, type:'analytic', meta:{} });
+    links.push({ source:rootId, target:a.name, edge:'analytic' });
+  });
+  (STATE.createUi?.artifacts?.huntingQueries||[]).forEach(h=>{
+    nodes.push({ id:h.name, type:'hunting', meta:{} });
+    links.push({ source:rootId, target:h.name, edge:'hunting' });
+  });
+  (STATE.createUi?.artifacts?.playbooks||[]).forEach(p=>{
+    nodes.push({ id:p.name, type:'playbook', meta:{} });
+    links.push({ source:rootId, target:p.name, edge:'playbook' });
+  });
+
+  STATE.graph = { nodes, links };
+  renderGraph();
+}
+
+const TYPE_COLOR = {
+  solution:'#2563eb',
+  core:'#475569',
+  table:'#ff8a65',
+  stream:'#8b5cf6',
+  workbook:'#f59e0b',
+  analytic:'#dc2626',
+  hunting:'#6366f1',
+  playbook:'#ec4899'
+};
+
+function renderGraph(){
+  const svg = d3.select('#viz');
+  svg.selectAll('*').remove();
+  const w = svg.node().clientWidth;
+  const h = svg.node().clientHeight;
+  const g = svg.append('g');
+  const zoom = d3.zoom().scaleExtent([0.3,3]).on('zoom',e=>g.attr('transform',e.transform));
+  svg.call(zoom);
+
+  const { nodes, links } = STATE.graph;
+
+  const link = g.append('g')
+    .attr('stroke','#94a3b8')
+    .attr('stroke-opacity',0.55)
+    .selectAll('line')
+    .data(links)
+    .enter().append('line')
+    .attr('stroke-width',1.4);
+
+  const node = g.append('g')
+    .selectAll('g')
+    .data(nodes)
+    .enter().append('g')
+    .attr('class','node-group')
+    .call(d3.drag()
+      .on('start',(e,d)=>{
+        if(!e.active) sim.alphaTarget(.2).restart();
+        d.fx=d.x; d.fy=d.y;
+      })
+      .on('drag',(e,d)=>{ d.fx=e.x; d.fy=e.y; })
+      .on('end',(e,d)=>{
+        if(!e.active) sim.alphaTarget(0);
+        d.fx=null; d.fy=null;
+      })
+    );
+
+  node.append('rect')
+    .attr('rx',8)
+    .attr('stroke','#1f2937')
+    .attr('stroke-width',1.3)
+    .attr('fill',d=>TYPE_COLOR[d.type]||'#64748b')
+    .attr('width',d=> sizeFor(d).w)
+    .attr('height',d=> sizeFor(d).h)
+    .attr('x',d=> -sizeFor(d).w/2)
+    .attr('y',d=> -sizeFor(d).h/2);
+
+  node.append('text')
+    .attr('fill','#0f172a')
+    .attr('font-size','.62rem')
+    .attr('font-weight',600)
+    .attr('text-anchor','middle')
+    .attr('dy','.35em')
+    .text(d=> labelFor(d));
+
+  function sizeFor(d){
+    if(d.type==='solution') return { w: 170, h:50 };
+    const base = labelFor(d).length;
+    const w = Math.min(240, Math.max(90, base*6.5 + 30));
+    return { w, h: 40 };
+  }
+  function labelFor(d){
+    return d.id.length>34? d.id.slice(0,32)+'…' : d.id;
+  }
+
+  const tooltip = d3.select('#tooltip');
+  node
+    .on('mouseover',(e,d)=>{
+      const lines = [`<b>${escapeHtml(d.id)}</b>`, `Type: ${d.type}`];
+      tooltip.html(lines.join('<br>'))
+        .style('left',(e.offsetX+15)+'px')
+        .style('top',(e.offsetY+15)+'px')
+        .style('opacity',1);
+    })
+    .on('mouseout',()=> tooltip.style('opacity',0));
+
+  const sim = d3.forceSimulation(nodes)
+    .force('link',d3.forceLink(links).id(d=>d.id).distance(140).strength(.8))
+    .force('charge',d3.forceManyBody().strength(-380))
+    .force('center',d3.forceCenter(w/2,h/2))
+    .force('collision',d3.forceCollide().radius(60))
+    .on('tick',()=>{
+      link
+        .attr('x1',d=>d.source.x)
+        .attr('y1',d=>d.source.y)
+        .attr('x2',d=>d.target.x)
+        .attr('y2',d=>d.target.y);
+      node.attr('transform',d=>`translate(${d.x},${d.y})`);
+    });
+}
+
+/* =========================
+   Step 11: UI Panels
+========================= */
+function updateSolutionMetaPanel(){
+  const metaDiv = $('#solutionMeta');
+  const name = STATE.createUi?.solutionName || STATE.meta.name || STATE.solutionName || '(Unknown)';
+  const arch = STATE.arch?.type || 'Unknown';
+  const chips = [];
+  chips.push(`<span class="badge ${arch.startsWith('CCF')?'badge-arch-ccf': arch.startsWith('HTTP')?'badge-arch-http':'badge-arch-unk'}">Arch: ${escapeHtml(arch)}</span>`);
+  if(STATE.meta.version) chips.push(`<span class="badge">v${escapeHtml(STATE.meta.version)}</span>`);
+  if(STATE.meta.offerId) chips.push(`<span class="badge">Offer ${escapeHtml(STATE.meta.offerId)}</span>`);
+  if(STATE.meta.categories?.length) chips.push(`<span class="badge">${escapeHtml(STATE.meta.categories.slice(0,2).join(', '))}${STATE.meta.categories.length>2?'…':''}</span>`);
+  if(STATE.meta.domains?.length) chips.push(`<span class="badge">${escapeHtml(STATE.meta.domains.slice(0,2).join(', '))}${STATE.meta.domains.length>2?'…':''}</span>`);
+
+  metaDiv.innerHTML = `
+    <div class="flex flex-wrap gap-2 mb-2">${chips.join('')}</div>
+    <div><b>Name:</b> ${escapeHtml(name)}</div>
+    <div><b>Publisher:</b> ${escapeHtml(STATE.meta.publisher||'-')}</div>
+    <div><b>ContentHubId:</b> ${escapeHtml(STATE.meta.contentHubId||'-')}</div>
+    <div><b>Version:</b> ${escapeHtml(STATE.meta.version||'-')}</div>
+    <div><b>OfferId:</b> ${escapeHtml(STATE.meta.offerId||'-')}</div>
+    <div><b>Categories:</b> ${(STATE.meta.categories||[]).join(', ')||'-'}</div>
+    <div><b>Domains:</b> ${(STATE.meta.domains||[]).join(', ')||'-'}</div>
+    <hr class="section">
+    <div class="text-xs text-gray-500">Architecture classification is heuristic.</div>
+  `;
+}
+
+function populateConnectorSelect(){
+  const sel = $('#connectorSelect');
+  const connectors = STATE.connectorJsons;
+  sel.innerHTML='';
+  if(!connectors.length){
+    sel.innerHTML='<option value="">(No connector JSON detected)</option>';
+    sel.disabled=true;
+    return;
+  }
+  connectors.forEach((cj,i)=>{
+    const title = extractConnectorTitle(cj) || `Connector ${i+1}`;
+    const opt=document.createElement('option');
+    opt.value=i;
+    opt.textContent=title;
+    sel.appendChild(opt);
+  });
+  sel.disabled=false;
+}
+
+function extractConnectorTitle(json){
+  return json?.properties?.connectorUiConfig?.title ||
+         json?.properties?.connectorUiConfig?.displayName ||
+         json?.name || '';
+}
+
+function showConnectorDetails(index){
+  const div = $('#connectorDetails');
+  if(index==='' || index==null){
+    div.innerHTML='<p class="text-gray-500">Select a connector.</p>';
+    return;
+  }
+  const cj = STATE.connectorJsons[Number(index)];
+  if(!cj){ div.innerHTML='<p class="text-gray-500">Connector not found.</p>'; return; }
+  const txt=JSON.stringify(cj).toLowerCase();
+  const kind=(cj.kind||cj.properties?.kind||'').toLowerCase();
+  const hasDcrConfig=!!cj.properties?.dcrConfig;
+  const ui = cj.properties?.connectorUiConfig;
+  const signals=[];
+  if(/restapipoller|apipolling/.test(kind)) signals.push('RestApiPoller');
+  if(hasDcrConfig) signals.push('dcrConfig');
+  if(ui) signals.push('connectorUiConfig');
+  if(/workspaceid/.test(txt)&&/sharedkey/.test(txt)) signals.push('workspaceId/sharedKey');
+  if(/x-ms-signature/.test(txt)) signals.push('x-ms-signature');
+
+  const tables = (cj.properties?.dataTypes||[]).map(dt=>dt.name||dt).filter(Boolean);
+  const publisher = ui?.publisher || ui?.publisherName || cj.publisher || cj.author || '';
+
+  div.innerHTML = `
+    <div class="space-y-2 text-sm">
+      <div><b>Title:</b> ${escapeHtml(extractConnectorTitle(cj)||'(Unnamed)')}</div>
+      <div><b>Kind:</b> ${escapeHtml(kind||'-')}</div>
+      <div><b>Signals:</b> ${signals.length? signals.map(s=>`<span class="connector-badge">${escapeHtml(s)}</span>`).join(' ') : '-'}</div>
+      <div><b>Tables:</b> ${tables.length? tables.join(', '): '-'}</div>
+      <div><b>Publisher:</b> ${escapeHtml(publisher||'-')}</div>
+      <div class="text-xs text-gray-500 break-all"><b>JSON size:</b> ${JSON.stringify(cj).length} chars</div>
+    </div>
+  `;
+}
+
+/* =========================
+   Main Orchestration
+========================= */
+async function visualize(){
+  try{
+    setStatus('Starting visualization...');
+    // Reset
+    STATE.createUi=null;
+    STATE.arch=null;
+    STATE.dcrTables.clear?.(); STATE.dcrStreams.clear?.();
+    STATE.dcrTables=new Set(); STATE.dcrStreams=new Set();
+    STATE.connectorJsons=[];
+    STATE.corePresence={};
+    $('#logicTree').textContent='[Processing...]';
+    $('#detailedHierarchy').textContent='[Processing...]';
+    $('#connectorSelect').innerHTML='<option value="">(Loading)</option>'; $('#connectorSelect').disabled=true;
+    $('#connectorDetails').innerHTML='<p class="text-gray-500">Loading...</p>';
+    $('#solutionMeta').innerHTML='<p class="text-gray-500">Loading...</p>';
+
+    const repoStr = ($('#repoInput').value||'').trim();
+    const branch = $('#branchInput').value.trim() || 'master';
+    const solution = $('#solutionSelect').value.trim();
+    const mode = $('#modeInput').value;
+    if(!repoStr.includes('/')) return setStatus('Repo must be owner/repo',true);
+    if(!solution) return setStatus('Select a solution first',true);
+    const [owner,repo] = repoStr.split('/');
+
+    setStatus('Listing JSON paths...');
+    const paths = await listJsonPaths(owner,repo,branch,solution);
+    if(!paths.length) return setStatus('No JSON files in solution',true);
+
+    setStatus(`Fetching files (${mode})...`);
+    const files = await fetchSolutionFiles(owner,repo,branch,paths,mode);
+    STATE.files=files;
+
+    // Identify core presence
+    files.forEach(f=>{
+      switch(f.fileName){
+        case 'createuidefinition.json': STATE.corePresence.createUiDefinition=true; break;
+        case 'maintemplate.json': STATE.corePresence.mainTemplate=true; break;
+        case 'solutionmetadata.json': STATE.corePresence.solutionMetadata=true; break;
+        case 'pollerconfig.json': STATE.corePresence.pollerConfig=true; break;
+        case 'dcr.json': STATE.corePresence.dcr=true; break;
+        case 'tableschema.json': STATE.corePresence.tableSchema=true; break;
+        case 'host.json': STATE.corePresence.host=true; break;
+        case 'functionapp.json': STATE.corePresence.functionApp=true; break;
+      }
+    });
+
+    // capture connector JSON candidates (non-core)
+    STATE.connectorJsons = files
+      .filter(f=> (isConnectorPath(f.path) && f.fileName!=='dcr.json' && f.fileName!=='pollerconfig.json'))
+      .map(f=>f.json);
+
+    // parse createUiDefinition
+    const uiFile = files.find(f=>f.fileName==='createuidefinition.json');
+    if(uiFile){
+      STATE.createUi = analyzeCreateUiDefinition(uiFile.json);
+      STATE.solutionName = STATE.createUi.solutionName;
+    } else {
+      STATE.solutionName = solution;
+    }
+
+    // solution metadata fallback
+    STATE.meta = extractSolutionMetadata(files);
+    if(!STATE.solutionName && STATE.meta.name) STATE.solutionName = STATE.meta.name;
+
+    // DCR parse
+    const dcrFile = files.find(f=>f.fileName==='dcr.json');
+    if(dcrFile) extractDcrData(dcrFile.json);
+
+    // architecture classification
+    STATE.arch = classifyArchitecture(STATE.corePresence, STATE.connectorJsons);
+
+    // minimal logic + detailed hierarchy
+    buildMinimalLogicTree();
+    buildDetailedHierarchy();
+    updateSolutionMetaPanel();
+    populateConnectorSelect();
+    buildGraph();
+
+    setStatus('Visualization complete.');
+  }catch(e){
+    console.error(e);
+    setStatus('Error: '+e.message,true);
+  }
+}
+
+/* =========================
+   Events
+========================= */
+$('#btnLoad').addEventListener('click', loadSolutions);
+$('#btnVisualize').addEventListener('click', visualize);
+$('#connectorSelect').addEventListener('change', e=> showConnectorDetails(e.target.value));
+
+/* Auto-load a few solutions (optional) */
+// loadSolutions();
+
+</script>
+</body>
+</html>

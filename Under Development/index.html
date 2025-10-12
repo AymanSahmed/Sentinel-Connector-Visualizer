@@ -446,7 +446,7 @@ function analyzeSolutionArchitecture(art){
     // Mixed: pick higher, bias to CCF only if strong outnumbers HTTP by 1+
     if(scStrong > shStrong) type='CCF (mixed)';
     else if(shStrong > scStrong) type='HTTP Data Collector API (mixed)';
-    else type='Mixed / Indeterminate';
+    else type='Mixed / likley CCF';
   } else if(scStrong === 1 && shStrong === 0) type='CCF (weak)';
   else if(shStrong === 1 && scStrong === 0) type='HTTP Data Collector API (weak)';
   else type='Unknown';
@@ -1405,7 +1405,7 @@ async function extractSolutionMeta(owner,repo,branch,solution,paths){
   });
 
   return {
-    solutionName,
+     solutionName,
     solutionId: solutionId || '—',
     publisher,
     contactEmail,
@@ -1413,18 +1413,18 @@ async function extractSolutionMeta(owner,repo,branch,solution,paths){
     offerId,
     categories,
     domains,
-    mainTemplateResourceCounts:{
-      total:resources.length,
-      dataConnectors:dc,
-      analyticRules:ar,
-      workbooks:wb,
-      playbooks:pb,
-      others
-    },
-    rawSolutionMeta:sm
+    mainTemplateResourceCounts: { /* ... */ },
+    rawSolutionMeta: sm,
+    _raw: { mainTemplate: mt, solutionMetadata: sm },
+    resourceKinds: {
+      connectors: dc,
+      analyticsRules: ar,
+      workbooks: wb,
+      playbooks: pb,
+      dcr: dc > 0 ? 1 : 0 // or actual DCR count if you compute elsewhere
+    }
   };
-  meta.publishing = assessPublishing(meta, files);
-
+  meta.publishing = assessPublishing(meta, paths);
   return meta;
 
 }

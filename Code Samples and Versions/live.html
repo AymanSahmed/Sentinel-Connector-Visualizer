@@ -188,14 +188,10 @@ body {font-family:Inter,system-ui,sans-serif;background:var(--bg);color:var(--te
     </div>
 
     <div class="panel p-4 space-y-3">
-      <h3 class="panel-header">Logic Analyzing</h3>
-      <div id="logicAnalysis" class="text-[11px] leading-4">
-        <p>Visualization logic summary will appear here (needs createUiDefinition.json).</p>
+      <h3 class="panel-header">Connector Details</h3>
+      <div id="connectorDetails" class="text-[11px] leading-4">
+        <p>Select a connector node.</p>
       </div>
-    </div>
-    
-    <div id="understandingGuide" class="mt-4 pt-3 border-t border-slate-200 dark:border-slate-600 text-[11px] leading-4">
-      <p class="text-slate-500 dark:text-slate-400">Understanding guide will appear after visualization.</p>
     </div>
 
     <div class="panel p-0">
@@ -275,7 +271,7 @@ const STATE = {
   showEdgeLabels: false,
   zoom: { x:0, y:0, k:1 },
   simulation: null,
-  dark: true,
+  dark: false,
   freezeAfter: false,
   showIsolated: true,
   highlighted: null,
@@ -295,7 +291,6 @@ function ensureD3(){ if(!d3Ready()){ setStatus('D3 not loaded',true); return fal
 
 /* DOM Helpers */
 const $=s=>document.querySelector(s); const $$=s=>Array.from(document.querySelectorAll(s));
-const INCLUDE_TABLE_PLACEHOLDERS = true;
 
 /* Logging & Status */
 function log(msg,err=false){
@@ -311,16 +306,6 @@ function log(msg,err=false){
 function setStatus(msg,err=false){
   const s=$('#status'); if(s){ s.textContent=msg; s.style.color=err?'#dc2626':'var(--text-dim)'; }
   log(msg,err);
-}
-
-function escapeHtml(str){
-  if(str === null || str === undefined) return '';
-  return String(str)
-    .replace(/&/g,'&amp;')
-    .replace(/</g,'&lt;')
-    .replace(/>/g,'&gt;')
-    .replace(/"/g,'&quot;')
-    .replace(/'/g,'&#39;');
 }
 function toggleLoader(show,text='Loading...'){
   $('#loadingText').textContent=text;
@@ -371,12 +356,11 @@ const EDGE_STYLE={
 
 /* Simplified Architecture Analyzer (CCF vs HTTP) */
 function analyzeSolutionArchitecture(art){
-  // Evidence buckets
   const strongCcf = new Set();
   const weakCcf   = new Set();
   const strongHttp= new Set();
 
-  // Scan core files
+  // Core file + resources scan
   (art.coreFiles||[]).forEach(cf=>{
     const raw = cf.raw || {};
     const resources = [];
@@ -387,87 +371,80 @@ function analyzeSolutionArchitecture(art){
       });
     })(raw.resources);
 
+    let hasDcrResource = false;
     resources.forEach(r=>{
-      const t=(r.type||'').toLowerCase();
-      if(t==='microsoft.insights/datacollectionrules')   strongCcf.add('dcr-resource');
-      else if(t==='microsoft.insights/datacollectionendpoints') strongCcf.add('dce-resource');
+      const t = (r.type||'').toLowerCase();
+      if(t==='microsoft.insights/datacollectionrules'){ strongCcf.add('dcr-resource'); hasDcrResource=true; }
+      else if(t==='microsoft.insights/datacollectionendpoints'){ strongCcf.add('dce-resource'); }
       else if(t.endsWith('/datacollectionruleassociations')) strongCcf.add('dcr-assoc');
-      else if(t.endsWith('/dataconnectors')) weakCcf.add('dataconnectors-resource'); // not decisive alone
+      else if(t.endsWith('/dataconnectors')) weakCcf.add('dataconnectors-resource'); // not by itself definitive
     });
 
-    // Parameter / body string heuristics for HTTP legacy
-    const txt = JSON.stringify(raw).toLowerCase();
-    if(/workspaceid/.test(txt) && /sharedkey/.test(txt)) strongHttp.add('workspaceId+sharedKey params');
-    if(/x-ms-signature/.test(txt)) strongHttp.add('x-ms-signature header');
-    if(/api\/logs\?/.test(txt)) strongHttp.add('api-logs pattern');
+    const paramsTxt = JSON.stringify(raw.parameters||{}).toLowerCase();
+    if(paramsTxt.includes('workspaceid') && paramsTxt.includes('sharedkey')) {
+      strongHttp.add('params-workspace-sharedkey');
+    }
   });
 
-  // DCR files explicitly present
+  // DCR files
   if((art.dcrs||[]).length) strongCcf.add('dcr-file');
+
   // Poller config presence
   if((art.coreFiles||[]).some(f=>f.coreKind==='pollerConfig')) strongCcf.add('poller-config');
 
   // Connectors
   (art.connectors||[]).forEach(c=>{
-    const raw = c.raw||{};
+    const raw = c.raw || {};
     const txt = JSON.stringify(raw).toLowerCase();
     const kindCat = ((c.kindCategory||'') + ' ' + (c.mechanism||'')).toLowerCase();
     const hasDcrConfig = !!raw?.properties?.dcrConfig;
-    const hasUiConfig  = !!(raw?.properties?.connectorUiConfig||raw?.properties?.connectorUIConfig);
+    const hasUiConfig = !!(raw?.properties?.connectorUiConfig||raw?.properties?.connectorUIConfig);
     const hasDataTypes = Array.isArray(raw?.properties?.dataTypes) && raw.properties.dataTypes.length>0;
     const hasGraphQueries = Array.isArray(raw?.properties?.graphQueries) && raw.properties.graphQueries.length>0;
 
     if(hasDcrConfig) strongCcf.add('dcrConfig');
     if(/restapipoller|apipolling/.test(kindCat)) strongCcf.add('restApiPoller');
+    // UI + dataTypes + graphQueries + dcrConfig strongly suggests CCF codeless ingestion
     if(hasDcrConfig && hasUiConfig && hasDataTypes && hasGraphQueries) strongCcf.add('codeless-full');
+    // UI or codeless mention without dcrConfig is only weak
     if(!hasDcrConfig && (hasUiConfig || /codeless/.test(kindCat))) weakCcf.add('ui-or-codeless-no-dcr');
 
-    // HTTP indicators
-    if(!hasDcrConfig && /workspaceid/.test(txt) && /sharedkey/.test(txt)) strongHttp.add('workspaceId+sharedKey body');
-    if(/x-ms-signature/.test(txt)) strongHttp.add('x-ms-signature header');
-    if(/ods\.opinsights|opinsights\.azure\.com|oms\./.test(txt)) strongHttp.add('opinsights endpoint');
-    if(/datacollector|http data collector/.test(kindCat)) strongHttp.add('http-data-collector-kind');
+    // HTTP signatures (when no dcrConfig or regardless if we want to compare strength)
+    if(!hasDcrConfig && /workspaceid/.test(txt) && /sharedkey/.test(txt)) strongHttp.add('workspace-sharedkey');
+    if(/\/api\/logs\?/.test(txt)) strongHttp.add('api-logs');
+    if(/x-ms-date/.test(txt) && /x-ms-signature/.test(txt)) strongHttp.add('sig-headers');
+    if(/http data collector|datacollector/.test(kindCat)) strongHttp.add('http-kind');
     if(/azurefunction/.test(kindCat)) strongHttp.add('azure-function-kind');
+    (c.endpoints||[]).forEach(ep=>{
+      if(/ods\.opinsights|opinsights\.azure\.com|oms\./.test(ep)) strongHttp.add('opinsights-endpoint');
+    });
   });
 
-  // Function infra (host/functionApp) as a legacy boost
+  // Function infra (helps HTTP if not otherwise overridden)
   if((art.infra||[]).length) strongHttp.add('function-infra');
 
-  // Scores
+  // SCORING LOGIC
   const scStrong = strongCcf.size;
   const scWeak   = weakCcf.size;
   const shStrong = strongHttp.size;
 
   let type = '';
-  if(scStrong >= 2 && scStrong >= shStrong) type='CCF';
-  else if(scStrong === 1 && scWeak >=2 && shStrong === 0) type='CCF';
-  else if(scStrong === 0 && shStrong > 0) type='HTTP Data Collector API';
-  else if(scStrong >=1 && shStrong >=1){
-    // Mixed: pick higher, bias to CCF only if strong outnumbers HTTP by 1+
-    if(scStrong > shStrong) type='CCF (mixed)';
-    else if(shStrong > scStrong) type='HTTP Data Collector API (mixed)';
-    else type='Mixed / Indeterminate';
-  } else if(scStrong === 1 && shStrong === 0) type='CCF (weak)';
-  else if(shStrong === 1 && scStrong === 0) type='HTTP Data Collector API (weak)';
-  else type='Unknown';
+  if(scStrong >= 2) {
+    type = 'CCF';
+  } else if(scStrong >=1 && scWeak >=2) {
+    type = 'CCF';
+  } else if(scStrong === 0 && shStrong > 0) {
+    type = 'HTTP Data Collector API';
+  } else if(scStrong === 1 && shStrong >= 2) {
+    // One weak-ish CCF signal but multiple HTTP -> classify HTTP
+    type = 'HTTP Data Collector API';
+  } else if(!type && shStrong >=1) {
+    type = 'HTTP Data Collector API';
+  }
 
-  // Confidence heuristic
-  const ccfScore   = scStrong*2 + scWeak;   // strong 2 pts, weak 1 pt
-  const httpScore  = shStrong*2;            // each strong HTTP 2 pts
-  const dominant   = type.startsWith('CCF') ? ccfScore : type.startsWith('HTTP') ? httpScore : Math.max(ccfScore,httpScore);
-
-  let confidence = 'Low';
-  if(dominant >=6) confidence='High';
-  else if(dominant >=3) confidence='Medium';
-
-  return {
-    type,
-    confidence,
-    ccfSignals:[...strongCcf, ...weakCcf].sort(),
-    httpSignals:[...strongHttp].sort(),
-    scores:{ ccf: ccfScore, http: httpScore }
-  };
+  return { type };
 }
+
 /* GitHub Helpers */
 function ghHeaders(){ const t=($('#tokenInput')?.value||'').trim(); const h={'Accept':'application/vnd.github+json'}; if(t) h.Authorization=`token ${t}`; return h; }
 function updateRateLimit(res){
@@ -569,566 +546,8 @@ function detectKindCategory(json){
   if(/pollinterval|pollingfrequency/.test(txt)) return 'API Polling';
   return '';
 }
-// 2. New helper to detect non-JSON _CL placeholder files
-async function listSolutionTablePlaceholders(owner, repo, branch, solution){
-  if(!INCLUDE_TABLE_PLACEHOLDERS) return [];
-  try {
-    const url = `https://api.github.com/repos/${owner}/${repo}/git/trees/${encodeURIComponent(branch)}?recursive=1`;
-    const tree = await fetchJson(url, 'solution-tree');
-    if(!tree || !Array.isArray(tree.tree)) return [];
-    const prefix = `Solutions/${solution}/Package/`;
-    return tree.tree
-      .filter(entry => entry.type === 'blob'
-        && entry.path.startsWith(prefix)
-        && !entry.path.endsWith('.json')
-        && /^[A-Za-z0-9_]+_CL$/i.test(entry.path.substring(prefix.length)) )
-      .map(entry => entry.path.substring(prefix.length)); // just the file name
-  } catch(e){
-    console.warn('listSolutionTablePlaceholders error', e);
-    return [];
-  }
-}
-
-// --- createUiDefinition Analysis Helpers ---
-function analyzeCreateUiDefinition(json){
-  if(!json || typeof json !== 'object') return null;
-
-  // Gather possible "basics"
-  const basicsCandidates = [];
-  (function crawlBasics(o){
-    if(!o || typeof o!=='object') return;
-    if(
-      (o.label || o.displayName || o.name) &&
-      (o.description || o.longDescription)
-    ){
-      basicsCandidates.push(o);
-    }
-    Object.values(o).forEach(v=>{
-      if(typeof v==='object') crawlBasics(v);
-    });
-  })(json);
-
-  let basics =
-    json?.parameters?.config?.basics ||
-    json?.parameters?.basics ||
-    basicsCandidates.find(c=> /basic/i.test(JSON.stringify(c,(_,v)=> typeof v==='string'? v:''))) ||
-    basicsCandidates[0] || {};
-
-  const solName =
-    basics.label ||
-    basics.displayName ||
-    basics.name ||
-    json?.parameters?.config?.solutionName ||
-    json?.label ||
-    json?.name ||
-    '';
-
-  const description =
-    basics.description ||
-    basics.longDescription ||
-    json.description ||
-    '';
-
-  const icon =
-    basics.icon ||
-    basics.logo ||
-    basics.smallIcon ||
-    '';
-
-  // Real artifacts (from embedded nested templates / resources)
-  const artifacts = {
-    dataConnectors: [],
-    workbooks: [],
-    analyticRules: [],
-    huntingQueries: [],
-    playbooks: []
-  };
-
-  // Wizard / implied tracking
-  const wizardSteps = [];
-  const implied = {
-    dataConnectors: 0,
-    workbooks: 0,
-    analyticRules: 0,
-    huntingQueries: 0,
-    playbooks: 0
-  };
-
-  const keywordMap = [
-    { re: /data connector|connector/i,       key: 'dataConnectors' },
-    { re: /workbook/i,                      key: 'workbooks' },
-    { re: /analytic rule|alert rule|alert/i,key: 'analyticRules' },
-    { re: /hunting query|hunting/i,         key: 'huntingQueries' },
-    { re: /playbook|logic app/i,            key: 'playbooks' }
-  ];
-
-  function bumpImplied(str){
-    if(!str) return;
-    keywordMap.forEach(k=>{
-      if(k.re.test(str)){
-        implied[k.key] = (implied[k.key]||0) + 1;
-      }
-    });
-  }
-
-  // Real resource harvesting
-  function harvestResource(r){
-    if(!r || typeof r!=='object') return;
-    const type = (r.type||'').toLowerCase();
-    const name = r.name || r.displayName || r.label || r.id || '';
-    const desc = r.description || r.properties?.description || r.longDescription || '';
-
-    if(type.includes('microsoft.securityinsights/dataconnectors')){
-      artifacts.dataConnectors.push({name,desc});
-    } else if(type.includes('microsoft.insights/workbooks')){
-      artifacts.workbooks.push({name,desc});
-    } else if(type.includes('microsoft.securityinsights/alertrules')){
-      artifacts.analyticRules.push({name,desc});
-    } else if(r.tags && r.tags['hidden-sentinelContentType']==='HuntingQuery'){
-      artifacts.huntingQueries.push({name,desc});
-    } else if(type.includes('microsoft.logic/workflows')){
-      artifacts.playbooks.push({name,desc});
-    }
-
-    // Nested deployment template
-    const tpl = r.properties?.template;
-    if(tpl && Array.isArray(tpl.resources)){
-      tpl.resources.forEach(nr=>harvestResource(nr));
-    }
-  }
-
-  // Deep traversal:
-  // 1. Capture step names / labels
-  // 2. Look at elements text content for implied artifacts
-  // 3. Collect any "resources" arrays
-  (function deep(o){
-    if(!o || typeof o!=='object') return;
-    if(Array.isArray(o)){
-      o.forEach(deep);
-      return;
-    }
-
-    // Steps detection (common fields 'steps', custom arrays, etc.)
-    if(Array.isArray(o.steps)){
-      o.steps.forEach(step=>{
-        if(step && typeof step==='object'){
-          const stepName = step.name || '';
-          const stepLabel = step.label || '';
-            wizardSteps.push({
-              name: stepName,
-              label: stepLabel
-            });
-          bumpImplied(stepName);
-          bumpImplied(stepLabel);
-        }
-      });
-    }
-
-    // Elements with textual hints
-    if(Array.isArray(o.elements)){
-      o.elements.forEach(el=>{
-        if(!el || typeof el!=='object') return;
-        bumpImplied(el.name);
-        bumpImplied(el.label);
-        // TextBlock with options.text
-        if(el.type && /TextBlock/i.test(el.type)){
-          const text = el.options?.text || el.text;
-          bumpImplied(text);
-        }
-        // Generic description or help text
-        if(el.description) bumpImplied(el.description);
-        // Nested
-        deep(el);
-      });
-    }
-
-    // Resources arrays
-    if(Array.isArray(o.resources)){
-      o.resources.forEach(r=>{
-        harvestResource(r);
-        deep(r);
-      });
-    }
-
-    // Nested deployment template resources
-    const tpl = o.properties?.template;
-    if(tpl && Array.isArray(tpl.resources)){
-      tpl.resources.forEach(r=>{
-        harvestResource(r);
-        deep(r);
-      });
-    }
-
-    // Crawl children keys that often contain nested objects
-    ['items','children','blades','sections','controls','options','parameters'].forEach(k=>{
-      const v = o[k];
-      if(Array.isArray(v)) v.forEach(deep);
-      else if(typeof v==='object') deep(v);
-    });
-
-    // Generic crawl
-    Object.values(o).forEach(v=>{
-      if(typeof v==='object' && v!==o.resources) deep(v);
-    });
-  })(json?.parameters?.config || json);
-
-  // De-dupe real artifacts
-  for(const k in artifacts){
-    const seen=new Set();
-    artifacts[k]=artifacts[k].filter(a=>{
-      const key=(a.name||'').toLowerCase();
-      if(!key || seen.has(key)) return false;
-      seen.add(key);
-      return true;
-    });
-  }
-
-  log(`[createUiDefinition] name="${solName}" REAL: connectors=${artifacts.dataConnectors.length} workbooks=${artifacts.workbooks.length} analytics=${artifacts.analyticRules.length} hunting=${artifacts.huntingQueries.length} playbooks=${artifacts.playbooks.length} | IMPLIED: DC=${implied.dataConnectors} WB=${implied.workbooks} AR=${implied.analyticRules} HQ=${implied.huntingQueries} PB=${implied.playbooks} steps=${wizardSteps.length}`);
-
-  return {
-    solutionName: solName,
-    description,
-    icon,
-    artifacts,
-    implied,
-    wizardSteps,
-    deploymentParams: [], // (optional: retain original if you still want parameter capture)
-    raw: json
-  };
-}
-
-
-function formatCreateUiAnalysis(a){
-  if(!a) return '<p class="text-[11px] text-slate-500">No createUiDefinition.json found.</p>';
-  const lines = [];
-  lines.push(`<div class="mb-2">
-    <div><b>Solution Name:</b> ${a.solutionName}</div>
-    ${a.description?`<div class="mt-1">${escapeHtml(a.description.slice(0,500))}${a.description.length>500?'…':''}</div>`:''}
-    ${a.icon?`<div class="mt-1"><b>Icon:</b> <code>${escapeHtml(a.icon)}</code></div>`:''}
-  </div>`);
-
-  function artifactSection(label, arr){
-    if(!arr.length) return '';
-    const rows = arr.slice(0,50).map(x=>`<li><span class="font-medium">${escapeHtml(x.name||'Unnamed')}</span>${x.desc?` – <span class="text-slate-500">${escapeHtml(x.desc.slice(0,120))}${x.desc.length>120?'…':''}</span>`:''}</li>`).join('');
-    return `<div class="mt-2"><b>${label} (${arr.length})</b><ul class="list-disc pl-4 mt-1 space-y-0.5">${rows}</ul></div>`;
-  }
-
-  lines.push(artifactSection('Data Connectors', a.artifacts.dataConnectors));
-  lines.push(artifactSection('Workbooks', a.artifacts.workbooks));
-  lines.push(artifactSection('Analytics Rules', a.artifacts.analyticRules));
-  lines.push(artifactSection('Hunting Queries', a.artifacts.huntingQueries));
-  lines.push(artifactSection('Playbooks', a.artifacts.playbooks));
-
-  if(a.deploymentParams.length){
-    const rows = a.deploymentParams.slice(0,80).map(p=>`<tr>
-      <td class="px-1 py-0.5 border border-slate-200 dark:border-slate-600">${escapeHtml(p.name)}</td>
-      <td class="px-1 py-0.5 border border-slate-200 dark:border-slate-600">${escapeHtml(p.label)}</td>
-      <td class="px-1 py-0.5 border border-slate-200 dark:border-slate-600">${escapeHtml(p.type||'')}</td>
-      <td class="px-1 py-0.5 border border-slate-200 dark:border-slate-600 text-center">${p.required?'Yes':'No'}</td>
-    </tr>`).join('');
-    lines.push(`<div class="mt-3">
-      <b>Deployment Parameters (${a.deploymentParams.length})</b>
-      <div class="overflow-x-auto mt-1">
-        <table class="text-[10px] border-collapse">
-          <thead>
-            <tr class="bg-slate-100 dark:bg-slate-700">
-              <th class="px-1 py-0.5 border border-slate-300 dark:border-slate-600">Name</th>
-              <th class="px-1 py-0.5 border border-slate-300 dark:border-slate-600">Label</th>
-              <th class="px-1 py-0.5 border border-slate-300 dark:border-slate-600">Type</th>
-              <th class="px-1 py-0.5 border border-slate-300 dark:border-slate-600">Req</th>
-            </tr>
-          </thead>
-          <tbody>${rows}</tbody>
-        </table>
-      </div>
-    </div>`);
-  }
-
-  // Text diagram
-  const diagramParts = [];
-  diagramParts.push(a.solutionName);
-  function names(arr){ return arr.map(x=>x.name).join(', ') || '—'; }
-  diagramParts.push(`├── Data Connectors: ${names(a.artifacts.dataConnectors)}`);
-  diagramParts.push(`├──── Workbookss: ${names(a.artifacts.workbooks)}`);
-  diagramParts.push(`├──── Analytics Rules: ${names(a.artifacts.analyticRules)}`);
-  diagramParts.push(`├────── Hunting Queries: ${names(a.artifacts.huntingQueries)}`);
-  diagramParts.push(`└───────── Playbooks: ${names(a.artifacts.playbooks)}`);
-
-  lines.push(`<pre class="mt-3 p-2 bg-slate-50 dark:bg-slate-800 rounded text-[10px] leading-4 overflow-auto">${escapeHtml(diagramParts.join('\n'))}</pre>`);
-
-  return `<div class="space-y-1">${lines.join('')}</div>`;
-}
-
-function updateLogicAnalysisPanel(){
-  const panel = document.getElementById('logicAnalysis');
-  if(!panel) return;
-
-  const ui = STATE.createUiAnalysis;
-  const art = STATE.artifacts;
-
-  // Base counts from UI (real)
-  const real = {
-    dataConnectors: ui?.artifacts?.dataConnectors?.length || 0,
-    workbooks: ui?.artifacts?.workbooks?.length || 0,
-    analyticRules: ui?.artifacts?.analyticRules?.length || 0,
-    huntingQueries: ui?.artifacts?.huntingQueries?.length || 0,
-    playbooks: ui?.artifacts?.playbooks?.length || 0
-  };
-
-  const realTotal = Object.values(real).reduce((a,b)=>a+b,0);
-
-  // Implied (only used if real all zero)
-  const implied = ui?.implied || {
-    dataConnectors: 0, workbooks: 0, analyticRules: 0, huntingQueries: 0, playbooks: 0
-  };
-  const impliedTotal = Object.values(implied).reduce((a,b)=>a+b,0);
-
-  // Fallback to global artifact classification if both real & implied zero
-  let counts = {...real};
-  let mode = 'real';
-  if(realTotal === 0 && impliedTotal > 0){
-    counts = {...implied};
-    mode = 'implied';
-  } else if(realTotal === 0 && impliedTotal === 0 && art){
-    counts = {
-      dataConnectors: art.connectors?.length || 0,
-      workbooks: art.workbooks?.length || 0,
-      analyticRules: art.analytics?.length || 0,
-      huntingQueries: art.hunting?.length || 0,
-      playbooks: art.playbooks?.length || 0
-    };
-    mode = 'classified';
-  }
-
-  const name = (ui?.solutionName || STATE.meta?.solutionName || 'Unknown Solution');
-
-  function line(label, count, isLast=false){
-    const prefix = isLast ? ' └───' : ' ├──';
-    return `${prefix} ${label}${count ? ` (${count})` : ' (0)'}`;
-  }
-
-  const lines = [];
-  lines.push(`[${name}]`);
-  lines.push(line('Data Connector', counts.dataConnectors));
-  lines.push(line('Workbooks', counts.workbooks));
-  lines.push(line('Analytics Rules', counts.analyticRules));
-  lines.push(line('Hunting Queries', counts.huntingQueries));
-  lines.push(line('Playbooks', counts.playbooks, true));
-
-  let note = '';
-  if(mode === 'implied'){
-    note = '\n(Heuristic: counts inferred from step / text keywords in createUiDefinition; actual deployment happens via mainTemplate.)';
-  } else if(lines.length == 0){
-    note = '\n(No artifacts detected.)';
-  }
-
-  // Optional: list wizard steps if present
-  if(ui?.wizardSteps?.length){
-    const stepList = ui.wizardSteps.map(s=> (s.label||s.name||'').slice(0,50)).filter(Boolean);
-    if(stepList.length){
-      note += `\nSteps: ${stepList.join(', ')}`;
-    }
-  }
-
-  panel.innerHTML = `
-    <pre class="p-2 bg-slate-50 dark:bg-slate-800 rounded text-[11px] leading-4 whitespace-pre">${escapeHtml(lines.join('\n') + note)}</pre>
-  `;
-}
-
-function normalizeMetaList(input){
-  if(input == null) return [];
-
-  // If it's already an array, flatten and normalize each element
-  if(Array.isArray(input)){
-    return [...new Set(
-      input.flatMap(e => normalizeMetaList(e))
-           .filter(s => typeof s === 'string' && s.trim())
-           .map(s => s.trim())
-    )];
-  }
-
-  // If it's a plain string
-  if(typeof input === 'string'){
-    return input
-      .split(/[,;]+/)
-      .map(s => s.trim())
-      .filter(Boolean);
-  }
-
-  // If it's an object (dictionary style or object-of-objects)
-  if(typeof input === 'object'){
-    const out = [];
-
-    for(const [k,v] of Object.entries(input)){
-      if(v == null) continue;
-
-      // boolean flag object:  { Security: true }
-      if(typeof v === 'boolean' && v){
-        out.push(k.trim());
-        continue;
-      }
-
-      // direct string value: { Security: "Security" }
-      if(typeof v === 'string' && v.trim()){
-        out.push(v.trim());
-        continue;
-      }
-
-      // array value: { categories: ["Security","Compliance"] }
-      if(Array.isArray(v)){
-        out.push(...normalizeMetaList(v));
-        continue;
-      }
-
-      // nested object: try typical name-ish keys
-      if(typeof v === 'object'){
-        const keyCandidates = ['name','displayName','title','value','category','domain','id','label'];
-        let picked = '';
-        for(const cand of keyCandidates){
-          if(typeof v[cand] === 'string' && v[cand].trim()){
-            picked = v[cand].trim();
-            break;
-          }
-        }
-        if(picked){
-          out.push(picked);
-          continue;
-        }
-        // If nested object still ambiguous, recurse one level deeper
-        out.push(...normalizeMetaList(v));
-      }
-    }
-
-    // Fallback: if we extracted nothing but top-level keys themselves are meaningful (object-of-booleans false)
-    // DO NOT coerce the whole object to "[object Object]".
-    return [...new Set(out.filter(Boolean))];
-  }
-
-  // Any other type (number, boolean false, etc.) -> no categories
-  return [];
-}
-
-// 3. (Optional) tiny util to merge without duplicates
-
-function mergePlaceholderTables(placeholders){
-  if(!placeholders.length) return;
-  STATE.artifacts.tablePlaceholders = placeholders.slice();
-  const existing = new Set(STATE.artifacts.tables || []);
-  placeholders.forEach(name=>{
-    if(!existing.has(name)){
-      STATE.artifacts.tables.push(name);
-      existing.add(name);
-    }
-  });
-}
-
-function buildVisualHierarchy(meta, artifacts, ui){
-  const lines=[];
-  const name = meta?.solutionName || ui?.solutionName || 'Solution';
-  lines.push(name);
-  lines.push('│');
-  // UI View block
-  lines.push('├── UI View');
-  lines.push('│   ├── Description');
-  lines.push('│   ├── Icon');
-  lines.push('│   └── Setup Wizard');
-  // Connector
-  const archType = (STATE.solutionAnalysis?.type)||'Unknown';
-  lines.push('├── Connector');
-  lines.push(`│   ├── Type: ${archType}`);
-  if(STATE.solutionAnalysis?.ccfSignals?.length) lines.push('│   ├── CCF Evidence');
-  if(STATE.solutionAnalysis?.httpSignals?.length) lines.push('│   ├── Legacy Evidence');
-  if(artifacts?.coreFiles?.some(cf=>cf.coreKind==='dcr')) lines.push('│   ├── DCR');
-  if(artifacts?.coreFiles?.some(cf=>cf.id==='tableSchema.json')) lines.push('│   ├── Table Schema');
-  if(artifacts?.coreFiles?.some(cf=>cf.coreKind==='pollerConfig')) lines.push('│   ├── Poller Config');
-  if(artifacts?.infra?.length) lines.push('│   └── Function Infra');
-  // Artifact groups
-  function branch(label, arr, last){
-    lines.push(`${last?'└':'├'}── ${label}${arr?.length?` (${arr.length})`:''}`);
-  }
-  branch('Workbooks', artifacts?.workbooks);
-  branch('Analytics Rules', artifacts?.analytics);
-  branch('Hunting Queries', artifacts?.hunting);
-  branch('Playbooks', artifacts?.playbooks, true);
-  return lines.join('\n');
-}
-
-function renderUnderstandingGuide(){
-  const guide = document.getElementById('understandingGuide');
-  if(!guide) return;
-
-  const meta = STATE.meta || {};
-  const ui = STATE.createUiAnalysis || {};
-  const art = STATE.artifacts || {};
-  const arch = STATE.solutionAnalysis || {};
-
- const name = ui?.solutionName || STATE.meta?.solutionName || STATE.meta.solutionFolder || 'Unknown Solution';
-  const desc = (ui.description || meta.rawSolutionMeta?.description || '').trim();
-  const icon = ui.icon || meta.rawSolutionMeta?.icon || '';
-  const connectorObj = art.connectors?.[0];
-  const endpoint = (connectorObj?.endpoints && connectorObj.endpoints[0]) || '';
-  const hasPoller = art.coreFiles?.some(f=>f.coreKind==='pollerConfig');
-  const hasDcr = art.coreFiles?.some(f=>f.coreKind==='dcr');
-  const hasTableSchema = art.coreFiles?.some(f=>f.id==='tableSchema.json');
-
-  function branch(title, items){
-    if(!items || !items.length){
-      return `├── ${title}`;
-    }
-    if(items.length === 1){
-      return `├── ${title}\n│   └── ${items[0].id || items[0].name || items[0]}`;
-    }
-    const lines = [`├── ${title}`];
-    items.forEach((it,i)=>{
-      const isLast = i === items.length -1;
-      lines.push(`│   ${isLast?'└':'├'}── ${(it.id || it.name || it).toString().slice(0,80)}`);
-    });
-    return lines.join('\n');
-  }
-
-  const workbookBranch = branch('Workbooks', art.workbooks);
-  const analyticsBranch = branch('Analytics Rules', art.analytics);
-  const huntingBranch = branch('Hunting Queries', art.hunting);
-  const playbookBranch = branch('Playbooks', art.playbooks);
-
-  // Connector section lines
-  const connectorLines = [];
-  connectorLines.push('├── Connector');
-  connectorLines.push(`│   ├── Type: ${arch.type || connectorObj?.mechanism || 'Unknown'}`);
-  if(endpoint) connectorLines.push(`│   ├── Endpoint: ${endpoint}`);
-  if(hasPoller) connectorLines.push('│   ├── pollerConfig.json → API polling logic');
-  if(hasDcr) connectorLines.push('│   ├── dcr.json → Data mapping to Sentinel tables');
-  if(hasTableSchema) connectorLines.push('│   ├── tableSchema.json → Custom table schema');
-  // If nothing but title:
-  if(connectorLines.length === 1) connectorLines[0] = '├── Connector (no details)';
-
-  const lines = [];
-  lines.push(`[${name}]`);
-  lines.push('│');
-  lines.push('├── UI View');
-  if(desc) lines.push(`│   ├── Description: ${desc.slice(0,90)}${desc.length>90?'…':''}`);
-  if(icon) lines.push(`│   ├── Icon: ${icon}`);
-  if(desc || icon){
-    lines[lines.length-1] = lines[lines.length-1]; // keep formatting
-  } else {
-    lines.push('│   └── (basic info unavailable)');
-  }
-  lines.push(...connectorLines);
-  lines.push(workbookBranch);
-  lines.push(analyticsBranch);
-  lines.push(huntingBranch);
-  lines.push(playbookBranch.replace(/^├/, '└')); // last branch uses └
-
-  guide.innerHTML = `
-    <h3 class="panel-header mb-2">Solution Hierarchy</h3>
-    <pre class="p-2 bg-slate-50 dark:bg-slate-800 rounded text-[11px] leading-4 whitespace-pre">${escapeHtml(lines.join('\n'))}</pre>
-    <p class="mt-2 text-[10px] text-slate-500 dark:text-slate-400">Hierarchy derived from createUiDefinition + detected core files (pollerConfig, dcr, tableSchema) + metadata. Counts reflect actual artifacts fetched.</p>
-  `;
-}
-
 
 /* Classification */
-
 function classifyArtifact(json,path){
   const fileName=path.split('/').pop();
   const lower=fileName.toLowerCase();
@@ -1288,47 +707,6 @@ function buildArtifacts(files){
 }
 
 /* Solution Meta */
-function deriveSolutionId(solutionFolder, solMetaObj = {}, mainTemplate = {}){
-  const guidRe = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i;
-
-  // Candidate direct keys (broad set)
-  const keyCandidates = [
-    'contentHubId','solutionId','solutionID','listingId','id','offerId','offerID',
-    'solutionUniqueId','packageId','contentId','packageID','contentID'
-  ];
-
-  const direct = keyCandidates
-    .map(k => solMetaObj[k])
-    .find(v => typeof v === 'string' && v.trim());
-  if(direct) return direct.trim();
-
-  // Scan all values for a GUID anywhere
-  const serialized = JSON.stringify(solMetaObj);
-  const g = serialized.match(guidRe);
-  if(g) return g[0];
-
-  // Look in mainTemplate parameters for any param containing both 'solution' and 'id/guid'
-  const params = mainTemplate.parameters || {};
-  for(const [k,v] of Object.entries(params)){
-    if(/solution/i.test(k) && /(id|guid)/i.test(k)){
-      const dv = (v && typeof v === 'object') ? v.defaultValue : v;
-      if(typeof dv === 'string' && dv.trim()){
-        const m = dv.match(guidRe);
-        return m ? m[0] : dv.trim();
-      }
-    }
-  }
-
-  // Fall back: if offerId exists (sometimes looks like publisher.unique)
-  if(typeof solMetaObj.offerId === 'string' && solMetaObj.offerId.trim()){
-    return solMetaObj.offerId.trim();
-  }
-
-  // Last fallback: folder name (ensures not blank)
-  return solutionFolder;
-}
-
-// --- improved extractSolutionMeta (replace whole function) ---
 async function extractSolutionMeta(owner,repo,branch,solution,paths){
   const mtPath=paths.find(p=>/main(template)?\.json$/i.test(p));
   const metaPath=paths.find(p=>/solutionmetadata\.json$/i.test(p));
@@ -1351,49 +729,50 @@ async function extractSolutionMeta(owner,repo,branch,solution,paths){
     return '';
   }
 
-  // Name derivation (keep your existing precedence; can be extended similarly)
-  let solutionName =
-    sm.name ||
-    sm.displayName ||
-    sm.solutionName ||
-    paramPick('parameters.SolutionName','parameters.solutionName','parameters.solution','parameters.name') ||
-    solution;
-
-  // Publisher & contact
-  let publisher =
-    sm.publisherName || sm.publisher || sm.publisherId ||
-    paramPick('parameters.Publisher','parameters.publisher','parameters.publisherName') ||
-    'Unknown';
-
-  const emailRegex=/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i;
-  let contactEmail =
-    sm.contactEmail || sm.supportContact || sm.supportEmail ||
-    sm.support?.email || sm.contact?.email || '';
-  if(!contactEmail){
-    const em = JSON.stringify(sm).match(emailRegex);
-    if(em) contactEmail = em[0];
+  // ---- Solution ID candidates ----
+  let solutionId = sm.contentHubId || sm.solutionId || sm.listingId || sm.id ||
+                   paramPick('SolutionId','solutionId','solutionID') || '';
+  if(!solutionId){
+    // Scan sm keys for something that looks like a GUID or ID
+    const guidRe=/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i;
+    const txtSm=JSON.stringify(sm);
+    const m=txtSm.match(guidRe);
+    if(m) solutionId=m[0];
   }
-  if(!contactEmail) contactEmail='—';
 
-  // Offer / categories / domains
-  const offerId = sm.offerId || sm.offerID || sm.marketplaceOfferId || '';
-  const categories = normalizeMetaList(sm.categories || sm.category);
-  const domains = normalizeMetaList(sm.domains || sm.domain);
+  // ---- Publisher candidates ----
+  const pubSet=new Set();
+  [
+    sm.publisherName, sm.publisherId, sm.publisher, sm.author,
+    (Array.isArray(sm.providers)?sm.providers.join(', '):''),
+    paramPick('Publisher','publisher')
+  ].filter(v=>typeof v==='string' && v.trim()).forEach(v=>{
+    v.split(/[;,]/).map(x=>x.trim()).filter(Boolean).forEach(x=>pubSet.add(x));
+  });
+  let publisher=[...pubSet].join(', ');
+  if(!publisher) publisher='Unknown';
 
-  // Robust solutionId
-  const solutionId = deriveSolutionId(solution, sm, mt);
+  // ---- Contact extraction ----
+  let contactEmail = sm.contactEmail || sm.supportEmail ||
+                     sm.contact?.email || sm.support?.email ||
+                     paramPick('ContactEmail','contactEmail');
+  if(!contactEmail){
+    // search entire solution metadata for first email
+    const emailRe=/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/ig;
+    const smTxt=JSON.stringify(sm);
+    const mailMatch=smTxt.match(emailRe);
+    if(mailMatch && mailMatch.length) contactEmail=mailMatch[0];
+  }
+  if(!contactEmail) contactEmail='Unknown';
 
-  // Publishing heuristic
-  const publishedHeuristic = !!(sm.contentHubId || offerId);
+  const solutionName = sm.name || paramPick('SolutionName','solutionName') || solution;
 
-  // Resource counts
+  // ---- Publishing heuristic ----
+  const publishedHeuristic = !!(sm.contentHubId || sm.listingId || sm.publisherName || sm.published || sm.solutionId);
+
+  // ---- mainTemplate resource counts (lightweight) ----
   const resources=[];
-  (function collect(a){
-    if(Array.isArray(a)) a.forEach(r=>{
-      resources.push(r);
-      if(Array.isArray(r.resources)) collect(r.resources);
-    });
-  })(mt.resources);
+  (function collect(a){ if(Array.isArray(a)) a.forEach(r=>{resources.push(r); if(Array.isArray(r.resources)) collect(r.resources);});})(mt.resources);
   let dc=0,ar=0,wb=0,pb=0,others=0;
   resources.forEach(r=>{
     const t=(r.type||'').toLowerCase();
@@ -1410,9 +789,6 @@ async function extractSolutionMeta(owner,repo,branch,solution,paths){
     publisher,
     contactEmail,
     publishedHeuristic,
-    offerId,
-    categories,
-    domains,
     mainTemplateResourceCounts:{
       total:resources.length,
       dataConnectors:dc,
@@ -1423,159 +799,22 @@ async function extractSolutionMeta(owner,repo,branch,solution,paths){
     },
     rawSolutionMeta:sm
   };
-  meta.publishing = assessPublishing(meta, files);
-
-  return meta;
-
-}
-
-
-
-function assessPublishing(meta, context) {
-  const evidence = {
-    solutionId: !!meta.solutionId,
-    offerId: !!meta.offerId,
-    categories: Array.isArray(meta.categories) && meta.categories.length > 0,
-    mainTemplate: !!meta._raw?.mainTemplate,
-    createUiDefinition: !!meta._raw?.createUiDefinition,
-    analytics: (meta.resourceKinds && meta.resourceKinds.analyticsRules > 0) || false,
-    workbooks: (meta.resourceKinds && meta.resourceKinds.workbooks > 0) || false,
-    playbooks: (meta.resourceKinds && meta.resourceKinds.playbooks > 0) || false,
-    dataConnectors: (meta.resourceKinds && meta.resourceKinds.connectors > 0) || false,
-    dcr: (meta.resourceKinds && meta.resourceKinds.dcr > 0) || false
-  };
-
-  // Weight each evidence type
-  const weights = {
-    solutionId: 2.0,
-    offerId: 2.0,
-    categories: 1.0,
-    mainTemplate: 1.4,
-    createUiDefinition: 1.4,
-    analytics: 0.8,
-    workbooks: 0.6,
-    playbooks: 0.6,
-    dataConnectors: 1.2,
-    dcr: 0.8
-  };
-
-  let score = 0;
-  let maxScore = 0;
-  const details = [];
-  for (const k of Object.keys(evidence)) {
-    maxScore += weights[k];
-    if (evidence[k]) {
-      score += weights[k];
-      details.push(`+ ${k} detected`);
-    }
-  }
-
-  const confidence = maxScore > 0 ? +(score / maxScore).toFixed(3) : 0;
-
-  // Determine status tier
-  let status = 'not_detected';
-  const coreAuthoring = evidence.mainTemplate || evidence.createUiDefinition;
-  const strongIds = evidence.solutionId && evidence.offerId;
-
-  if (coreAuthoring && !strongIds) {
-    status = 'draft';
-  }
-  if (coreAuthoring && strongIds) {
-    status = 'package_ready';
-  }
-  // Published transitions
-  if (strongIds && (evidence.categories || evidence.dataConnectors || evidence.analytics)) {
-    status = 'published_low_confidence';
-  }
-  if (strongIds && evidence.categories && (evidence.dataConnectors || evidence.analytics || evidence.workbooks || evidence.playbooks)) {
-    status = 'published';
-  }
-  if (status === 'published' && confidence > 0.78) {
-    status = 'published_verified';
-  }
-
-  return { status, confidence, evidence, score: +score.toFixed(2), maxScore: +maxScore.toFixed(2), details };
-}
-
-
-function deriveSolutionName(solutionFolder, solutionMetadataJson, mainTemplateJson){
-  // 1. Direct explicit fields
-  const sm = solutionMetadataJson || {};
-  const directCandidates = [
-    sm.name, sm.displayName, sm.solutionName, sm.title, sm.solutionDisplayName
-  ].filter(v=>typeof v==='string' && v.trim());
-  if(directCandidates.length) return directCandidates[0].trim();
-
-  // 2. Scan keys in solutionMetadata for anything containing both 'solution' and 'name'
-  for(const k of Object.keys(sm)){
-    if(/solution/i.test(k) && /name/i.test(k)){
-      const v = sm[k];
-      if(typeof v === 'string' && v.trim()) return v.trim();
-    }
-  }
-
-  // 3. Look through mainTemplate parameters
-  const mtParams = mainTemplateJson?.parameters || {};
-  for(const [key,val] of Object.entries(mtParams)){
-    if(/solution/i.test(key) && /name/i.test(key)){
-      if(typeof val?.defaultValue === 'string' && val.defaultValue.trim()) return val.defaultValue.trim();
-      if(typeof val === 'string' && val.trim()) return val.trim();
-    }
-  }
-
-  // 4. Try canonical parameter names
-  const canonical = ['SolutionName','solutionName','solution','Name','name'];
-  for(const c of canonical){
-    const p = mtParams[c];
-    if(!p) continue;
-    if(typeof p?.defaultValue === 'string' && p.defaultValue.trim()) return p.defaultValue.trim();
-    if(typeof p === 'string' && p.trim()) return p.trim();
-  }
-
-  // 5. Final fallback: folder name
-  return solutionFolder;
 }
 
 /* Fetch Files */
 async function fetchSolutionFiles(owner,repo,branch,paths,includeNonCore){
-  const coreNames = new Set([
-    'maintemplate.json',
-    'solutionmetadata.json',
-    'createuidefinition.json',
-    'pollerconfig.json',
-    'dcr.json',
-    'tableschema.json',
-    'host.json',
-    'functionapp.json',
-    'azuredeploy.json'
-  ]);
-
+  const core=new Set(['maintemplate.json','solutionmetadata.json','createuidefinition.json','pollerconfig.json','dcr.json','host.json','functionapp.json','azuredeploy.json']);
+  const skip=new Set(['testparameters.json']);
   const base=`https://raw.githubusercontent.com/${owner}/${repo}/${encodeURIComponent(branch)}/`;
   const out=[];
   for(const p of paths){
-    const fileName = p.split('/').pop().toLowerCase();
-
-    // Heuristic “connector candidate” path match
-    const isConnectorCandidate =
-      /connector/i.test(p) ||
-      /dataconnector/i.test(p) ||
-      /data[-_ ]connectors?/i.test(p);
-
-    const isCore = coreNames.has(fileName) || includeNonCore || isConnectorCandidate;
-    if(!isCore) continue;
-
-    try{
-      const js = await fetchJson(base+p,'artifact');
-      if(js) out.push({ path:p, json:js, core: coreNames.has(fileName) });
-    }catch(e){
-      log(`Failed fetch ${p}: ${e.message}`, true);
-    }
+    const name=p.split('/').pop().toLowerCase();
+    if(skip.has(name)) continue;
+    const isCore=core.has(name);
+    if(!includeNonCore && !isCore) continue;
+    const js=await fetchJson(base+p,'artifact'); if(js) out.push({path:p,json:js,core:isCore});
   }
-  log(`Fetched ${out.length} JSON files (includeNonCore=${includeNonCore})`);
-  if(!includeNonCore){
-    const connectorCount = out.filter(f=> /connector/i.test(JSON.stringify(f.json)) ).length;
-    log(`(Minimal mode) candidate connector files retained: ${connectorCount}`);
-  }
+  log(`Fetched ${out.length} JSON files (${includeNonCore?'core + non-core':'core only'})`);
   return out;
 }
 
@@ -1674,9 +913,6 @@ function buildTooltip(){
         const c=m.counts;
         L.push(`<div><b>Artifacts:</b> Conn ${c.connectors} DCR ${c.dcrs} Wkb ${c.workbooks} Anl ${c.analytics} Ply ${c.playbooks} Hunt ${c.hunting}</div>`);
         L.push(`<div><b>Core Files:</b> ${c.coreFiles}</div>`);
-        if(STATE.solutionAnalysis?.confidence){
-  L.push(`<div><b>Confidence:</b> ${escapeHtml(STATE.solutionAnalysis.confidence)}</div>`);
-}
       }
       if(d.type==='filecore'){
         if(m.coreKind==='mainTemplate'){
@@ -1779,6 +1015,7 @@ function renderGraph(preserve=false){
     .on('click',(e,d)=>{
       highlightNode(d.id);
       STATE.highlighted=d.id;
+      if(d.type==='connector') showConnectorDetails(d.id);
       showArtifactDetails(d);
       tip.show(e,d);
     })
@@ -1846,10 +1083,9 @@ function renderGraph(preserve=false){
         lines.push('createUiDefinition.json');
         lines.push(`Steps:${m.stepsCount||0} Params:${m.parametersCount||0}`);
         if(m.endpoints?.length) lines.push(`EP:${m.endpoints.length}`);
-     } else if(m.coreKind==='pollerConfig'){
+      } else if(m.coreKind==='pollerConfig'){
         lines.push('pollerConfig.json');
-        const sched = m.schedule || (typeof m.intervalRefs==='number' ? `Intervals:${m.intervalRefs}` : '');
-        if(sched) lines.push(`Sched:${chop(String(sched),20)}`);
+        if(m.schedule) lines.push(`Sched:${chop(String(m.schedule),20)}`);
         if(m.endpoints?.length) lines.push(`EP:${m.endpoints.length}`);
       } else if(m.coreKind==='dcr'){
         lines.push('dcr.json');
@@ -2076,168 +1312,105 @@ function buildLegend(){
     div.appendChild(row);
   });
 }
-// --- Replace the entire updateSolutionMeta function ---
 function updateSolutionMeta(){
   const meta=STATE.meta, art=STATE.artifacts;
   const div=$('#solution-meta');
-  if(!meta||!art){
-    const arch = STATE.solutionAnalysis || {};
-if(arch.type){
-  chips.push(`<span class="px-2 py-0.5 rounded bg-indigo-100 text-indigo-800 text-xs font-medium" title="CCF signals: ${(arch.ccfSignals||[]).length}; HTTP signals: ${(arch.httpSignals||[]).length}">
-    ${escapeHtml(arch.type)}
-  </span>`);
-}
-if(arch.confidence){
-  const confColor = arch.confidence==='High' ? 'bg-emerald-100 text-emerald-800'
-                   : arch.confidence==='Medium' ? 'bg-amber-100 text-amber-800'
-                   : 'bg-slate-200 text-slate-700';
-  chips.push(`<span class="px-2 py-0.5 rounded ${confColor} text-xs font-medium" title="Confidence based on evidence counts">
-    Confidence: ${escapeHtml(arch.confidence)}
-  </span>`);
-}
-    div.innerHTML='<p class="text-[11px] text-slate-500">No metadata.</p>';
-    return;
-  }
+  if(!meta||!art){div.innerHTML='<p class="text-[11px] text-slate-500">No metadata.</p>';return;}
   const allTables=new Set();
   art.connectors.forEach(c=>(c.tables||[]).forEach(t=>allTables.add(t)));
   art.dcrs.forEach(d=>(d.tables||[]).forEach(t=>allTables.add(t)));
-
+  const fp=art.filePresence||{};
   const arch=STATE.solutionAnalysis||{type:'',reasons:[]};
+  const publish=STATE.contentHubPublishing;
   const chips=[];
-
-    if (meta.publishing) {
-    const pub = meta.publishing;
-    const chip = document.createElement('span');
-    chip.className = 'chip publishing-chip';
-    chip.textContent = `Publishing: ${pub.status} (${Math.round(pub.confidence * 100)}%)`;
-    chip.title = pub.details.join('\n');
-    container.appendChild(chip);
+   if(arch.type){
+    // Keep only the base token (before any parenthesis, dash, or extra descriptor)
+    const raw = arch.type || '';
+    const base = raw.split(/[(–-]/)[0].trim(); // splits on (, en dash, hyphen
+    const cls = base === 'CCF' ? 'status-arch-ccf' : 'status-arch-http';
+    chips.push(`<div class="status-chip ${cls}">Architecture: ${base}</div>`);
   }
-
-  // Architecture chip
-  if(arch.type){
-    chips.push(`<span class="px-2 py-0.5 rounded bg-indigo-100 text-indigo-800 text-xs font-medium">
-      Architecture: ${arch.type}
-    </span>`);
+  if(publish?.published){
+    chips.push(`<div class="status-chip status-pub-yes" title="Content Hub packaging detected">Published: Yes</div>`);
   }
-
-  // Published heuristic
-  if(meta.publishedHeuristic){
-    chips.push(`<span class="px-2 py-0.5 rounded bg-emerald-100 text-emerald-800 text-xs font-medium">
-      Published: Yes
-    </span>`);
-  }
-
-  // OfferId
-  if(meta.offerId){
-    chips.push(`<span class="px-2 py-0.5 rounded bg-sky-100 text-sky-800 text-xs font-medium" title="Offer ID">
-      Offer: ${meta.offerId}
-    </span>`);
-  }
-
-  // Categories chip (truncate)
-  if(meta.categories?.length){
-    const cats = meta.categories.slice(0,3).join(', ') + (meta.categories.length>3?'…':'');
-    chips.push(`<span class="px-2 py-0.5 rounded bg-fuchsia-100 text-fuchsia-800 text-xs font-medium" title="${meta.categories.join(', ')}">
-      Categories: ${cats}
-    </span>`);
-  }
-
-  // Domains chip
-  if(meta.domains?.length){
-    const doms = meta.domains.slice(0,3).join(', ') + (meta.domains.length>3?'…':'');
-    chips.push(`<span class="px-2 py-0.5 rounded bg-amber-100 text-amber-800 text-xs font-medium" title="${meta.domains.join(', ')}">
-      Domains: ${doms}
-    </span>`);
-  }
-
-  // Placeholder tables count if any
-  if(meta.placeholderTableCount){
-    chips.push(`<span class="px-2 py-0.5 rounded bg-amber-100 text-amber-800 text-xs font-medium">
-      Table Placeholders: ${meta.placeholderTableCount}
-    </span>`);
-  }
-
-  // Core resource counts
-  const rc=meta.mainTemplateResourceCounts || {};
-  const countsLine = rc.total
-    ? `Resources: ${rc.total} (Conn:${rc.dataConnectors||0} AR:${rc.analyticRules||0} WB:${rc.workbooks||0} PB:${rc.playbooks||0})`
-    : 'Resources: —';
-
-  div.innerHTML = `
-    <div class="flex flex-wrap gap-1 mb-2">${chips.join('')}</div>
-    <div class="text-[11px] leading-4 space-y-1 text-slate-700 dark:text-slate-300">
-      <div><b>Solution:</b> ${(meta.solutionName || STATE.createUiAnalysis?.solutionName || '—')}</div>
-      <div><b>ID:</b> ${meta.solutionId||'—'}</div>
-      <div><b>Publisher:</b> ${meta.publisher||'—'} ${meta.contactEmail?`(<a class="underline" href="mailto:${meta.contactEmail}">${meta.contactEmail}</a>)`:''}</div>
-      ${meta.offerId?`<div><b>Offer ID:</b> ${meta.offerId}</div>`:''}
-      ${meta.categories?.length?`<div><b>Categories:</b> ${meta.categories.join(', ')}</div>`:''}
-      ${meta.domains?.length?`<div><b>Domains:</b> ${meta.domains.join(', ')}</div>`:''}
-      <div>${countsLine}</div>
-      <div><b>Unique Tables:</b> ${allTables.size}</div>
-      <div><b>Non-Core Included:</b> ${STATE.includeNonCore?'Yes':'No'}</div>
-    </div>
-  `;
+  const rc=meta.mainTemplateResourceCounts||{};
+  div.innerHTML=`
+  <div class="flex flex-wrap gap-2 mb-2">${chips.join('')}</div>
+  <div class="space-y-1">
+    <div><b>Name:</b> ${meta.solutionName}</div>
+    <div><b>Solution ID:</b> ${meta.solutionId||'—'}</div>
+    <div><b>Publisher:</b> ${meta.publisher}</div>
+    <div><b>Contact:</b> ${meta.contactEmail}</div>
+    <div><b>mainTemplate Resources:</b> Total ${rc.total||0} DC:${rc.dataConnectors||0} AR:${rc.analyticRules||0} WB:${rc.workbooks||0} PB:${rc.playbooks||0} O:${rc.others||0}</div>
+    <div><b>Artifacts (classified):</b> Conn ${art.connectors.length} DCR ${art.dcrs.length} Wkb ${art.workbooks.length} Anl ${art.analytics.length} Ply ${art.playbooks.length} Hunt ${art.hunting.length}</div>
+    <div><b>Unique Tables:</b> ${allTables.size}</div>
+    <div><b>Core Files:</b> MT:${fp.hasMainTemplate?'Y':'N'} SM:${fp.hasSolutionMetadata?'Y':'N'} UI:${fp.hasCreateUiDefinition?'Y':'N'} DCR:${fp.hasDcr?'Y':'N'} PC:${fp.hasPollerConfig?'Y':'N'} Host:${fp.hasHost?'Y':'N'}</div>
+    <div><b>Non-Core Included:</b> ${STATE.includeNonCore?'Yes':'No'}</div>
+  </div>`;
 }
-
-function showConnectorDetails(){ /* panel removed intentionally */ }
-
-// --- Replace the entire showArtifactDetails function (to expose new fields) ---
+function showConnectorDetails(id){
+  const c=STATE.artifacts?.connectors.find(x=>x.id===id);
+  const div=$('#connectorDetails');
+  if(!c){ div.innerHTML='<p class="text-[11px] text-slate-500">No connector selected.</p>'; return; }
+  div.innerHTML=`
+  <div class="space-y-1">
+    <div><b>Name:</b> ${c.id}</div>
+    ${c.domain?`<div><b>Domain:</b> ${c.domain}</div>`:''}
+    ${c.metricNames?.length?`<div><b>Metrics:</b> ${c.metricNames.join(', ')}</div>`:''}
+    ${c.endpoints?.length?`<div><b>Endpoints:</b> ${c.endpoints.join(', ')}</div>`:''}
+    ${c.kindCategory?`<div><b>Kind:</b> ${c.kindCategory}</div>`:''}
+    ${c.mechanism?`<div><b>Mechanism:</b> <span class="mechanism-badge">${c.mechanism}</span></div>`:''}
+    <div><b>Tables:</b> ${c.tables?.length?c.tables.join(', '):'—'}</div>
+    <div><b>Streams:</b> ${c.streams?.length?c.streams.join(', '):'—'}</div>
+    <div><b>Publisher:</b> ${c.publisher||'—'}</div>
+    <div><b>Description:</b> ${c.description?c.description.slice(0,600):'—'}</div>
+    <div class="text-[10px] break-all"><b>Path:</b> ${c.path}</div>
+  </div>`;
+}
 function showArtifactDetails(node){
-  const div=$('#artifact-meta');
-  if(!node){
-    div.innerHTML='<p class="text-[11px] text-slate-500">No node selected.</p>';
-    return;
-  }
-  const m=node.meta||{};
-  const out=[];
-  out.push(`<div class="text-xs font-semibold mb-1">${node.type.toUpperCase()}</div>`);
-  out.push(`<div><b>ID/Name:</b> ${node.id}</div>`);
-
-  if(node.type==='filecore' && m.coreKind==='solutionMetadata'){
-    if(m.version) out.push(`<div><b>Version:</b> ${m.version}</div>`);
-    if(m.listingId) out.push(`<div><b>Listing Id:</b> ${m.listingId}</div>`);
-    if(m.offerId) out.push(`<div><b>Offer Id:</b> ${m.offerId}</div>`);
-    if(m.categories?.length) out.push(`<div><b>Categories:</b> ${m.categories.join(', ')}</div>`);
-    if(m.domains?.length) out.push(`<div><b>Domains:</b> ${m.domains.join(', ')}</div>`);
-    if(m.publisherWebsite) out.push(`<div><b>Publisher Site:</b> <a class="underline text-sky-600" href="${m.publisherWebsite}" target="_blank" rel="noopener">${m.publisherWebsite}</a></div>`);
-    if(m.contentHubId) out.push(`<div><b>ContentHub Id:</b> ${m.contentHubId}</div>`);
-  } else if(node.type==='filecore' && m.coreKind==='mainTemplate'){
-    if(m.resourceCounts){
-      out.push(`<div><b>Resources:</b> ${m.resourceCounts.total} (Conn:${m.resourceCounts.dataConnectors} AR:${m.resourceCounts.analyticRules} WB:${m.resourceCounts.workbooks} PB:${m.resourceCounts.playbooks})</div>`);
+  const div=$('#artifact-meta'); if(!node){div.innerHTML='<p>Select a node.</p>';return;}
+  const m=node.meta||{}; const out=[];
+  out.push(`<div><b>Type:</b> ${TYPE_META[node.type]?.label||node.type}</div>`);
+  out.push(`<div><b>ID:</b> ${node.id}</div>`);
+  if(m.path) out.push(`<div><b>Path:</b> <span class="break-all">${m.path}</span></div>`);
+  if(node.type==='filecore'){
+    out.push(`<div><b>Core Kind:</b> ${m.coreKind||''}</div>`);
+    if(m.coreKind==='mainTemplate' && m.resourceCounts){
+      const rc=m.resourceCounts;
+      out.push(`<div><b>Resources:</b> Total ${rc.total} DC:${rc.dataConnectors} AR:${rc.analyticRules} WB:${rc.workbooks} PB:${rc.playbooks} O:${rc.others}</div>`);
+      if(m.artifactCounts){
+        const ac=m.artifactCounts;
+        out.push(`<div><b>Classified:</b> Conn ${ac.connectors} DCR ${ac.dcrs} Anl ${ac.analytics} Wkb ${ac.workbooks} Ply ${ac.playbooks} Hunt ${ac.hunting}</div>`);
+      }
     }
-  } else if(node.type==='connector'){
-    if(m.mechanism) out.push(`<div><b>Mechanism:</b> ${m.mechanism}</div>`);
-    if(m.kindCategory) out.push(`<div><b>Kind:</b> ${m.kindCategory}</div>`);
-    if(m.publisher) out.push(`<div><b>Publisher:</b> ${m.publisher}</div>`);
+    if(m.coreKind==='solutionMetadata'){
+      if(m.contentHubId) out.push(`<div><b>contentHubId:</b> ${m.contentHubId}</div>`);
+      if(m.version) out.push(`<div><b>Version:</b> ${m.version}</div>`);
+      if(m.listingId) out.push(`<div><b>Listing Id:</b> ${m.listingId}</div>`);
+    }
+    if(m.coreKind==='createUiDefinition') out.push(`<div><b>Steps:</b> ${m.stepsCount||0} | Params ${m.parametersCount||0}</div>`);
+    if(m.coreKind==='pollerConfig' && m.schedule) out.push(`<div><b>Schedule:</b> ${m.schedule}</div>`);
+    if(m.coreKind==='dcr') out.push(`<div><b>DataFlows:</b> ${m.dataFlows||0} | Streams ${m.streamCount||0}</div>`);
+    if(m.endpoints?.length) out.push(`<div><b>Endpoints:</b> ${m.endpoints.join(', ')}</div>`);
+  }
+  if(node.type==='connector'){
     if(m.domain) out.push(`<div><b>Domain:</b> ${m.domain}</div>`);
-    if(m.tables?.length) out.push(`<div><b>Tables:</b> ${m.tables.join(', ')}</div>`);
-    if(m.streams?.length) out.push(`<div><b>Streams:</b> ${m.streams.join(', ')}</div>`);
     if(m.metricNames?.length) out.push(`<div><b>Metrics:</b> ${m.metricNames.join(', ')}</div>`);
-    if(m.description) out.push(`<div class="mt-1 text-[11px]"><b>Description:</b> ${m.description}</div>`);
-  } else if(node.type==='dependency'){
-    if(m.tables?.length) out.push(`<div><b>Tables:</b> ${m.tables.join(', ')}</div>`);
-    if(m.streams?.length) out.push(`<div><b>Streams:</b> ${m.streams.join(', ')}</div>`);
-    if(typeof m.dataFlows==='number') out.push(`<div><b>Data Flows:</b> ${m.dataFlows}</div>`);
-  } else if(node.type==='workbook' || node.type==='analyticrule' || node.type==='huntingquery'){
-    if(m.tables?.length) out.push(`<div><b>Tables:</b> ${m.tables.join(', ')}</div>`);
+    if(m.endpoints?.length) out.push(`<div><b>Endpoints:</b> ${m.endpoints.join(', ')}</div>`);
+  }
+  if(node.type==='analyticrule'){
     if(m.severity) out.push(`<div><b>Severity:</b> ${m.severity}</div>`);
     if(m.tactics) out.push(`<div><b>Tactics:</b> ${m.tactics}</div>`);
-    if(m.queryMetrics){
-      out.push(`<div><b>Query:</b> ${m.queryMetrics.lines||0} lines (${m.queryMetrics.length||0} chars)</div>`);
-    }
-    if(m.description) out.push(`<div class="mt-1 text-[11px]"><b>Description:</b> ${m.description}</div>`);
-  } else if(node.type==='playbook'){
-    if(typeof m.triggers==='number') out.push(`<div><b>Triggers:</b> ${m.triggers}</div>`);
-    if(typeof m.actions==='number') out.push(`<div><b>Actions:</b> ${m.actions}</div>`);
   }
-
-  // Endpoints (skip empty)
-  if(m.endpoints?.length){
-    out.push(`<div><b>Endpoints:</b> ${m.endpoints.slice(0,8).join(', ')}${m.endpoints.length>8?'…':''}</div>`);
-  }
-
-  div.innerHTML = `<div class="text-[12px] space-y-1">${out.join('')}</div>`;
+  if(m.tables?.length) out.push(`<div><b>Tables:</b> ${m.tables.join(', ')}</div>`);
+  if(m.streams?.length) out.push(`<div><b>Streams:</b> ${m.streams.join(', ')}</div>`);
+  if(m.queryMetrics) out.push(`<div><b>Query Metrics:</b> ${m.queryMetrics.lines} lines (${m.queryMetrics.length} chars)</div>`);
+  if(m.description) out.push(`<div><b>Description:</b> ${m.description.slice(0,800)}</div>`);
+  if(m.triggers!==undefined||m.actions!==undefined) out.push(`<div><b>Triggers:</b> ${m.triggers||0} <b>Actions:</b> ${m.actions||0}</div>`);
+  if(m.dataFlows!==undefined) out.push(`<div><b>DataFlows:</b> ${m.dataFlows}</div>`);
+  if(m.resourceCount!==undefined) out.push(`<div><b>Resources:</b> ${m.resourceCount}</div>`);
+  if(m.bindingsCount!==undefined) out.push(`<div><b>Bindings Size:</b> ${m.bindingsCount}</div>`);
+  div.innerHTML=`<div class="space-y-1">${out.join('')}</div>`;
 }
 
 /* Explorer */
@@ -2295,10 +1468,11 @@ function buildArtifactExplorer(){
     tr.innerHTML=`<td>${TYPE_META[r.type]?.label||r.type}</td><td>${r.id}</td><td>${r.detail||''}</td><td>${r.tables||''}</td>`;
     tr.addEventListener('click',()=>{
       const node=STATE.fullGraph?.nodes.find(n=>n.id===r.id);
-    if(node){
-  highlightNode(node.id);
-  showArtifactDetails(node);
-}
+      if(node){
+        highlightNode(node.id);
+        showArtifactDetails(node);
+        if(node.type==='connector') showConnectorDetails(node.id);
+      }
     });
     frag.appendChild(tr);
   });
@@ -2398,486 +1572,69 @@ async function handleLoadSolutions(){
   }catch(e){ setStatus(e.message||'Error loading solutions',true); }
   finally{ toggleLoader(false); }
 }
-// --- REPLACE the entire existing handleVisualize() with this version ---
 async function handleVisualize(){
-  if(typeof STATE !== 'object'){
-    console.error('STATE global object missing; cannot proceed.');
-    return;
-  }
-  if(STATE.fetching){
-    log('Visualization already in progress – ignoring duplicate click.');
-    return;
-  }
-
-  // Read inputs
-  const repoVal = ($('#repoInput')?.value || '').trim();
-  const branchVal = ($('#branchInput')?.value || '').trim();
-  const solution = ($('#solutionSelect')?.value || '').trim();
-  STATE.includeNonCore = $('#includeNonCore')?.checked ?? true;
-
-  if(!repoVal || !repoVal.includes('/')) return setStatus('Enter repo as owner/repo', true);
-  if(!branchVal) return setStatus('Enter branch first', true);
-  if(!solution) return setStatus('Select a solution first', true);
-
-  const [owner, repo] = repoVal.split('/', 2);
-
-  // Prepare
-  STATE.fetching = true;
-  STATE.highlighted = null;
-  STATE.graph = { nodes: [], links: [] };
-  STATE.fullGraph = { nodes: [], links: [] };
-  STATE.meta = STATE.meta || {};
-  STATE.meta.timings = {};
-  STATE.cache ||= new Map(); // ensure exists
-
-  const timings = {};
-  let phaseStart = performance.now();
-  function mark(label){
-    const now = performance.now();
-    timings[label] = +(now - phaseStart).toFixed(1);
-    phaseStart = now;
-  }
-
+  if(STATE.fetching)return;
   try{
-    toggleLoader?.(true);
-    setStatus(`Visualize: ${owner}/${repo}@${branchVal} :: ${solution}`);
-    log(`Visualize start ${owner}/${repo}@${branchVal}/${solution}`);
+    STATE.fetching=true; STATE.cache.clear();
+    const repoStr=$('#repoInput').value.trim();
+    if(!repoStr.includes('/')) return setStatus('Invalid repo.',true);
+    const [owner,repo]=repoStr.split('/');
+    const branch=$('#branchInput').value.trim()||'master';
+    const solution=$('#solutionSelect').value.trim();
+    if(!solution) return setStatus('Select a solution.',true);
+    STATE.includeNonCore=$('#includeNonCore').checked;
 
-    // 1. List JSON paths
-    setStatus('Listing solution JSON paths...');
-    let jsonPaths = [];
-    try{
-      jsonPaths = await listSolutionJsonPaths(owner, repo, branchVal, solution);
-    }catch(e){
-      console.error(e);
-      setStatus('Failed to list JSON files', true);
-      jsonPaths = [];
-    }
-    if(!jsonPaths.length){
-      setStatus('No JSON files found in solution.', true);
-      return;
-    }
-    mark('listPaths_ms');
+    setStatus('Resolving JSON paths...');
+    toggleLoader(true,'Listing files...');
+    const paths=await listSolutionJsonPaths(owner,repo,branch,solution);
+    if(!paths.length) return setStatus('No JSON files found.',true);
 
-    // 2. Fetch JSON artifacts
-    setStatus(`Fetching ${STATE.includeNonCore?'all':'core'} JSON files (${jsonPaths.length})...`);
-    let files = [];
-    try{
-      files = await fetchSolutionFiles(owner, repo, branchVal, jsonPaths, STATE.includeNonCore);
-    }catch(e){
-      console.error('fetchSolutionFiles error', e);
-      setStatus('Error fetching some files (continuing)', true);
-    }
-    if(!files.length){
-      setStatus('No files fetched (aborting)', true);
-      return;
-    }
-    mark('fetchFiles_ms');
+    setStatus('Fetching files...');
+    const files=await fetchSolutionFiles(owner,repo,branch,paths,STATE.includeNonCore);
 
-    // 3. Build artifacts (classification happens inside buildArtifacts)
     setStatus('Classifying artifacts...');
-    let artifacts = {};
-    try{
-      artifacts = buildArtifacts(files);
-    }catch(e){
-      console.error('buildArtifacts failed', e);
-      setStatus('Artifact classification failed', true);
-      artifacts = {};
-    }
-    STATE.artifacts = artifacts;
-    mark('classify_ms');
+    const artifacts=buildArtifacts(files);
+    STATE.artifacts=artifacts;
 
-    // 4. Extract solution metadata
-    setStatus('Extracting solution metadata...');
-    try{
-      const meta = await extractSolutionMeta(owner, repo, branchVal, solution, jsonPaths);
-      STATE.meta = { ...(STATE.meta||{}), ...meta };
-    }catch(e){
-      console.error('extractSolutionMeta failed', e);
-      setStatus('Metadata extraction failed (continuing)', true);
-      STATE.meta.solutionName = STATE.meta.solutionName || solution;
-    }
-    mark('meta_ms');
+    setStatus('Extracting metadata...');
+    const meta=await extractSolutionMeta(owner,repo,branch,solution,paths);
+    STATE.meta=meta;
 
-    // 5. Architecture analysis
-    setStatus('Analyzing architecture...');
-    try{
-      if(typeof analyzeSolutionArchitecture === 'function'){
-        const arch = analyzeSolutionArchitecture(STATE.artifacts, STATE.meta);
-        STATE.solutionAnalysis = arch && typeof arch === 'object' ? arch : { type: arch || '' };
-      }
-    }catch(e){
-      console.error('Architecture analysis failed', e);
-      STATE.solutionAnalysis = { type: '' };
-    }
-    mark('architecture_ms');
+    STATE.solutionAnalysis=analyzeSolutionArchitecture(artifacts);
 
-    const cuidFile = files.find(f => /createuidefinition\.json$/i.test(f.path));
-if(cuidFile){
-  STATE.createUiAnalysis = analyzeCreateUiDefinition(cuidFile.json);
-  if(!STATE.meta.solutionName && STATE.createUiAnalysis?.solutionName){
-  STATE.meta.solutionName = STATE.createUiAnalysis.solutionName;
-}
-  updateLogicAnalysisPanel();
-} else {
-  STATE.createUiAnalysis = null;
-  updateLogicAnalysisPanel();
-}
+    // Publishing heuristic (only positive)
+    (function(){
+      const raw=meta.rawSolutionMeta||{};
+      const createUi=paths.some(p=>/Package\/createUiDefinition\.json$/i.test(p));
+      const solMeta=paths.some(p=>/Package\/solutionMetadata\.json$/i.test(p));
+      const positive = createUi && solMeta && (raw.contentHubId||raw.listingId||raw.version);
+      STATE.contentHubPublishing = positive ? {published:true,contentHubId:raw.contentHubId||'',version:raw.version||'',listingId:raw.listingId||''} : null;
+    })();
 
-    // 6. Placeholder tables (if helpers exist)
-    if(typeof listSolutionTablePlaceholders === 'function'){
-      setStatus('Detecting placeholder tables...');
-      try{
-        const placeholders = await listSolutionTablePlaceholders(owner, repo, branchVal, solution);
-        if(placeholders?.length){
-          if(typeof mergePlaceholderTables === 'function') {
-            mergePlaceholderTables(placeholders);
-          } else {
-            STATE.artifacts.tables = STATE.artifacts.tables || [];
-            const seen = new Set(STATE.artifacts.tables);
-            placeholders.forEach(p=>{ if(!seen.has(p)){ STATE.artifacts.tables.push(p); seen.add(p);} });
-            STATE.artifacts.tablePlaceholders = placeholders.slice();
-          }
-          STATE.meta.placeholderTableCount = placeholders.length;
-          log(`Added ${placeholders.length} placeholder table(s).`);
-        }
-      }catch(e){
-        console.warn('Placeholder table detection failed', e);
-      }
-    }
-    mark('placeholderTables_ms');
+    updateSolutionMeta();
 
-    // 7. Build graph
     setStatus('Building graph...');
-    try{
-      STATE.fullGraph = buildGraph(STATE.artifacts, STATE.meta.solutionName || solution);
-      STATE.graph = JSON.parse(JSON.stringify(STATE.fullGraph));
-    }catch(e){
-      console.error('Graph build failed', e);
-      setStatus('Graph build failed', true);
-      STATE.fullGraph = { nodes: [], links: [] };
-      STATE.graph = { nodes: [], links: [] };
-    }
-    mark('graph_ms');
+    const graph=buildGraph(artifacts, meta.solutionName||solution);
+    STATE.fullGraph=graph;
+    STATE.graph=JSON.parse(JSON.stringify(graph));
 
-    // 8. UI population
-    setStatus('Rendering UI...');
-    try{
-      updateSolutionMeta?.();
-      buildTypeFilters?.();
-      applyFilters?.(); // applyFilters triggers renderGraph + legend
-      if(typeof buildArtifactExplorer === 'function') buildArtifactExplorer();
-      if(typeof buildArtifactTypeQuickFilters === 'function') buildArtifactTypeQuickFilters();
-    }catch(e){
-      console.error('UI update failed', e);
-      setStatus('UI update failed', true);
-    }
-    mark('ui_ms');
+    buildTypeFilters();
+    applyFilters();
+    buildLegend();
+    buildArtifactExplorer();
+    buildArtifactTypeQuickFilters();
 
-    // 9. Finish
-    const total = performance.now() - (performance.timing?.navigationStart || 0);
-    const totalPhase = Object.values(timings).reduce((a,b)=>a+b,0);
-    timings.total_ms = +((performance.now() - (phaseStart - timings.ui_ms)).toFixed(1));
-    STATE.meta.timings = timings;
-
-    setStatus(`Done. Nodes:${STATE.fullGraph.nodes.length} Links:${STATE.fullGraph.links.length}`);
-    log('Timings: ' + Object.entries(timings).map(([k,v])=>`${k}=${v}`).join(' | '));
+    setStatus(`Done. Nodes:${graph.nodes.length} Links:${graph.links.length}`);
+  }catch(e){
+    setStatus(e.message||'Visualization error',true);
   }finally{
-    STATE.fetching = false;
-    toggleLoader?.(false);
+    toggleLoader(false); STATE.fetching=false;
   }
-} // end of handleVisualize
-// --- END REPLACE ---
-// --- SINGLE authoritative classifier START ---
-function classifyArtifact(json, path){
-  const fileName = path.split('/').pop();
-  const lowerFile = fileName.toLowerCase();
-  const lowerPath = path.toLowerCase();
-  const text = JSON.stringify(json||{});
-  const lowerText = text.toLowerCase();
-  const baseDisplay =
-    json?.name ||
-    json?.displayName ||
-    json?.title ||
-    json?.properties?.displayName ||
-    fileName.replace(/\.json$/,'');
-
-  // 1. Core files
-  if(/main(template)?\.json$/i.test(fileName)){
-    const resources = [];
-    (function collect(arr){
-      if(Array.isArray(arr)){
-        arr.forEach(r=>{
-          resources.push(r);
-          if(Array.isArray(r?.resources)) collect(r.resources);
-        });
-      }
-    })(json?.resources);
-    let dc=0, ar=0, wb=0, pb=0, other=0;
-    resources.forEach(r=>{
-      const t=(r?.type||'').toLowerCase();
-      if(t.endsWith('/dataconnectors')) dc++;
-      else if(t.includes('alertrules')) ar++;
-      else if(t.endsWith('/workbooks')) wb++;
-      else if(t.endsWith('/workflows')) pb++;
-      else other++;
-    });
-    return {
-      type:'filecore',
-      id:'mainTemplate.json',
-      path,
-      raw:json,
-      coreKind:'mainTemplate',
-      resourceCounts:{ total:resources.length, dataConnectors:dc, analyticRules:ar, workbooks:wb, playbooks:pb, others:other },
-      endpoints: extractEndpointsGeneric(json)
-    };
-  }
-  if(lowerFile === 'solutionmetadata.json'){
-    const offerId = json.offerId || json.offerID || json.marketplaceOfferId || '';
-    const categories = normalizeMetaList(json.categories || json.category);
-    const domains = normalizeMetaList(json.domains || json.domain);
-    const website = json.partnerWebsite || json.publisherWebsite || json.website ||
-                    json.marketplaceOfferLink || json.support?.link || json.support?.url || '';
-    return {
-      type:'filecore',
-      id:'solutionMetadata.json',
-      path,
-      raw:json,
-      coreKind:'solutionMetadata',
-      contentHubId: json.contentHubId || '',
-      version: json.version || '',
-      listingId: json.listingId || '',
-      offerId,
-      categories,
-      domains,
-      publisherWebsite: website,
-      endpoints: []
-    };
-  }
-  if(lowerFile === 'createuidefinition.json'){
-    const stepsCount = (lowerText.match(/"name":\s*"step"/g)||[]).length;
-    const paramsCount = (lowerText.match(/"parameters"/g)||[]).length;
-    return {
-      type:'filecore',
-      id:'createUiDefinition.json',
-      path,
-      raw:json,
-      coreKind:'createUiDefinition',
-      stepsCount,
-      parametersCount: paramsCount,
-      endpoints: extractEndpointsGeneric(json)
-    };
-  }
-  if(lowerFile === 'pollerconfig.json'){
-    const schedule = json.schedule || json.pollInterval || json.frequency || json.interval || '';
-    return {
-      type:'filecore',
-      id:'pollerConfig.json',
-      path,
-      raw:json,
-      coreKind:'pollerConfig',
-      schedule: typeof schedule==='object'? JSON.stringify(schedule): String(schedule||''),
-      endpoints: extractEndpointsGeneric(json)
-    };
-  }
-  if(lowerFile === 'dcr.json'){
-    const flows = json?.properties?.dataFlows || json?.dataFlows || [];
-    const streams = new Set();
-    flows.forEach(f => (f.streams||[]).forEach(s=>streams.add(s)));
-    return {
-      type:'filecore',
-      id:'dcr.json',
-      path,
-      raw:json,
-      coreKind:'dcr',
-      dataFlows: flows.length,
-      streamCount: streams.size,
-      endpoints: extractEndpointsGeneric(json)
-    };
-  }
-  if(lowerFile === 'host.json' || lowerFile === 'functionapp.json'){
-    return {
-      type:'functioninfra',
-      id:fileName,
-      path,
-      raw:json,
-      coreKind: lowerFile.replace('.json',''),
-      bindingsCount: text.length,
-      endpoints: extractEndpointsGeneric(json)
-    };
-  }
-  if(lowerFile === 'azuredeploy.json'){
-    return {
-      type:'deployment',
-      id:'azuredeploy.json',
-      path,
-      raw:json,
-      coreKind:'azuredeploy',
-      resourceCount: Array.isArray(json?.resources)? json.resources.length:0,
-      endpoints: extractEndpointsGeneric(json)
-    };
-  }
-
-  // 2. Specific Sentinel artifacts (before connector)
-  if(
-    lowerPath.includes('/workbooks/') ||
-    /"microsoft\.insights\/workbooks"/.test(lowerText) ||
-    (/\"workbook\"/.test(lowerText) && json?.properties?.serializedData)
-  ){
-    const query = json?.properties?.query || json?.query || '';
-    return {
-      type:'workbook',
-      id:baseDisplay,
-      path,
-      raw:json,
-      description: json?.properties?.description || '',
-      tables: extractTablesFromQuery(query),
-      queryMetrics: summarizeQueryMetrics(query)
-    };
-  }
-  const analyticPathHint = /\/analytics\//.test(lowerPath) || /\/analytics rules?\//.test(lowerPath);
-  const hasQuery = !!(json?.properties?.query || json?.query);
-  const hasSeverityOrTactics = !!(json?.properties?.severity || json?.severity || json?.properties?.tactics || json?.tactics);
-  const analyticTokens = /"alertrule"|\"scheduled\"|\"incidentconfiguration\"|\"rulequery\"/.test(lowerText);
-  if(analyticPathHint || (hasQuery && hasSeverityOrTactics) || (hasQuery && analyticTokens)){
-    const query = json?.properties?.query || json?.query || '';
-    return {
-      type:'analyticrule',
-      id:baseDisplay,
-      path,
-      raw:json,
-      tables: extractTablesFromQuery(query),
-      severity: json?.properties?.severity || json?.severity || '',
-      tactics: (json?.properties?.tactics || json?.tactics || []).join(', '),
-      queryMetrics: summarizeQueryMetrics(query)
-    };
-  }
-  const huntingPathHint = /\/hunting queries\//.test(lowerPath) || /\/huntingqueries\//.test(lowerPath);
-  const huntingTag = json?.tags && json.tags['hidden-sentinelContentType']==='HuntingQuery';
-  if(huntingPathHint || huntingTag){
-    const query = json?.properties?.query || json?.query || '';
-    return {
-      type:'huntingquery',
-      id:baseDisplay,
-      path,
-      raw:json,
-      tables: extractTablesFromQuery(query),
-      queryMetrics: summarizeQueryMetrics(query)
-    };
-  }
-  const playbookPathHint = /\/playbooks\//.test(lowerPath);
-  const logicAppDef = json?.definition || json?.properties?.definition;
-  if(playbookPathHint || (logicAppDef && (logicAppDef.triggers || logicAppDef.actions))){
-    const wf = logicAppDef;
-    return {
-      type:'playbook',
-      id:baseDisplay,
-      path,
-      raw:json,
-      triggers: wf?.triggers? Object.keys(wf.triggers).length:0,
-      actions: wf?.actions? Object.keys(wf.actions).length:0
-    };
-  }
-
-  // 3. Non-canonical DCR-like (dependency)
-  if(
-    lowerFile !== 'dcr.json' &&
-    (
-      /microsoft\.insights\/datacollectionrules/.test(lowerText) ||
-      json?.properties?.dataFlows ||
-      json?.dataFlows
-    )
-  ){
-    const flows = json?.properties?.dataFlows || json?.dataFlows || [];
-    const tables = new Set();
-    const streams = new Set();
-    flows.forEach(f=>{
-      (f.streams||[]).forEach(s=>streams.add(String(s).toLowerCase()));
-      const tf = (f.transformKql || f.transformKQL || '');
-      const into = tf.match(/into\s+table\s+([a-z0-9_]+)/ig);
-      if(into) into.forEach(m=>{
-        const t = m.split(/\s+/).pop();
-        if(t) tables.add(t.toLowerCase());
-      });
-      (f.destinations||[]).forEach(d=> d.table && tables.add(String(d.table).toLowerCase()));
-      (f.sources||[]).forEach(s=> s.stream && streams.add(String(s.stream).toLowerCase()));
-    });
-    return {
-      type:'dependency',
-      id:baseDisplay,
-      path,
-      raw:json,
-      dataFlows: flows.length,
-      tables: [...tables].sort(),
-      streams: [...streams].sort(),
-      endpoints: extractEndpointsGeneric(json)
-    };
-  }
-
-  // 4. Connector heuristic (tight)
-  const rawKind = (json?.kind || json?.properties?.kind || '').toLowerCase();
-  const uiCfg = json?.properties?.connectorUiConfig || json?.properties?.connectorUIConfig;
-  const hasConnectorUi = !!uiCfg;
-  const hasDcrConfig = !!json?.properties?.dcrConfig;
-  const hasDataTypes = Array.isArray(json?.properties?.dataTypes);
-  const restApiPoller = /restapipoller|apipolling/.test(rawKind) || /restapipoll(er|ing)/.test(lowerText);
-  const codeless = /codeless/.test(rawKind) || /"codeless"/.test(lowerText);
-  const httpCollector = /http data collector|datacollector/.test(rawKind) || /http data collector/.test(lowerText);
-  const azureFunction = /azurefunction/.test(rawKind);
-  const explicitConnectorTerm = /dataconnector/.test(lowerText);
-  const pathConnectorHint = /(dataconnector|data[_-]?connectors|connectors)/.test(lowerPath);
-  const looksLikeAnalytic = !!(json?.properties?.query && (json?.properties?.severity || json?.properties?.tactics));
-
-  const connectorStrong = (hasConnectorUi || hasDcrConfig || hasDataTypes ||
-                           restApiPoller || codeless || httpCollector ||
-                           azureFunction || explicitConnectorTerm || pathConnectorHint) &&
-                          !looksLikeAnalytic;
-
-  if(connectorStrong){
-    const tables = hasDataTypes
-      ? json.properties.dataTypes.map(dt=> dt?.name || dt).filter(Boolean)
-      : [];
-    const streams = [];
-    const dcrCfg = json?.properties?.dcrConfig;
-    if(dcrCfg?.streamDeclarations){
-      dcrCfg.streamDeclarations.forEach(s=> s?.streamName && streams.push(s.streamName));
-    }
-    const mech = normalizeMechanism(rawKind,json);
-    const category = detectKindCategory(json);
-    const description = uiCfg?.description || json?.properties?.description || '';
-    const publisher = uiCfg?.publisher || json?.properties?.publisher || json?.properties?.author || '';
-    const domain = uiCfg?.domain || json?.properties?.domain || '';
-    const metricNames = Array.isArray(uiCfg?.graphQueries)
-      ? [...new Set(uiCfg.graphQueries.map(g=>g?.metricName).filter(Boolean))]
-      : [];
-    return {
-      type:'connector',
-      id: uiCfg?.title || uiCfg?.displayName || baseDisplay,
-      path,
-      raw:json,
-      mechanism: mech,
-      kindCategory: category,
-      tables:[...new Set(tables)],
-      streams:[...new Set(streams)],
-      description,
-      publisher,
-      domain,
-      metricNames,
-      endpoints: extractEndpointsGeneric(json)
-    };
-  }
-
-  // 5. Generic fallback
-  return { type:'json', id:baseDisplay, path, raw:json };
 }
-// --- SINGLE authoritative classifier END ---
-
-// (Optional) stub if you removed connector details panel:
-function showConnectorDetails(){ /* panel removed */ }
-
 function handleReset(){
   STATE.artifacts=null; STATE.meta=null; STATE.fullGraph=null; STATE.graph={nodes:[],links:[]};
   if(d3Ready()) d3.select('#zoomLayer').selectAll('*').remove();
+  $('#connectorDetails').innerHTML='<p>Select a connector node.</p>';
   $('#solution-meta').innerHTML='';
   $('#artifact-meta').innerHTML='<p>Select a node to view details.</p>';
   $('#artifactTableBody').innerHTML='';

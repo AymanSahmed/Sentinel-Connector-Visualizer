@@ -13,6 +13,16 @@ function setStatus(msg, isError = false) {
   el.style.color = isError ? '#b91c1c' : '#6b7280';
 }
 
+function escapeHtml(str){
+  if(str === null || str === undefined) return '';
+  return String(str)
+    .replace(/&/g,'&amp;')
+    .replace(/</g,'&lt;')
+    .replace(/>/g,'&gt;')
+    .replace(/"/g,'&quot;')
+    .replace(/'/g,'&#39;');
+}
+
 function ghHeaders() {
   const t = (qs('#tokenInput').value || '').trim();
   return t ? { Authorization: `token ${t}` } : {};
