@@ -1,0 +1,1409 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Sentinel Solution Visualizer (Layered Detail View)</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="description" content="Visualize Microsoft Sentinel solution core files, connectors, DCR flows, tables, and artifacts with lineage.">
+<style>
+:root {
+  --bg:#f8fafc; --panel:#ffffff; --panel-border:#e2e8f0; --text:#1e293b; --text-dim:#475569;
+  --accent:#2563eb; --accent-strong:#1d4ed8; --danger:#dc2626; --muted:#94a3b8;
+  --badge-bg:#eef2ff; --badge-text:#1d4ed8; --panel-muted:#f1f5f9;
+}
+.dark {
+  --bg:#0f172a; --panel:#1e293b; --panel-border:#334155; --text:#f1f5f9; --text-dim:#94a3b8;
+  --accent:#3b82f6; --accent-strong:#1d4ed8; --danger:#ef4444; --muted:#64748b;
+  --badge-bg:#1e293b; --badge-text:#60a5fa; --panel-muted:#243140;
+}
+html,body{height:100%;}
+body{font-family:Inter,system-ui,sans-serif;background:var(--bg);color:var(--text);margin:0;}
+h1{font-weight:600;}
+.panel{background:var(--panel);border:1px solid var(--panel-border);border-radius:14px;}
+.panel-header{font-size:.7rem;letter-spacing:.05em;font-weight:600;text-transform:uppercase;color:var(--text-dim);margin-bottom:6px;}
+.badge{background:var(--badge-bg);color:var(--badge-text);font-size:.6rem;font-weight:600;padding:2px 6px;border-radius:6px;letter-spacing:.5px;}
+#tooltip{pointer-events:none;z-index:70;min-width:260px;max-width:480px;line-height:1.15rem;font-size:.63rem;}
+.node-group rect{transition:filter .18s,stroke-width .18s;}
+.node-group:hover rect{filter:brightness(1.08);}
+.graph-link{transition:stroke-width .15s,stroke-opacity .2s;}
+.edge-label{font-size:.5rem;fill:var(--text-dim);pointer-events:none;user-select:none;}
+.btn{background:var(--accent);color:#fff;font-size:.7rem;font-weight:600;padding:6px 12px;border-radius:8px;display:inline-flex;align-items:center;gap:4px;border:none;cursor:pointer;}
+.btn:hover{background:var(--accent-strong);}
+.btn-muted{background:var(--panel-muted);color:var(--text-dim);padding:6px 12px;border-radius:8px;font-size:.7rem;border:none;cursor:pointer;}
+.btn-muted:hover{background:var(--panel-border);color:var(--text);}
+.input{background:var(--panel);border:1px solid var(--panel-border);border-radius:8px;padding:6px 8px;font-size:.75rem;width:100%;}
+.input:focus{outline:2px solid var(--accent);outline-offset:1px;}
+.toggle{display:inline-flex;align-items:center;gap:6px;font-size:.63rem;}
+.status-chip{font-size:.60rem;font-weight:600;padding:4px 8px;border-radius:8px;letter-spacing:.5px;display:inline-flex;align-items:center;gap:4px;line-height:1;border:1px solid #0002;}
+.disclaimer{position:fixed;left:10px;bottom:10px;max-width:380px;font-size:11px;line-height:1.3;font-weight:500;color:#b91c1c;background:rgba(255,255,255,.9);border:1px solid #fca5a5;padding:6px 8px 7px;border-radius:6px;z-index:9999;box-shadow:0 2px 4px rgba(0,0,0,.15);backdrop-filter:blur(4px);}
+.dark .disclaimer{color:#fecaca;background:rgba(31,41,55,.75);border-color:#b91c1c;}
+table.artifact-table{border-collapse:collapse;font-size:11px;width:100%;}
+table.artifact-table th,table.artifact-table td{padding:4px 6px;border-bottom:1px solid var(--panel-border);text-align:left;}
+table.artifact-table tbody tr{cursor:pointer;}
+table.artifact-table tbody tr:hover{background:var(--panel-muted);}
+pre{margin:0;font-size:.63rem;line-height:1.1rem;}
+#loadingOverlay{position:fixed;inset:0;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,.45);z-index:900;color:#fff;font-size:1rem;font-weight:600;backdrop-filter:blur(2px);}
+
+/* New layered node styling */
+.layered-node rect{
+  stroke:#333;
+  stroke-width:1.4;
+  filter:drop-shadow(2px 3px 2px rgba(0,0,0,.20));
+}
+.dark .layered-node rect{stroke:#ddd;}
+.layered-node text{
+  font-family:Inter,system-ui,sans-serif;
+  font-size:12px;
+  fill:#111;
+}
+.dark .layered-node text{fill:#f1f5f9;}
+</style>
+</head>
+<body class="p-4 space-y-4">
+
+<div class="disclaimer">
+  DISCLAIMER: Heuristic best‑effort interpretation of repository JSON. Validate against official Microsoft Sentinel documentation.
+</div>
+
+<header style="text-align:center;">
+  <h1 style="margin:0;font-size:1.9rem;">Sentinel Solution Dependency Visualizer</h1>
+  <p id="status" style="font-size:.8rem;color:var(--text-dim);margin:.25rem 0 0;">Enter repository info, load solutions, visualize.</p>
+</header>
+
+<section class="panel p-5" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:14px;">
+  <div>
+    <div class="panel-header">Repository</div>
+    <input id="repoInput" class="input" placeholder="owner/repo (e.g. Azure/Azure-Sentinel)" />
+  </div>
+  <div>
+    <div class="panel-header">Branch</div>
+    <input id="branchInput" class="input" placeholder="(optional → auto)" />
+  </div>
+  <div>
+    <div class="panel-header">Token (optional)</div>
+    <input id="tokenInput" class="input" placeholder="ghp_..." />
+  </div>
+  <div>
+    <div class="panel-header">Solutions</div>
+    <select id="solutionSelect" class="input">
+      <option value="">(load solutions)</option>
+    </select>
+  </div>
+  <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:flex-end;">
+    <button id="loadSolutionsBtn" class="btn">Load Solutions</button>
+    <button id="visualizeBtn" class="btn">Visualize</button>
+    <button id="resetBtn" class="btn-muted">Reset</button>
+  </div>
+  <div style="grid-column:1/-1;display:flex;flex-wrap:wrap;gap:14px;align-items:center;font-size:11px;">
+    <label class="toggle"><input id="includeNonCore" type="checkbox" checked />Include Non-Core Artifacts</label>
+    <label class="toggle"><input id="showIsolated" type="checkbox" checked />Show Isolated</label>
+    <label class="toggle"><input id="degreeScaled" type="checkbox" />Scale by Degree</label>
+    <label class="toggle"><input id="freezeAfter" type="checkbox" />Freeze After Sim</label>
+    <label class="toggle"><input id="darkModeToggle" type="checkbox" />Dark Mode</label>
+    <label class="toggle"><input id="showEdgeLabels" type="checkbox" />Edge Labels</label>
+    <label class="toggle"><input id="coreMode" type="checkbox" />Core Model Only</label>
+    <div style="display:flex;gap:6px;align-items:center;">
+      <span style="font-size:.6rem;font-weight:600;letter-spacing:.05em;">Layout:</span>
+      <select id="layoutSelect" class="input" style="width:150px;padding:4px 6px;font-size:.65rem;">
+        <option value="force">Force (banded)</option>
+        <option value="cascade">Cascade</option>
+        <option value="flow">Flow</option>
+        <option value="hierarchy">Hierarchy</option>
+      </select>
+    </div>
+    <button id="exportJsonBtn" class="btn-muted" style="font-size:.6rem;">Export JSON</button>
+    <button id="exportCsvBtn" class="btn-muted" style="font-size:.6rem;">Export CSV</button>
+    <button id="exportPngBtn" class="btn-muted" style="font-size:.6rem;">Export PNG</button>
+    <button id="exportDataSourcesBtn" class="btn-muted" style="font-size:.6rem;">Export Sources</button>
+  </div>
+</section>
+
+<div style="display:grid;grid-template-columns:340px 1fr;gap:20px;">
+  <aside style="display:flex;flex-direction:column;gap:18px;">
+    <div class="panel p-3" style="font-size:.65rem;">
+      <div class="panel-header">Solution Meta</div>
+      <div id="solutionMeta"></div>
+    </div>
+
+    <div class="panel p-3" style="font-size:.65rem;">
+      <div class="panel-header">Architecture</div>
+      <div id="architecturePanel"></div>
+    </div>
+
+    <div class="panel p-3" style="font-size:.65rem;">
+      <div class="panel-header">Logic / Wizard Extract</div>
+      <div id="logicAnalysis"></div>
+    </div>
+
+    <div id="dataSourcesPanel" class="panel p-3" style="font-size:.65rem;">
+      <div class="panel-header">Data Sources</div>
+      <div style="font-size:.6rem;">Run visualize to populate.</div>
+    </div>
+
+    <div class="panel p-3" style="font-size:.65rem;">
+      <div class="panel-header">Artifact Explorer</div>
+      <input id="artifactSearch" class="input" placeholder="Search artifacts..." style="margin-bottom:6px;">
+      <div id="artifactTypeFilters" style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:6px;"></div>
+      <div style="max-height:220px;overflow:auto;">
+        <table class="artifact-table">
+          <thead><tr><th data-sort="type">Type</th><th data-sort="id">ID</th><th data-sort="size">Size</th></tr></thead>
+          <tbody id="artifactTableBody"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="panel p-3" style="font-size:.65rem;">
+      <div class="panel-header">Hierarchy Text</div>
+      <div id="hierarchyPanel" style="max-height:180px;overflow:auto;font-family:monospace;"></div>
+    </div>
+
+    <div class="panel p-3" style="font-size:.65rem;">
+      <div class="panel-header">Log</div>
+      <div id="log" style="font-size:.55rem;max-height:160px;overflow:auto;font-family:ui-monospace,monospace;"></div>
+    </div>
+  </aside>
+
+  <section style="display:flex;flex-direction:column;gap:20px;">
+    <div class="panel p-2" style="height:680px;position:relative;overflow:hidden;">
+      <div id="graphContainer" style="position:absolute;inset:0;">
+        <svg id="graph" width="100%" height="100%"></svg>
+      </div>
+    </div>
+
+    <div class="panel p-3" style="font-size:.65rem;">
+      <div class="panel-header">Details</div>
+      <div id="details"></div>
+    </div>
+
+    <div class="panel p-3" style="font-size:.65rem;">
+      <div class="panel-header">Legend & Filters</div>
+      <div id="typeFilters" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px;"></div>
+      <div id="legend" style="display:flex;flex-wrap:wrap;gap:6px;"></div>
+    </div>
+  </section>
+</div>
+
+<div id="loadingOverlay">
+  <div id="loadingText">Loading...</div>
+</div>
+
+<div id="tooltip" class="panel p-2" style="position:absolute;display:none;"></div>
+
+<!-- (If you already installed fallback D3 loader keep that instead) -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+
+<script>
+'use strict';
+
+/* ==================== Global Config & State ==================== */
+window.__SCV_CONFIG__ = { ENABLE_BRANCH_AUTODETECT:true };
+
+const STATE = {
+  cache:new Map(),
+  includeNonCore:true,
+  layoutMode:'force',
+  degreeScaled:false,
+  showEdgeLabels:false,
+  zoom:{x:0,y:0,k:1},
+  simulation:null,
+  dark:false,
+  freezeAfter:false,
+  showIsolated:true,
+  highlighted:null,
+  artifacts:null,
+  meta:null,
+  graph:{nodes:[],links:[]},
+  baseGraph:null, flowGraph:null, hierarchyGraph:null, cascadeGraph:null,
+  createUiAnalysis:null,
+  solutionAnalysis:null,
+  dataSourcesModel:null,
+  rawFiles:null
+};
+window.STATE=STATE;
+
+/* ==================== Utility Helpers ==================== */
+const $=s=>document.querySelector(s);
+const $$=s=>Array.from(document.querySelectorAll(s));
+function log(msg,err=false){
+  const el=$('#log'); if(!el) return;
+  const div=document.createElement('div');
+  const ts=new Date().toISOString().split('T')[1].replace('Z','');
+  div.textContent=`[${ts}] ${msg}`;
+  div.style.color=err?'#dc2626':'var(--text-dim)';
+  el.appendChild(div);
+  while(el.children.length>400) el.removeChild(el.firstChild);
+  el.scrollTop=el.scrollHeight;
+}
+function setStatus(msg,err=false){
+  const s=$('#status'); if(s){ s.textContent=msg; s.style.color=err?'#dc2626':'var(--text-dim)'; }
+  log(msg,err);
+}
+function escapeHtml(str){
+  if(str==null) return '';
+  return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+    .replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
+function toggleLoader(show,text='Loading...'){
+  $('#loadingText').textContent=text;
+  $('#loadingOverlay').style.display=show?'flex':'none';
+}
+window.addEventListener('error',e=>log('GlobalError: '+(e.message||e.error),true));
+window.addEventListener('unhandledrejection',e=>log('UnhandledRejection: '+(e.reason?.message||e.reason),true));
+
+/* ==================== Type/Edge Metadata ==================== */
+const TYPE_META={
+  solution:{label:'Solution',color:'#d8581d'},
+  filecore:{label:'Core File',color:'#0ea5e9'},
+  connector:{label:'Connector',color:'#26a69a'},
+  dependency:{label:'DCR',color:'#81c784'},
+  table:{label:'Table',color:'#ff8a65'},
+  stream:{label:'Stream',color:'#9575cd'},
+  workbook:{label:'Workbook',color:'#ffb74d'},
+  analyticrule:{label:'Analytic Rule',color:'#e57373'},
+  huntingquery:{label:'Hunting Query',color:'#6366f1'},
+  playbook:{label:'Playbook',color:'#ec4899'},
+  functioninfra:{label:'Function Infra',color:'#4b5563'},
+  deployment:{label:'Deployment',color:'#64748b'},
+  json:{label:'JSON',color:'#bdbdbd'},
+  group:{label:'Group',color:'#334155'},
+  flowGroup:{label:'Cascade Group',color:'#334155'},
+  flowFile:{label:'Cascade File',color:'#64748b'}
+};
+const EDGE_STYLE={
+  'solution-corefile':{stroke:'#0284c7'},
+  'solution-connector':{stroke:'#2563eb'},
+  'solution-dcr':{stroke:'#0d9488'},
+  'connector-dcr':{stroke:'#0f766e'},
+  'connector-table':{stroke:'#c2410c'},
+  'connector-stream':{stroke:'#6d28d9'},
+  'dcr-table':{stroke:'#ea580c'},
+  'table-analytic':{stroke:'#991b1b'},
+  'table-workbook':{stroke:'#92400e'},
+  'table-hunting':{stroke:'#4338ca'},
+  'solution-workbook':{stroke:'#d97706'},
+  'solution-analytic':{stroke:'#b91c1c'},
+  'solution-playbook':{stroke:'#be185d'},
+  'solution-hunting':{stroke:'#4338ca'},
+  'solution-infra':{stroke:'#334155'},
+  'solution-deployment':{stroke:'#475569'},
+  'solution-json':{stroke:'#64748b'},
+  'cascade':{stroke:'#64748b'}
+};
+
+/* ==================== GitHub Helpers ==================== */
+function ghHeaders(){
+  const t=($('#tokenInput')?.value||'').trim();
+  const h={'Accept':'application/vnd.github+json'};
+  if(t) h.Authorization=`token ${t}`;
+  return h;
+}
+function updateRateLimit(res){
+  if(!res?.headers) return;
+  const rem=res.headers.get('x-ratelimit-remaining');
+  const lim=res.headers.get('x-ratelimit-limit');
+  if(rem&&lim) setStatus(`Rate Limit: ${rem}/${lim}`);
+}
+async function fetchJson(url,purpose='',tries=3){
+  if(STATE.cache.has(url)) return STATE.cache.get(url);
+  for(let i=1;i<=tries;i++){
+    try{
+      const r=await fetch(url,{headers:ghHeaders()});
+      updateRateLimit(r);
+      if(!r.ok) throw new Error(r.status+' '+r.statusText);
+      const j=await r.json();
+      STATE.cache.set(url,j);
+      return j;
+    }catch(e){
+      if(i===tries){ log(`Fetch failed (${purpose}) ${url}: ${e.message}`,true); return null; }
+      await new Promise(r=>setTimeout(r,250*i));
+    }
+  }
+  return null;
+}
+async function detectDefaultBranch(owner,repo){
+  try{
+    const r=await fetch(`https://api.github.com/repos/${owner}/${repo}`,{headers:ghHeaders()});
+    if(!r.ok) return null; const j=await r.json(); return j.default_branch;
+  }catch{return null;}
+}
+async function listSolutions(owner,repo,branch){
+  const r=await fetch(`https://api.github.com/repos/${owner}/${repo}/contents/Solutions?ref=${encodeURIComponent(branch)}`,{headers:ghHeaders()});
+  updateRateLimit(r); if(!r.ok) throw new Error(`Solutions list failed: ${r.status}`);
+  const j=await r.json(); return (j||[]).filter(x=>x.type==='dir').map(x=>x.name).sort();
+}
+async function listSolutionJsonPaths(owner,repo,branch,solution){
+  const b=await fetch(`https://api.github.com/repos/${owner}/${repo}/branches/${encodeURIComponent(branch)}`,{headers:ghHeaders()});
+  updateRateLimit(b); if(!b.ok) throw new Error(`Branch lookup failed ${b.status}`);
+  const bj=await b.json(); const sha=bj?.commit?.commit?.tree?.sha;
+  if(!sha) throw new Error('Missing tree SHA');
+  const t=await fetch(`https://api.github.com/repos/${owner}/${repo}/git/trees/${sha}?recursive=1`,{headers:ghHeaders()});
+  updateRateLimit(t); if(!t.ok) throw new Error(`Tree fetch failed ${t.status}`);
+  const tj=await t.json(); const prefix=`Solutions/${solution}/`;
+  return (tj.tree||[])
+    .filter(n=>n.path.startsWith(prefix) && /\.json$/i.test(n.path))
+    .map(n=>n.path);
+}
+
+/* ==================== Normalization Helpers ==================== */
+function normalizeMetaList(input){
+  if(input==null) return [];
+  if(Array.isArray(input)) return input.map(v=>String(v).trim()).filter(Boolean);
+  if(typeof input==='string'){
+    if(!input.trim()) return [];
+    if(/[,;|]/.test(input)) return input.split(/[,;|]/).map(s=>s.trim()).filter(Boolean);
+    return [input.trim()];
+  }
+  if(typeof input==='object'){
+    const out=[]; for(const [k,v] of Object.entries(input)){
+      if(v===true) out.push(k); else if(typeof v==='string'&&v.trim()) out.push(v.trim());
+    } return out;
+  }
+  return [];
+}
+
+/* ==================== createUi / Architecture ==================== */
+function analyzeCreateUiDefinition(json){
+  if(!json||typeof json!=='object') return null;
+  let basics=null; (function crawl(o){
+    if(!o||typeof o!=='object') return;
+    if(!basics&&(o.basics||o.basicsV2||o.wizard)) basics=o.basics||o.basicsV2||o.wizard;
+    Object.values(o).forEach(v=>{ if(typeof v==='object') crawl(v); });
+  })(json);
+  const solutionName=basics?.label||basics?.displayName||basics?.name||
+    json?.parameters?.config?.solutionName||json?.label||json?.name||'';
+  const text=JSON.stringify(json).toLowerCase();
+  const implied={
+    dataConnectors:(text.match(/connector/gi)||[]).length>3?1:0,
+    workbooks:(text.match(/workbook/gi)||[]).length>2?1:0,
+    analyticRules:(text.match(/(rulequery|alertrule)/gi)||[]).length>2?1:0,
+    huntingQueries:(text.match(/hunting/gi)||[]).length>1?1:0,
+    playbooks:(text.match(/logicapp|playbook/gi)||[]).length>1?1:0
+  };
+  return {solutionName,implied,raw:json};
+}
+
+/* Simplified architecture: only CCF vs HTTP Data Collector API */
+function analyzeSolutionArchitecture(art){
+  let ccfSignals=0, httpSignals=0;
+  (art.coreFiles||[]).forEach(cf=>{
+    const txt=JSON.stringify(cf.raw||{}).toLowerCase();
+    if(/restapipoller|apipolling|connectoruiconfig|dcrconfig|codeless/.test(txt)) ccfSignals++;
+    if(/http data collector|logs ingestion api|azurefunction/.test(txt)) httpSignals++;
+  });
+  (art.connectors||[]).forEach(c=>{
+    const t=JSON.stringify(c.raw||{}).toLowerCase();
+    if(/restapipoller|apipolling|connectoruiconfig|codeless|dcrconfig/.test(t)) ccfSignals++;
+    if(/http data collector|logs ingestion api|azurefunction/.test(t)) httpSignals++;
+  });
+  const type = ccfSignals>httpSignals && ccfSignals>0 ? 'CCF'
+              : httpSignals>ccfSignals && httpSignals>0 ? 'HTTP Data Collector API'
+              : 'Unknown';
+  const confidence = (Math.min(1,(Math.max(ccfSignals,httpSignals)/4))).toFixed(2);
+  return {type,confidence,signals:{ccf:ccfSignals,http:httpSignals}};
+}
+
+/* ==================== Query Helpers ==================== */
+function extractTablesFromQuery(q){
+  if(!q) return [];
+  const r=/\b([A-Za-z0-9_]+_CL)\b|\b(CommonSecurityLog|Syslog|SecurityAlert|SecurityIncident|SecurityEvent|DeviceEvents)\b/g;
+  const st=new Set(); for(const m of q.matchAll(r)){const v=m[1]||m[2]; if(v) st.add(v);} return [...st];
+}
+
+/* ==================== Artifact Classification (Deep) ==================== */
+function classifyArtifact(json,path){
+  const fileName=path.split('/').pop();
+  const lowerPath=path.toLowerCase();
+  const lowerFile=fileName.toLowerCase();
+  const text=JSON.stringify(json||{});
+  const lowerText=text.toLowerCase();
+  const baseDisplay=fileName.replace(/\.json$/,'');
+  // Core
+  if(/main(template)?\.json$/i.test(fileName)){
+    const resources=json.resources||[];
+    return {type:'filecore',coreKind:'mainTemplate',id:'mainTemplate.json',path,raw:json,
+      resourceCount:resources.length,
+      functionApps:resources.filter(r=>/functionapp/i.test(r.type||'')).length,
+      logicApps:resources.filter(r=>/workflows/i.test(r.type||'')).length,
+      tablesDeployed:resources.filter(r=>/workspaces\/tables$/i.test(r.type||'')).length
+    };
+  }
+  if(lowerFile==='solutionmetadata.json'){
+    return {type:'filecore',coreKind:'solutionMetadata',id:'solutionMetadata.json',path,raw:json};
+  }
+  if(lowerFile==='createuidefinition.json'){
+    return {type:'filecore',coreKind:'createUiDefinition',id:'createUiDefinition.json',path,raw:json};
+  }
+  if(lowerFile==='pollerconfig.json'){
+    return {type:'filecore',coreKind:'pollerConfig',id:'pollerConfig.json',path,raw:json,
+      scheduleHints:Object.keys(json).filter(k=>/interval|frequency|schedule|cron/i.test(k)).slice(0,3)
+    };
+  }
+  if(lowerFile==='dcr.json'){
+    const dataFlows=(json.dataFlows||json.properties?.dataFlows||[]);
+    const streams=new Set(); const tables=new Set();
+    dataFlows.forEach(df=>{
+      (df.streams||[]).forEach(st=>{
+        if(typeof st==='string'){ streams.add(st); }
+        else {
+          if(st.stream) streams.add(st.stream);
+          if(st.transformKql) extractTablesFromQuery(st.transformKql).forEach(t=>tables.add(t));
+        }
+      });
+    });
+    return {type:'dependency',coreKind:'dcr',id:'dcr.json',path,raw:json,
+      streamCount:streams.size, tableCount:tables.size, streams:[...streams], tables:[...tables]
+    };
+  }
+  if(lowerFile==='tableschema.json'){
+    const tableNames=Object.keys(json.tables||{});
+    return {type:'filecore',coreKind:'tableSchema',id:'tableSchema.json',path,raw:json,
+      tableCount:tableNames.length, tables:tableNames};
+  }
+  if(lowerFile==='connectordefinition.json'){
+    const kind=json.kind||json.properties?.kind||'';
+    const endpoints=[];
+    if(json.pollingConfig?.request?.url) endpoints.push(json.pollingConfig.request.url);
+    (json.streamDeclarations||[]).forEach(sd=>sd?.request?.url && endpoints.push(sd.request.url));
+    return {type:'filecore',coreKind:'connectorDefinition',id:'connectorDefinition.json',path,raw:json,
+      kind,endpoints:endpoints.slice(0,4)};
+  }
+  if(lowerFile==='host.json'||lowerFile==='functionapp.json'){
+    return {type:'functioninfra',id:fileName,path,raw:json,bindingsCount:(json.bindings||[]).length};
+  }
+  if(lowerFile==='azuredeploy.json'||lowerFile==='deployment.json'){
+    return {type:'deployment',id:fileName,path,raw:json,resourceCount:(json.resources||[]).length};
+  }
+
+  // Artifacts
+  const analyticPathHint=/\/analytics\//.test(lowerPath)||/\/analytics rules?\//.test(lowerPath)||/\/alertrules\//.test(lowerPath);
+  const hasQuery=!!(json?.properties?.query||json?.query);
+  const hasSeverityOrTactics=!!(json?.properties?.severity||json?.properties?.tactics);
+  if(analyticPathHint || (hasQuery && hasSeverityOrTactics)){
+    const q=json?.properties?.query||json?.query||'';
+    return {type:'analyticrule',id:baseDisplay,path,
+      severity:json?.properties?.severity||'',
+      tactics:json?.properties?.tactics||[],
+      queryLength:q.length,
+      tables:extractTablesFromQuery(q),
+      raw:json
+    };
+  }
+  const huntingPathHint=/\/hunting( queries)?\//.test(lowerPath);
+  const huntingTag=json?.tags && json.tags['hidden-sentinelContentType']==='HuntingQuery';
+  if(huntingPathHint||huntingTag){
+    const q=json?.properties?.query||json?.query||'';
+    return {type:'huntingquery',id:baseDisplay,path,
+      tables:extractTablesFromQuery(q),
+      queryLength:q.length,
+      raw:json};
+  }
+  if(/\/workbooks?\//.test(lowerPath)){
+    // Count embedded queries heuristically
+    const textLower=lowerText;
+    const queryCount=(textLower.match(/"query"\s*:/g)||[]).length;
+    return {type:'workbook',id:baseDisplay,path,queryCount,raw:json};
+  }
+  if(/\/playbooks?\//.test(lowerPath)){
+    const def=json.definition||json.properties?.definition;
+    const triggers=def?.triggers?Object.keys(def.triggers).length:0;
+    const actions=def?.actions?Object.keys(def.actions).length:0;
+    return {type:'playbook',id:baseDisplay,path,triggers,actions,raw:json};
+  }
+
+  // Connector heuristic (non-core)
+  const rawKind=(json?.kind||json?.properties?.kind||'').toLowerCase();
+  const ui= json?.properties?.connectorUiConfig||json?.properties?.connectorUIConfig;
+  const hasDcrConfig=!!json?.properties?.dcrConfig;
+  const hasDataTypes=Array.isArray(json?.properties?.dataTypes);
+  const isConnector=(ui||hasDcrConfig||hasDataTypes||/dataconnector/.test(lowerText));
+  if(isConnector){
+    const endpoints=[];
+    if(json?.properties?.pollingConfig?.request?.url) endpoints.push(json.properties.pollingConfig.request.url);
+    return {type:'connector',id:baseDisplay,path,kind:rawKind,endpoints:endpoints.slice(0,3),raw:json};
+  }
+
+  return {type:'json',id:baseDisplay,path,raw:json};
+}
+
+/* ==================== Build Artifacts Collection ==================== */
+function buildArtifacts(files){
+  const acc={connectors:[],dcrs:[],workbooks:[],analytics:[],hunting:[],playbooks:[],infra:[],deploy:[],others:[],coreFiles:[]};
+  for(const f of files){
+    const c=classifyArtifact(f.json,f.path);
+    if(c.type==='filecore') acc.coreFiles.push(c);
+    else if(c.type==='connector') acc.connectors.push(c);
+    else if(c.type==='dependency') acc.dcrs.push(c);
+    else if(c.type==='workbook') acc.workbooks.push(c);
+    else if(c.type==='analyticrule') acc.analytics.push(c);
+    else if(c.type==='huntingquery') acc.hunting.push(c);
+    else if(c.type==='playbook') acc.playbooks.push(c);
+    else if(c.type==='functioninfra') acc.infra.push(c);
+    else if(c.type==='deployment') acc.deploy.push(c);
+    else acc.others.push(c);
+  }
+  acc.filePresence={
+    createUiDefinition: acc.coreFiles.some(c=>c.coreKind==='createUiDefinition'),
+    mainTemplate: acc.coreFiles.some(c=>c.coreKind==='mainTemplate'),
+    solutionMetadata: acc.coreFiles.some(c=>c.coreKind==='solutionMetadata'),
+    dcr: acc.coreFiles.some(c=>c.coreKind==='dcr')||acc.dcrs.length>0,
+    tableSchema: acc.coreFiles.some(c=>c.coreKind==='tableSchema'),
+    connectorDefinition: acc.coreFiles.some(c=>c.coreKind==='connectorDefinition'),
+    pollerConfig: acc.coreFiles.some(c=>c.coreKind==='pollerConfig')
+  };
+  return acc;
+}
+
+/* ==================== Solution Meta Extraction ==================== */
+function deriveSolutionId(solutionFolder, solMetaObj={}, mainTemplate={}) {
+  const guidRe=/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i;
+  try{
+    const flat=JSON.stringify(solMetaObj);
+    const g=flat.match(guidRe);
+    if(g) return {id:g[0],source:'solutionMetadata'};
+  }catch{}
+  try{
+    const flat=JSON.stringify(mainTemplate.parameters||{});
+    const g=flat.match(guidRe);
+    if(g) return {id:g[0],source:'mainTemplateParams'};
+  }catch{}
+  return {id:solutionFolder,source:'folder'};
+}
+async function extractSolutionMeta(owner,repo,branch,solution,paths,artifacts){
+  const base=`https://raw.githubusercontent.com/${owner}/${repo}/${encodeURIComponent(branch)}/`;
+  const mtPath=paths.find(p=>/main(template)?\.json$/i.test(p));
+  const metaPath=paths.find(p=>/solutionmetadata\.json$/i.test(p));
+  let mt={}, sm={};
+  if(mtPath) mt=await fetchJson(base+mtPath,'mainTemplate')||{};
+  if(metaPath) sm=await fetchJson(base+metaPath,'solutionMetadata')||{};
+  const solIdObj=deriveSolutionId(solution,sm,mt);
+  const displayName = sm.displayName||sm.name||solution;
+  const publisher= sm.publisher||sm.author||'';
+  const version = sm.version||sm.contentVersion||mt.contentVersion||'';
+  let categories=normalizeMetaList(sm.categories||sm.category);
+  let domains=normalizeMetaList(sm.domains||sm.domain);
+  categories=[...new Set(categories)]; domains=[...new Set(domains)];
+  return {
+    solutionId:solIdObj.id,
+    solutionIdSource:solIdObj.source,
+    solutionName:displayName,
+    publisher,
+    version,
+    categories,
+    domains,
+    counts:{
+      connectors:artifacts.connectors.length,
+      analytics:artifacts.analytics.length,
+      workbooks:artifacts.workbooks.length,
+      hunting:artifacts.hunting.length,
+      playbooks:artifacts.playbooks.length
+    },
+    filePresence:artifacts.filePresence
+  };
+}
+
+/* ==================== Data Sources Model (simplified original) ==================== */
+function buildDataSourcesModel(artifacts, rawFiles){
+  try{
+    const byPath=new Map(rawFiles.map(f=>[f.path.toLowerCase(),f]));
+    const getJson=name=>{
+      const key=[...byPath.keys()].find(p=>p.endsWith('/'+name.toLowerCase()));
+      return key?byPath.get(key).json:null;
+    };
+    const connDef=getJson('connectorDefinition.json');
+    const poller=getJson('pollerConfig.json');
+    const dcr=getJson('dcr.json');
+    const tableSchema=getJson('tableSchema.json');
+    const mainT=getJson('mainTemplate.json');
+    const solMeta=getJson('solutionMetadata.json');
+
+    const endpoints=[];
+    if(connDef?.pollingConfig?.request?.url) endpoints.push(connDef.pollingConfig.request.url);
+    (connDef?.streamDeclarations||[]).forEach(sd=>sd?.request?.url&&endpoints.push(sd.request.url));
+    if(poller){
+      JSON.stringify(poller,(k,v)=>{
+        if(k==='url'||k==='endpoint') endpoints.push(v);
+        return v;
+      });
+    }
+    let legacyCount=0;
+    if(mainT){
+      (JSON.stringify(mainT).match(/https?:\/\/[A-Za-z0-9._\-:/?&%]+/g)||[]).slice(0,5).forEach(u=>{endpoints.push(u);legacyCount++;});
+    }
+
+    let connectorType='Unknown';
+    if(connDef){
+      if(dcr || connDef?.properties?.dcrConfig) connectorType='CCF-DCR';
+      else connectorType='CCF';
+    } else if(dcr && tableSchema) connectorType='LogIngestionAPI';
+    else if(artifacts.infra.length) connectorType='Legacy';
+    else if(!artifacts.connectors.length && !artifacts.dcrs.length && (artifacts.analytics.length||artifacts.workbooks.length)) connectorType='ArtifactOnly';
+
+    const flows=[];
+    if(dcr?.dataFlows){
+      dcr.dataFlows.forEach(df=>{
+        (df.streams||[]).forEach(st=>{
+          let streamName='', table;
+          if(typeof st==='string') streamName=st;
+          else {
+            streamName=st.stream||'';
+            if(st.transformKql) table=extractTablesFromQuery(st.transformKql)[0];
+          }
+          flows.push({
+            systemName: solMeta?.displayName||'System',
+            stream:streamName,
+            table,
+            transformExcerpt:(st.transformKql||'').split(/\r?\n/).slice(0,3).join('\\n'),
+            sourceFile:'dcr.json',
+            inferred:!st.transformKql
+          });
+        });
+      });
+    }
+
+    const tables=[]; const tableSet=new Set();
+    function addTable(t,src){
+      if(!t) return;
+      if(!tableSet.has(t)){
+        tableSet.add(t);
+        tables.push({name:t,custom:/_CL$/i.test(t)||(tableSchema?.tables?.[t]),definedIn:[src],referencedBy:{analytics:[],hunting:[],workbooks:[]}});
+      } else {
+        const td=tables.find(x=>x.name===t);
+        if(td && !td.definedIn.includes(src)) td.definedIn.push(src);
+      }
+    }
+    if(tableSchema) Object.keys(tableSchema.tables||{}).forEach(t=>addTable(t,'tableSchema.json'));
+    if(mainT?.resources){
+      mainT.resources.forEach(r=>{
+        if(/workspaces\/tables$/i.test(r.type||'')){
+          const t=r.name?.split('/').pop();
+          addTable(t,'mainTemplate.json');
+        }
+      });
+    }
+    flows.forEach(f=>f.table && addTable(f.table,'dcr.json'));
+    const refMap=new Map(tables.map(t=>[t.name,t]));
+    function tagRefs(list,kind){
+      list.forEach(a=>{
+        (a.tables||[]).forEach(tb=>{
+          if(!refMap.has(tb)) addTable(tb,'queryReference');
+          refMap.get(tb).referencedBy[kind].push(a.id);
+        });
+      });
+    }
+    tagRefs(artifacts.analytics,'analytics');
+    tagRefs(artifacts.hunting,'hunting');
+    tagRefs(artifacts.workbooks,'workbooks');
+
+    const defined=new Set(tables.map(t=>t.name));
+    const referenced=new Set();
+    tables.forEach(t=>{
+      if(Object.values(t.referencedBy).some(arr=>arr.length)) referenced.add(t.name);
+    });
+    const orphanTables=[...defined].filter(n=>!referenced.has(n));
+    const unresolvedReferences=[...referenced].filter(n=>!defined.has(n));
+
+    let score=0,max=1.2;
+    if(connectorType.startsWith('CCF')) score+=0.4;
+    if(dcr) score+=0.2;
+    if(poller) score+=0.15;
+    if(flows.length) score+=0.15;
+    if(endpoints.length) score+=0.2;
+    score=Math.min(score,max);
+    const confidence=+(score/max).toFixed(3);
+
+    return {
+      connectorType,
+      primarySystems:[{
+        name: solMeta?.displayName||'External System',
+        endpoints: endpoints.slice(0,8).map(u=>({url:u,sourceFile:'mixed',polling:/poll|interval|frequency/i.test(u)})),
+        mechanism: (poller||connDef?.pollingConfig)?'Polling': legacyCount>0?'Push':'Unknown',
+        evidence:{connectorDefinition:!!connDef,pollerConfig:!!poller,dcr:!!dcr,functionCode:!!artifacts.infra.length}
+      }],
+      flows,tables,orphanTables,unresolvedReferences,confidence,notes:[]
+    };
+  }catch(e){
+    log('DataSourcesModel error: '+e.message,true);
+    return {error:e.message};
+  }
+}
+
+/* ==================== Graph Builders ==================== */
+function buildBaseGraph(art,solName){
+  const nodes=[],links=[],idx=new Map();
+  const addNode=(id,type,meta={})=>{
+    if(idx.has(id)) return idx.get(id);
+    const n={id,type,...meta}; nodes.push(n); idx.set(id,n); return n;
+  };
+  const addLink=(s,t,e)=>{links.push({source:s,target:t,edgeType:e});};
+  const root=solName||'Solution';
+  addNode(root,'solution',{level:0});
+
+  art.coreFiles.forEach(cf=>{ addNode(cf.id,'filecore',cf); addLink(root,cf.id,'solution-corefile'); });
+  art.connectors.forEach(c=>{ addNode(c.id,'connector',c); addLink(root,c.id,'solution-connector'); });
+  art.dcrs.forEach(d=>{
+    addNode(d.id,'dependency',d); addLink(root,d.id,'solution-dcr');
+    (d.tables||[]).forEach(tb=>{addNode(tb,'table',{});addLink(d.id,tb,'dcr-table');});
+    (d.streams||[]).forEach(st=>{addNode(st,'stream',{});addLink(d.id,st,'connector-stream');});
+  });
+  art.connectors.forEach(c=>{
+    (c.tables||[]).forEach(tb=>{ addNode(tb,'table',{}); addLink(c.id,tb,'connector-table'); });
+    (c.streams||[]).forEach(st=>{ addNode(st,'stream',{}); addLink(c.id,st,'connector-stream'); });
+  });
+  art.workbooks.forEach(w=>{
+    addNode(w.id,'workbook',w); addLink(root,w.id,'solution-workbook');
+    (w.tables||[]).forEach(tb=>nodes.some(n=>n.id===tb)&&addLink(tb,w.id,'table-workbook'));
+  });
+  art.analytics.forEach(a=>{
+    addNode(a.id,'analyticrule',a); addLink(root,a.id,'solution-analytic');
+    (a.tables||[]).forEach(tb=>nodes.some(n=>n.id===tb)&&addLink(tb,a.id,'table-analytic'));
+  });
+  art.hunting.forEach(h=>{
+    addNode(h.id,'huntingquery',h); addLink(root,h.id,'solution-hunting');
+    (h.tables||[]).forEach(tb=>nodes.some(n=>n.id===tb)&&addLink(tb,h.id,'table-hunting'));
+  });
+  art.playbooks.forEach(p=>{
+    addNode(p.id,'playbook',p); addLink(root,p.id,'solution-playbook');
+  });
+  art.infra.forEach(f=>{addNode(f.id,'functioninfra',{bindingsCount:f.bindingsCount});addLink(root,f.id,'solution-infra');});
+  art.deploy.forEach(d=>{addNode(d.id,'deployment',{resourceCount:d.resourceCount});addLink(root,d.id,'solution-deployment');});
+  art.others.slice(0,50).forEach(o=>{addNode(o.id,'json',{path:o.path});addLink(root,o.id,'solution-json');});
+  return {nodes,links};
+}
+const buildFlowGraph=(a,m)=>buildBaseGraph(a,m.solutionName||'Solution');
+const buildHierarchyGraph=(a,m)=>buildBaseGraph(a,m.solutionName||'Solution');
+const buildCascadeGraph=(a,m)=>buildBaseGraph(a,m.solutionName||'Solution');
+
+/* ==================== Panels ==================== */
+function updateSolutionMeta(){
+  const el=$('#solutionMeta'); if(!el) return;
+  const m=STATE.meta;
+  if(!m){el.textContent='(No meta yet)';return;}
+  const cats=(m.categories||[]).map(c=>`<span class="badge">${escapeHtml(c)}</span>`).join(' ');
+  const doms=(m.domains||[]).map(c=>`<span class="badge" style="background:#ffe4e6;color:#be123c;">${escapeHtml(c)}</span>`).join(' ');
+  el.innerHTML=`
+    <div style="line-height:1.1;">
+      <div><strong>${escapeHtml(m.solutionName||'(Unnamed)')}</strong></div>
+      <div style="font-size:.6rem;color:var(--text-dim);">Publisher: ${escapeHtml(m.publisher||'-')} • Version: ${escapeHtml(m.version||'-')}</div>
+      <div style="margin-top:4px;font-size:.6rem;">SolutionId: <code>${escapeHtml(m.solutionId||'(none)')}</code></div>
+      <div style="margin-top:4px;">${cats||''}</div>
+      <div style="margin-top:4px;">${doms||''}</div>
+      <div style="margin-top:6px;font-size:.55rem;">Counts: Conn ${m.counts.connectors} • DCR ${STATE.artifacts?.dcrs.length||0} • Tables ${(STATE.dataSourcesModel?.tables||[]).length} • Analytics ${m.counts.analytics} • Workbooks ${m.counts.workbooks} • Playbooks ${m.counts.playbooks}</div>
+    </div>
+  `;
+}
+function updateArchitecturePanel(){
+  const el=$('#architecturePanel');
+  if(!el) return;
+  const a=STATE.solutionAnalysis;
+  if(!a){el.textContent='(Not analyzed yet)';return;}
+  el.innerHTML=`
+    <div><strong>${escapeHtml(a.type)}</strong> <span style="font-size:.55rem;color:var(--text-dim);">Confidence: ${escapeHtml(a.confidence)}</span></div>
+    <div style="margin-top:4px;font-size:.55rem;">Signals: CCF ${a.signals.ccf} • HTTP ${a.signals.http}</div>
+  `;
+}
+function updateLogicAnalysisPanel(){
+  const panel=$('#logicAnalysis');
+  if(!panel) return;
+  const ui=STATE.createUiAnalysis;
+  const art=STATE.artifacts;
+  const real={
+    dataConnectors:art?.connectors.length||0,
+    workbooks:art?.workbooks.length||0,
+    analyticRules:art?.analytics.length||0,
+    huntingQueries:art?.hunting.length||0,
+    playbooks:art?.playbooks.length||0
+  };
+  const realTotal=Object.values(real).reduce((a,b)=>a+b,0);
+  const implied=ui?.implied||{dataConnectors:0,workbooks:0,analyticRules:0,huntingQueries:0,playbooks:0};
+  const impliedTotal=Object.values(implied).reduce((a,b)=>a+b,0);
+  let counts={...real}; let mode='real';
+  if(realTotal===0 && impliedTotal>0){counts={...implied};mode='implied';}
+  const name=(ui?.solutionName||STATE.meta?.solutionName||'Solution');
+  const lines=[];
+  lines.push(`[${name}] (${mode} counts)`);
+  [['Connectors',counts.dataConnectors],
+   ['DCRs',art?.dcrs.length||0],
+   ['Tables',(STATE.dataSourcesModel?.tables||[]).length],
+   ['Analytics',counts.analyticRules],
+   ['Workbooks',counts.workbooks],
+   ['Hunting',counts.huntingQueries],
+   ['Playbooks',counts.playbooks]
+  ].forEach((e,i)=>{
+    const last=i===6; lines.push(`${last?'└':'├'}── ${e[0]} (${e[1]||0})`);
+  });
+  panel.innerHTML=`<pre>${escapeHtml(lines.join('\\n'))}${mode==='implied'?'\n(Heuristic wizard-derived)':''}</pre>`;
+}
+function renderDataSourcesPanel(model){
+  const panel=$('#dataSourcesPanel');
+  if(!panel) return;
+  if(!model || model.error){
+    panel.innerHTML='<div class="panel-header">Data Sources</div><div style="font-size:.6rem;">No model / error.</div>';
+    return;
+  }
+  const sys=model.primarySystems[0];
+  const endpoints=sys?.endpoints?.map(e=>`<code>${escapeHtml(e.url)}</code>`).join('<br>')||'(none)';
+  const orphan=model.orphanTables.length?`<div style="color:#b45309;">Orphans: ${escapeHtml(model.orphanTables.join(', '))}</div>`:'';
+  const unresolved=model.unresolvedReferences.length?`<div style="color:#dc2626;">Unresolved: ${escapeHtml(model.unresolvedReferences.join(', '))}</div>`:'';
+  panel.innerHTML=`
+    <div class="panel-header">Data Sources</div>
+    <div style="font-size:.6rem;line-height:1.1;">
+      <div><strong>ConnectorType:</strong> ${escapeHtml(model.connectorType)}</div>
+      ${sys?`<div><strong>System:</strong> ${escapeHtml(sys.name)}</div>`:''}
+      ${sys?`<div><strong>Mechanism:</strong> ${escapeHtml(sys.mechanism)}</div>`:''}
+      <div><strong>Endpoints:</strong><br>${endpoints}</div>
+      <div style="margin-top:4px;">Flows: ${model.flows.length} • Tables: ${model.tables.length} • Conf: ${Math.round(model.confidence*100)}%</div>
+      ${orphan}${unresolved}
+    </div>
+  `;
+}
+function showArtifactDetails(node){
+  const el=$('#details'); if(!el) return;
+  if(!node){el.innerHTML='(Select a node)';return;}
+  const meta={...node}; ['vx','vy','x','y','index'].forEach(k=>delete meta[k]);
+  const pre=escapeHtml(JSON.stringify(meta,null,2));
+  el.innerHTML=`<div style="font-size:.7rem;font-weight:600;margin-bottom:4px;">${escapeHtml(node.id)} <span style="font-size:.55rem;color:var(--text-dim);">[${escapeHtml(node.type)}]</span></div><pre>${pre}</pre>`;
+}
+
+/* ==================== Artifact Explorer ==================== */
+let ARTIFACT_SORT={key:'type',asc:true};
+function buildArtifactExplorer(){
+  if(!STATE.artifacts) return;
+  const tbody=$('#artifactTableBody'); if(!tbody) return;
+  tbody.innerHTML='';
+  const lists=[
+    ...STATE.artifacts.connectors,
+    ...STATE.artifacts.dcrs,
+    ...STATE.artifacts.workbooks,
+    ...STATE.artifacts.analytics,
+    ...STATE.artifacts.hunting,
+    ...STATE.artifacts.playbooks,
+    ...STATE.artifacts.infra,
+    ...STATE.artifacts.deploy,
+    ...STATE.artifacts.coreFiles
+  ];
+  let all=lists.map(a=>({id:a.id,type:a.type==='filecore'?a.coreKind||a.type:a.type,size:JSON.stringify(a.raw||a).length,ref:a}));
+  const term=$('#artifactSearch').value.trim().toLowerCase();
+  if(term) all=all.filter(r=>r.id.toLowerCase().includes(term)||r.type.toLowerCase().includes(term));
+  all.sort((a,b)=>{
+    const k=ARTIFACT_SORT.key;
+    if(a[k]<b[k]) return ARTIFACT_SORT.asc?-1:1;
+    if(a[k]>b[k]) return ARTIFACT_SORT.asc?1:-1;
+    return 0;
+  });
+  all.forEach(r=>{
+    const tr=document.createElement('tr');
+    tr.innerHTML=`<td>${escapeHtml(r.type)}</td><td>${escapeHtml(r.id)}</td><td>${r.size}</td>`;
+    tr.onclick=()=>highlightNode(r.id);
+    tbody.appendChild(tr);
+  });
+}
+function applyArtifactSearch(){buildArtifactExplorer();}
+function buildArtifactTypeQuickFilters(){
+  const container=$('#artifactTypeFilters'); if(!container) return;
+  container.innerHTML='';
+  const types=['filecore','connector','dependency','analyticrule','workbook','huntingquery','playbook','functioninfra','deployment'];
+  types.forEach(t=>{
+    const id='flt_'+t;
+    const wrap=document.createElement('label');
+    wrap.style.fontSize='.5rem'; wrap.style.display='flex'; wrap.style.alignItems='center'; wrap.style.gap='2px';
+    wrap.innerHTML=`<input id="${id}" type="checkbox" value="${t}" checked style="transform:scale(.8);">${t}`;
+    wrap.querySelector('input').addEventListener('change',buildArtifactExplorer);
+    container.appendChild(wrap);
+  });
+}
+
+/* ==================== Exports ==================== */
+function exportJson(){
+  const data={meta:STATE.meta,architecture:STATE.solutionAnalysis,dataSources:STATE.dataSourcesModel,graph:STATE.graph};
+  const blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json'});
+  const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='sentinel_solution_export.json'; a.click();
+}
+function exportCsv(){
+  const rows=[['source','target','edgeType']];
+  STATE.graph.links.forEach(l=>rows.push([l.source.id||l.source,l.target.id||l.target,l.edgeType]));
+  const csv=rows.map(r=>r.map(v=>`"${String(v).replace(/"/g,'""')}"`).join(',')).join('\\n');
+  const blob=new Blob([csv],{type:'text/csv'});
+  const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='graph_edges.csv'; a.click();
+}
+function exportPng(){
+  const svg=$('#graph'); const xml=new XMLSerializer().serializeToString(svg);
+  const svg64=btoa(unescape(encodeURIComponent(xml)));
+  const img=new Image();
+  img.onload=function(){
+    const canvas=document.createElement('canvas'); canvas.width=svg.clientWidth; canvas.height=svg.clientHeight;
+    const ctx=canvas.getContext('2d'); ctx.fillStyle=STATE.dark?'#0f172a':'#ffffff'; ctx.fillRect(0,0,canvas.width,canvas.height);
+    ctx.drawImage(img,0,0);
+    canvas.toBlob(b=>{
+      const a=document.createElement('a'); a.href=URL.createObjectURL(b); a.download='graph.png'; a.click();
+    });
+  };
+  img.src='data:image/svg+xml;base64,'+svg64;
+}
+function exportDataSources(){
+  if(!STATE.dataSourcesModel){ alert('No model yet'); return; }
+  const blob=new Blob([JSON.stringify(STATE.dataSourcesModel,null,2)],{type:'application/json'});
+  const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='data_sources_model.json'; a.click();
+}
+
+/* ==================== Graph Rendering (Layered Node Style) ==================== */
+const NODE_RECT={width:230,height:130,rx:14,innerPad:10,maxLines:7,maxChars:34};
+
+function buildNodeLines(node){
+  const L=[];
+  const wrap=(txt)=> {
+    const words=String(txt).split(/\s+/);
+    let line=''; words.forEach(w=>{
+      if((line+w).length>NODE_RECT.maxChars){ L.push(line.trim()); line=w+' '; }
+      else line+=w+' ';
+    });
+    if(line.trim()) L.push(line.trim());
+  };
+  switch(node.type){
+    case 'solution':
+      L.push('Solution'); L.push(node.id);
+      break;
+    case 'filecore':
+      if(node.coreKind==='mainTemplate'){
+        L.push('Core: mainTemplate'); L.push(`Resources: ${node.resourceCount}`);
+        if(node.functionApps) L.push(`Functions: ${node.functionApps}`);
+        if(node.logicApps) L.push(`Logic Apps: ${node.logicApps}`);
+        if(node.tablesDeployed) L.push(`Tables deployed: ${node.tablesDeployed}`);
+      } else if(node.coreKind==='connectorDefinition'){
+        L.push('Core: connectorDefinition'); if(node.kind) L.push(`Kind: ${node.kind}`);
+        if(node.endpoints?.length) L.push(`Endpoints: ${node.endpoints.length}`);
+      } else if(node.coreKind==='dcr'){
+        L.push('Core: dcr.json'); L.push(`Streams: ${node.streamCount}`); L.push(`Tables: ${node.tableCount}`);
+      } else if(node.coreKind==='tableSchema'){
+        L.push('Core: tableSchema.json'); L.push(`Tables: ${node.tableCount}`);
+      } else if(node.coreKind==='pollerConfig'){
+        L.push('Core: pollerConfig'); if(node.scheduleHints?.length) L.push(node.scheduleHints.join(', '));
+      } else {
+        L.push(`Core: ${node.id}`);
+      }
+      break;
+    case 'connector':
+      L.push(`Connector: ${node.id}`); if(node.kind) L.push(`Kind: ${node.kind}`);
+      if(node.endpoints?.length) L.push(`Endpoints: ${node.endpoints.length}`);
+      break;
+    case 'dependency':
+      L.push(`DCR: ${node.id}`); if(node.streamCount!=null) L.push(`Streams: ${node.streamCount}`); if(node.tableCount!=null) L.push(`Tables: ${node.tableCount}`);
+      break;
+    case 'table':
+      L.push(`Table: ${node.id}`);
+      break;
+    case 'stream':
+      L.push(`Stream: ${node.id}`);
+      break;
+    case 'analyticrule':
+      L.push(`Analytic: ${node.id}`); if(node.severity) L.push(`Severity: ${node.severity}`); if(node.tactics?.length) L.push(`Tactics: ${node.tactics.slice(0,3).join(',')}${node.tactics.length>3?'…':''}`); if(node.queryLength) L.push(`Query chars: ${node.queryLength}`);
+      break;
+    case 'workbook':
+      L.push(`Workbook: ${node.id}`); if(node.queryCount!=null) L.push(`Queries: ${node.queryCount}`);
+      break;
+    case 'huntingquery':
+      L.push(`Hunting: ${node.id}`); if(node.queryLength) L.push(`Chars: ${node.queryLength}`);
+      break;
+    case 'playbook':
+      L.push(`Playbook: ${node.id}`); if(node.triggers!=null) L.push(`Triggers: ${node.triggers}`); if(node.actions!=null) L.push(`Actions: ${node.actions}`);
+      break;
+    case 'functioninfra':
+      L.push(`Function Infra: ${node.id}`); if(node.bindingsCount!=null) L.push(`Bindings: ${node.bindingsCount}`);
+      break;
+    case 'deployment':
+      L.push(`Deployment: ${node.id}`); if(node.resourceCount!=null) L.push(`Resources: ${node.resourceCount}`);
+      break;
+    default:
+      L.push(node.id);
+  }
+  // Wrap overly long lines
+  const final=[];
+  for(const ln of L){
+    if(ln.length>NODE_RECT.maxChars){
+      const words=ln.split(/\s+/); let temp='';
+      for(const w of words){
+        if((temp+w).length>NODE_RECT.maxChars){ final.push(temp.trim()); temp=w+' '; }
+        else temp+=w+' ';
+      }
+      if(temp.trim()) final.push(temp.trim());
+    } else final.push(ln);
+    if(final.length>=NODE_RECT.maxLines) break;
+  }
+  return final.slice(0,NODE_RECT.maxLines);
+}
+
+function applyFilters(){
+  const showIsolated=STATE.showIsolated;
+  const filteredNodes=STATE.graph.nodes.filter(n=>{
+    if(showIsolated) return true;
+    return STATE.graph.links.some(l=>l.source.id===n.id||l.target.id===n.id);
+  });
+  const idSet=new Set(filteredNodes.map(n=>n.id));
+  const filteredLinks=STATE.graph.links.filter(l=>idSet.has(l.source.id)&&idSet.has(l.target.id));
+  return {nodes:filteredNodes,links:filteredLinks};
+}
+function buildTypeFilters(){
+  const c=$('#typeFilters'); if(!c) return;
+  c.innerHTML='';
+  Object.entries(TYPE_META).forEach(([k,v])=>{
+    const id='type_'+k;
+    const wrap=document.createElement('label');
+    wrap.style.display='flex'; wrap.style.alignItems='center'; wrap.style.gap='4px'; wrap.style.fontSize='.55rem';
+    wrap.innerHTML=`<input type="checkbox" id="${id}" checked style="transform:scale(.8);"><span style="background:${v.color};display:inline-block;width:10px;height:10px;border-radius:3px;"></span>${v.label||k}`;
+    wrap.querySelector('input').addEventListener('change',renderGraph);
+    c.appendChild(wrap);
+  });
+}
+function buildLegend(){
+  const c=$('#legend'); if(!c) return;
+  c.innerHTML='';
+  Object.entries(TYPE_META).forEach(([k,v])=>{
+    const div=document.createElement('div');
+    div.style.display='flex'; div.style.alignItems='center'; div.style.gap='4px'; div.style.fontSize='.55rem';
+    div.innerHTML=`<span style="background:${v.color};width:10px;height:10px;border-radius:2px;"></span>${v.label||k}`;
+    c.appendChild(div);
+  });
+}
+function highlightNode(id){
+  STATE.highlighted=id;
+  showArtifactDetails(STATE.graph.nodes.find(n=>n.id===id));
+  renderGraph(true);
+}
+let ZOOM_CTRL=null;
+function setupZoom(){
+  const svg=d3.select('#graph');
+  ZOOM_CTRL=d3.zoom().scaleExtent([0.3,3]).on('zoom',e=>{
+    d3.select('#graph g.main').attr('transform',e.transform);
+    STATE.zoom=e.transform;
+  });
+  svg.call(ZOOM_CTRL);
+}
+function fitView(duration=400){
+  const svg=d3.select('#graph');
+  const g=svg.select('g.main');
+  const box=g.node().getBBox();
+  if(!box.width||!box.height) return;
+  const {width,height}=svg.node().getBoundingClientRect();
+  const scale=Math.min(width/box.width,height/box.height)*0.85;
+  const translate=[(width - box.width*scale)/2 - box.x*scale,(height - box.height*scale)/2 - box.y*scale];
+  const t=d3.zoomIdentity.translate(translate[0],translate[1]).scale(scale);
+  svg.transition().duration(duration).call(ZOOM_CTRL.transform,t);
+}
+function renderGraph(preserve=false){
+  const svg=d3.select('#graph');
+  if(!preserve) svg.selectAll('*').remove();
+  let filtered=applyFilters();
+  const disabledTypes=$$('#typeFilters input[type=checkbox]').filter(c=>!c.checked).map(c=>c.id.replace('type_',''));
+  if(disabledTypes.length){
+    filtered.nodes=filtered.nodes.filter(n=>!disabledTypes.includes(n.type));
+    const idSet=new Set(filtered.nodes.map(n=>n.id));
+    filtered.links=filtered.links.filter(l=>idSet.has(l.source.id)&&idSet.has(l.target.id));
+  }
+  const g=svg.append('g').attr('class','main');
+
+  const link=g.selectAll('.graph-link')
+    .data(filtered.links)
+    .enter().append('line')
+    .attr('class','graph-link')
+    .attr('stroke',d=>EDGE_STYLE[d.edgeType]?.stroke||'#94a3b8')
+    .attr('stroke-width',1.4)
+    .attr('stroke-opacity',.75)
+    .attr('marker-end','url(#arrowHead)');
+
+  if(STATE.showEdgeLabels){
+    g.selectAll('.edge-label')
+      .data(filtered.links)
+      .enter().append('text')
+      .attr('class','edge-label')
+      .attr('font-size','7px')
+      .text(d=>d.edgeType);
+  }
+
+  // Arrow marker
+  const defs=svg.append('defs');
+  const m=defs.append('marker')
+    .attr('id','arrowHead')
+    .attr('viewBox','0 -5 10 10')
+    .attr('refX',14).attr('refY',0)
+    .attr('markerWidth',6).attr('markerHeight',6)
+    .attr('orient','auto');
+  m.append('path').attr('d','M0,-5L10,0L0,5').attr('fill','#555');
+
+  const nodeGroup=g.selectAll('.node-group')
+    .data(filtered.nodes)
+    .enter().append('g')
+    .attr('class','node-group layered-node')
+    .call(d3.drag()
+      .on('start',(event,d)=>{
+        if(!event.active && STATE.simulation) STATE.simulation.alphaTarget(.25).restart();
+        d.fx=d.x; d.fy=d.y;
+      })
+      .on('drag',(event,d)=>{ d.fx=event.x; d.fy=event.y; })
+      .on('end',(event,d)=>{
+        if(!event.active && STATE.simulation) STATE.simulation.alphaTarget(0);
+        if(!STATE.freezeAfter){ d.fx=null; d.fy=null; }
+      })
+    )
+    .on('click',(e,d)=>highlightNode(d.id))
+    .on('mouseover',(e,d)=>{
+      const lines=buildNodeLines(d);
+      const html=`<div style="font-size:.65rem;"><strong>${escapeHtml(d.id)}</strong><br>${lines.map(l=>escapeHtml(l)).join('<br>')}</div>`;
+      const t=$('#tooltip'); t.innerHTML=html; t.style.display='block'; t.style.left=(e.pageX+15)+'px'; t.style.top=(e.pageY+15)+'px';
+    })
+    .on('mouseout',()=>{const t=$('#tooltip'); t.style.display='none';});
+
+  nodeGroup.append('rect')
+    .attr('width',NODE_RECT.width)
+    .attr('height',NODE_RECT.height)
+    .attr('x',-NODE_RECT.width/2)
+    .attr('y',-NODE_RECT.height/2)
+    .attr('rx',NODE_RECT.rx)
+    .attr('fill',d=>TYPE_META[d.type]?.color||'#94a3b8')
+    .attr('stroke',d=>STATE.highlighted===d.id?'#111':'#333')
+    .attr('stroke-width',d=>STATE.highlighted===d.id?2:1.4);
+
+  nodeGroup.each(function(d){
+    const lines=buildNodeLines(d);
+    const text=d3.select(this).append('text')
+      .attr('x',-NODE_RECT.width/2+NODE_RECT.innerPad)
+      .attr('y',-NODE_RECT.height/2+20)
+      .attr('font-size',12)
+      .attr('fill','#111');
+    lines.forEach((ln,i)=>{
+      text.append('tspan')
+        .attr('x',-NODE_RECT.width/2+NODE_RECT.innerPad)
+        .attr('dy',i===0?0:16)
+        .text(ln);
+    });
+  });
+
+  const layerIndex={
+    solution:0,
+    filecore:1,
+    connector:1,
+    dependency:2,
+    stream:2,
+    table:3,
+    analyticrule:4,
+    workbook:4,
+    huntingquery:4,
+    playbook:4,
+    functioninfra:2,
+    deployment:2,
+    json:3
+  };
+  if(STATE.layoutMode==='force'){
+    STATE.simulation=d3.forceSimulation(filtered.nodes)
+      .force('link',d3.forceLink(filtered.links).id(d=>d.id).distance(120).strength(.7))
+      .force('charge',d3.forceManyBody().strength(-160))
+      .force('collide',d3.forceCollide().radius(NODE_RECT.width/2+14))
+      .force('x',d3.forceX(d=>{
+        const w=$('#graph').clientWidth||1200;
+        const band=w*0.12;
+        const col=layerIndex[d.type]??3;
+        return (col+1)*band;
+      }).strength(0.9))
+      .force('y',d3.forceY(d=>{
+        const h=$('#graph').clientHeight||600;
+        return h/2;
+      }).strength(0.15))
+      .on('tick',()=>{
+        link
+          .attr('x1',d=>d.source.x).attr('y1',d=>d.source.y)
+          .attr('x2',d=>d.target.x).attr('y2',d=>d.target.y);
+        g.selectAll('.edge-label')
+          .attr('x',d=>(d.source.x+d.target.x)/2)
+          .attr('y',d=>(d.source.y+d.target.y)/2);
+        nodeGroup.attr('transform',d=>`translate(${d.x},${d.y})`);
+      })
+      .on('end',()=>{ if(STATE.freezeAfter) filtered.nodes.forEach(n=>{n.fx=n.x;n.fy=n.y;}); });
+  } else {
+    // Static fallback layout
+    const grouped=new Map();
+    filtered.nodes.forEach(n=>{
+      const col=layerIndex[n.type]??3;
+      if(!grouped.has(col)) grouped.set(col,[]);
+      grouped.get(col).push(n);
+    });
+    const w=$('#graph').clientWidth||1200;
+    const h=$('#graph').clientHeight||600;
+    const cols=[...grouped.keys()].sort((a,b)=>a-b);
+    const colWidth=w/(cols.length+1);
+    cols.forEach((col,i)=>{
+      const list=grouped.get(col);
+      list.forEach((n,j)=>{
+        n.x=colWidth*(i+1);
+        n.y=80+j*(NODE_RECT.height+30);
+      });
+    });
+    link
+      .attr('x1',d=>d.source.x).attr('y1',d=>d.source.y)
+      .attr('x2',d=>d.target.x).attr('y2',d=>d.target.y);
+    g.selectAll('.edge-label')
+      .attr('x',d=>(d.source.x+d.target.x)/2)
+      .attr('y',d=>(d.source.y+d.target.y)/2);
+    nodeGroup.attr('transform',d=>`translate(${d.x},${d.y})`);
+  }
+  if(!preserve) fitView();
+}
+
+function renderHierarchyPanel(){
+  const panel=$('#hierarchyPanel');
+  if(!panel) return;
+  const g=STATE.graph;
+  const root=g.nodes.find(n=>n.type==='solution');
+  if(!root){panel.textContent='(No root)';return;}
+  const lines=[root.id];
+  const children=g.links.filter(l=>l.source.id===root.id).map(l=>l.target.id);
+  children.forEach((c,i)=>{
+    const last=i===children.length-1;
+    lines.push(`${last?'└':'├'}─ ${c}`);
+  });
+  panel.innerHTML=`<pre>${escapeHtml(lines.join('\\n'))}</pre>`;
+}
+
+/* ==================== Actions ==================== */
+async function handleLoadSolutions(){
+  try{
+    const repo=$('#repoInput').value.trim();
+    if(!repo.includes('/')) return setStatus('Enter owner/repo format',true);
+    const [owner,r]=repo.split('/');
+    let branch=$('#branchInput').value.trim();
+    if(!branch){
+      setStatus('Detecting default branch...');
+      branch=await detectDefaultBranch(owner,r) || 'main';
+      $('#branchInput').value=branch;
+    }
+    setStatus('Listing solutions...');
+    toggleLoader(true,'Listing solutions...');
+    const sols=await listSolutions(owner,r,branch);
+    const sel=$('#solutionSelect');
+    sel.innerHTML='<option value="">(select solution)</option>';
+    sols.forEach(s=>{
+      const opt=document.createElement('option'); opt.value=s; opt.textContent=s; sel.appendChild(opt);
+    });
+    setStatus(`Found ${sols.length} solutions.`);
+  }catch(e){
+    setStatus('Load solutions error: '+e.message,true);
+  }finally{
+    toggleLoader(false);
+  }
+}
+
+async function fetchSolutionFiles(owner,repo,branch,paths,includeNonCore){
+  const coreNames=new Set([
+    'mainTemplate.json','solutionMetadata.json','createUiDefinition.json','connectorDefinition.json',
+    'pollerConfig.json','dcr.json','tableSchema.json','host.json','functionapp.json','azuredeploy.json'
+  ]);
+  const base=`https://raw.githubusercontent.com/${owner}/${repo}/${encodeURIComponent(branch)}/`;
+  const out=[];
+  for(const p of paths){
+    if(!includeNonCore && !coreNames.has(p.split('/').pop())) continue;
+    const j=await fetchJson(base+p,p.split('/').pop());
+    if(j) out.push({path:p,json:j});
+  }
+  log(`Fetched ${out.length} JSON files (includeNonCore=${includeNonCore})`);
+  return out;
+}
+
+async function handleVisualize(){
+  try{
+    const repo=$('#repoInput').value.trim();
+    if(!repo.includes('/')) return setStatus('Enter owner/repo format',true);
+    const [owner,r]=repo.split('/');
+    const solution=$('#solutionSelect').value;
+    if(!solution) return setStatus('Select a solution first',true);
+    let branch=$('#branchInput').value.trim();
+    if(!branch){
+      branch=await detectDefaultBranch(owner,r) || 'main';
+      $('#branchInput').value=branch;
+    }
+    STATE.includeNonCore=$('#includeNonCore').checked;
+    setStatus('Gathering file paths...');
+    toggleLoader(true,'Fetching solution files...');
+    const paths=await listSolutionJsonPaths(owner,r,branch,solution);
+    const files=await fetchSolutionFiles(owner,r,branch,paths,STATE.includeNonCore);
+    STATE.rawFiles=files;
+    STATE.artifacts=buildArtifacts(files);
+    STATE.createUiAnalysis=analyzeCreateUiDefinition(
+      STATE.artifacts.coreFiles.find(c=>c.coreKind==='createUiDefinition')?.raw
+    );
+    STATE.meta=await extractSolutionMeta(owner,r,branch,solution,paths,STATE.artifacts);
+    STATE.solutionAnalysis=analyzeSolutionArchitecture(STATE.artifacts);
+    STATE.dataSourcesModel=buildDataSourcesModel(STATE.artifacts,STATE.rawFiles);
+    updateSolutionMeta();
+    updateArchitecturePanel();
+    updateLogicAnalysisPanel();
+    renderDataSourcesPanel(STATE.dataSourcesModel);
+
+    // Graphs
+    const meta=STATE.meta||{};
+    const art=STATE.artifacts;
+    STATE.baseGraph=buildBaseGraph(art,meta.solutionName||solution);
+    STATE.flowGraph=buildFlowGraph(art,meta);
+    STATE.hierarchyGraph=buildHierarchyGraph(art,meta);
+    STATE.cascadeGraph=buildCascadeGraph(art,meta);
+
+    const coreOnly=$('#coreMode').checked;
+    let current=STATE.baseGraph;
+    if(STATE.layoutMode==='cascade') current=STATE.cascadeGraph;
+    else if(STATE.layoutMode==='flow') current=STATE.flowGraph;
+    else if(STATE.layoutMode==='hierarchy') current=STATE.hierarchyGraph;
+    if(coreOnly){
+      current={
+        nodes:STATE.baseGraph.nodes.filter(n=>['solution','filecore','connector','dependency','table','stream'].includes(n.type)),
+        links:STATE.baseGraph.links.filter(l=>['solution-corefile','solution-connector','solution-dcr','dcr-table','connector-stream','connector-dcr','connector-table','dcr-table'].includes(l.edgeType))
+      };
+    }
+    STATE.graph=current;
+    buildArtifactExplorer();
+    renderGraph();
+    renderHierarchyPanel();
+    buildTypeFilters();
+    buildLegend();
+    setStatus('Visualization complete.');
+  }catch(e){
+    log('Visualize error: '+e.message,true);
+    setStatus('Visualize failed: '+e.message,true);
+  }finally{
+    toggleLoader(false);
+  }
+}
+
+/* ==================== Tabs / Mode / Event Wiring ==================== */
+function setDarkMode(on){
+  document.documentElement.classList.toggle('dark',on);
+  STATE.dark=on;
+  renderGraph(true);
+}
+function debounce(fn,ms){let t;return(...a)=>{clearTimeout(t);t=setTimeout(()=>fn(...a),ms);}}
+
+/* ==================== Init ==================== */
+document.addEventListener('DOMContentLoaded',()=>{
+  setupZoom();
+  buildTypeFilters();
+  buildLegend();
+  buildArtifactTypeQuickFilters();
+  $('#artifactSearch').addEventListener('input',debounce(applyArtifactSearch,160));
+  $('#loadSolutionsBtn').addEventListener('click',handleLoadSolutions);
+  $('#visualizeBtn').addEventListener('click',handleVisualize);
+  $('#resetBtn').addEventListener('click',()=>{STATE.graph={nodes:[],links:[]};renderGraph();setStatus('Reset.');});
+  $('#layoutSelect').addEventListener('change',e=>{STATE.layoutMode=e.target.value; if(STATE.artifacts) handleVisualize();});
+  $('#showIsolated').addEventListener('change',e=>{STATE.showIsolated=e.target.checked; renderGraph();});
+  $('#degreeScaled').addEventListener('change',e=>{STATE.degreeScaled=e.target.checked; renderGraph();});
+  $('#freezeAfter').addEventListener('change',e=>STATE.freezeAfter=e.target.checked);
+  $('#showEdgeLabels').addEventListener('change',e=>{STATE.showEdgeLabels=e.target.checked; handleVisualize();});
+  $('#darkModeToggle').addEventListener('change',e=>setDarkMode(e.target.checked));
+  $('#coreMode').addEventListener('change',()=>handleVisualize());
+  $('#exportJsonBtn').addEventListener('click',exportJson);
+  $('#exportCsvBtn').addEventListener('click',exportCsv);
+  $('#exportPngBtn').addEventListener('click',exportPng);
+  $('#exportDataSourcesBtn').addEventListener('click',exportDataSources);
+  $('#includeNonCore').addEventListener('change',()=>setStatus('Include Non-Core toggled (re-visualize to apply).'));
+  setStatus('Ready.');
+});
+document.addEventListener('keydown',e=>{
+  if(e.key==='Escape') highlightNode(null);
+});
+</script>
+</body>
+</html>
