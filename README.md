@@ -1,3 +1,19 @@
+<details open>
+<summary><span style="color:#b91c1c;font-weight:700;font-size:20px">⚠ DISCLAIMER</span></summary>
+
+<p style="color:#b91c1c">
+This visualizer applies heuristic pattern matching to infer connector architecture (CCF vs HTTP Data Collector API), publication status, resource relationships, and other metadata. The output is an aid for exploration—not an authoritative source.<br><br>
+Because detection relies on convention, file naming, partial JSON content, and text patterns, it can generate false positives, false negatives, or omit emerging features not yet reflected in the logic.<br><br>
+<strong>DO NOT rely</strong> on these results alone for compliance, security, operational, billing, or architectural decisions. Always confirm findings against:
+<ol>
+<li>Official Microsoft Sentinel / Azure documentation</li>
+<li>Actual deployed Azure resources and portal configuration</li>
+<li>The underlying source JSON and change history</li>
+<li>Internal review / approval workflows</li>
+</ol>
+No warranty is provided; maintainers accept no liability for actions taken based on this tool’s output.
+</p>
+</details>
 # Sentinel Connector Visualizer
 
 An interactive single‑page tool for exploring Microsoft Sentinel solution repositories.  
