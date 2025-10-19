@@ -7,7 +7,7 @@
 <meta name="description" content="Visualize Microsoft Sentinel solution artifacts, architecture, and dependencies." />
 <style>
 :root {
-  --bg:#f8fafc; --panel:#ffffff; --panel-border:#e2e8f0; --text:#4478ca; --text-dim:#49586e;
+  --bg:#f8fafc; --panel:#ffffff; --panel-border:#e2e8f0; --text:#4478ca; --text-dim:#475569;
   --accent:#2563eb; --accent-strong:#1d4ed8; --muted:#94a3b8; --panel-muted:#f1f5f9;
   --danger:#dc2626; --badge-bg:#eef2ff; --badge-text:#1d4ed8;
 }
@@ -1633,125 +1633,163 @@ function buildLegend(){
   });
 }
 
-function updateSolutionMeta(){
-  const el = document.getElementById('solutionMeta');
-  const meta = STATE.meta;
-  const art = STATE.artifacts;
-  const arch = STATE.solutionAnalysis;
+function rebuildArchitectureSignals(artifacts){
+  const result={
+    ccfSignals: new Set(),
+    httpSignals: new Set(),
+    evidence: [] // human-readable lines
+  };
+  if(!artifacts) return result;
 
-  if(!el) return;
-  if(!meta || !art){
-    el.innerHTML = '<div style="font-size:11px;color:#64748b;">No metadata loaded. Visualize a solution.</div>';
-    return;
-  }
+  (artifacts.connectors||[]).forEach(conn=>{
+    const raw=conn.raw||{};
+    const txt=JSON.stringify(raw).toLowerCase();
+    const mech=(conn.mechanism||'').toLowerCase();
 
-  // Helper for HTML escaping
-  const esc = s => String(s==null?'':s).replace(/[&<>"']/g,c=>({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
+    // CCF signals
+    if(raw?.properties?.dcrConfig){
+      result.ccfSignals.add('dcrConfig');
+      result.evidence.push(`Connector "${conn.id||conn.name||'unnamed'}": properties.dcrConfig present (CCF)`);
+    }
+    if(/restapipoller|apipolling/.test(txt)){
+      result.ccfSignals.add('apiPoller');
+      result.evidence.push(`Connector "${conn.id||conn.name||'unnamed'}": restApiPoller/apipolling keyword (CCF)`);
+    }
+    if(/codeless/.test(txt)){
+      result.ccfSignals.add('codeless');
+      result.evidence.push(`Connector "${conn.id||conn.name||'unnamed'}": "codeless" keyword (CCF)`);
+    }
+    if(Array.isArray(conn.streams)&&conn.streams.length){
+      result.ccfSignals.add('streams');
+      result.evidence.push(`Connector "${conn.id||conn.name||'unnamed'}": defines ${conn.streams.length} stream(s) (CCF)`);
+    }
 
-  // Build badges
-  const badges = [];
-  function badge(text, bg, fg='#fff'){ badges.push(`<span class="badge" style="background:${bg};color:${fg};">${esc(text)}</span>`); }
-
-  // Architecture badges
-  if(arch){
-    const archColor = arch.type === 'CCF' ? '#059669' :
-                      arch.type === 'Legacy' ? '#b45309' :
-                      '#475569';
-    badge(`Architecture: ${arch.type}`, archColor);
-    if(arch.ruleMatched) badge(`Rule ${arch.ruleMatched}`, '#334155');
-    if(typeof arch.confidence === 'number') badge(`Conf ${arch.confidence}`, '#475569');
-    if(arch.ingestionEndpointType && arch.ingestionEndpointType !== 'Unknown')
-      badge(`Endpoint: ${arch.ingestionEndpointType}`, '#0d9488');
-  } else {
-    badge('Architecture: (pending)', '#475569');
-  }
-
-  // Categories (solutionMetadata)
-  (meta.categories||[]).slice(0,10).forEach(cat=>{
-    badge(cat, '#2563eb');
+    // HTTP Data Collector signals
+    if(/workspaceid/.test(txt)&&/sharedkey/.test(txt)){
+      result.httpSignals.add('workspaceId+sharedKey');
+      result.evidence.push(`Connector "${conn.id||conn.name||'unnamed'}": workspaceId + sharedKey found (HTTP)`);
+    }
+    if(/x-ms-signature/.test(txt)){
+      result.httpSignals.add('x-ms-signature');
+      result.evidence.push(`Connector "${conn.id||conn.name||'unnamed'}": x-ms-signature header (HTTP)`);
+    }
+    if(/opinsights\.azure\.com/.test(txt)){
+      result.httpSignals.add('opinsights-endpoint');
+      // Highlight logAnalyticsUri pattern if present
+      if(/loganalyticsuri/.test(txt)){
+        result.evidence.push(`Connector "${conn.id||conn.name||'unnamed'}": logAnalyticsUri with opinsights endpoint (HTTP)`);
+      } else {
+        result.evidence.push(`Connector "${conn.id||conn.name||'unnamed'}": opinsights ingestion endpoint (HTTP)`);
+      }
+    }
+    if(/datacollector/.test(txt)||mech.includes('http data collector')){
+      result.httpSignals.add('data-collector');
+      result.evidence.push(`Connector "${conn.id||conn.name||'unnamed'}": Data Collector mechanism (HTTP)`);
+    }
   });
 
-  // Artifact counts summary
-  const counts = {
-    connectors: art.connectors.length,
-    dcrs: art.dcrs.length,
-    workbooks: art.workbooks.length,
-    analytics: art.analytics.length,
-    hunting: art.hunting.length,
-    playbooks: art.playbooks.length,
-    watchlists: art.watchlists ? art.watchlists.length : 0,
-    functions: art.functions ? art.functions.length : 0,
-    notebooks: art.notebooks ? art.notebooks.length : 0,
-    coreFiles: art.coreFiles.length
-  };
+  // Core files evidence (optional)
+  (artifacts.coreFiles||[]).forEach(cf=>{
+    const raw=cf.raw||{};
+    const txt=JSON.stringify(raw).toLowerCase();
+    if(/opinsights\.azure\.com/.test(txt)){
+      result.httpSignals.add('opinsights-endpoint');
+      result.evidence.push(`Core file "${cf.id||cf.path}": opinsights endpoint string (HTTP)`);
+    }
+    if(/workspaceid/.test(txt)&&/sharedkey/.test(txt)){
+      result.httpSignals.add('workspaceId+sharedKey');
+      result.evidence.push(`Core file "${cf.id||cf.path}": workspaceId + sharedKey pair (HTTP)`);
+    }
+    if(/dcrconfig/.test(txt)){
+      result.ccfSignals.add('dcrConfig');
+      result.evidence.push(`Core file "${cf.id||cf.path}": dcrConfig reference (CCF)`);
+    }
+  });
 
-  // mainTemplate resource counts (already computed in meta)
-  const rc = meta.mainTemplateResourceCounts || {
-    total:0,dataConnectors:0,analyticRules:0,workbooks:0,playbooks:0,others:0
-  };
+  return result;
+}
 
-  // Ingestion evidence (compact)
-  const evidenceBlock = arch?.evidence?.length
-    ? esc(arch.evidence.join('; '))
-    : '—';
+function buildArchitectureReasoning(arch, artifacts){
+  if(!arch || !arch.type) return 'No classification yet.';
+  const { ccfSignals, httpSignals, evidence } = rebuildArchitectureSignals(artifacts);
 
-  // Debug block collapsed (only if arch exists)
-  let debugHtml = '';
-  if(arch?.debug){
-    const d = arch.debug;
-    debugHtml = `
-    <details style="margin-top:6px;">
-      <summary style="cursor:pointer;font-size:11px;">Debug Signals</summary>
-      <div style="font-size:11px;line-height:1.3;margin-top:4px;">
-        <div><b>Resource Kinds:</b> ${esc(d.resourceKinds.join(', ')||'—')}</div>
-        <div><b>Param Kind Defaults:</b> ${esc(d.paramKinds.join(', ')||'—')}</div>
-        <div><b>DataConnector Resources:</b> ${d.dataConnectorResourceCount}</div>
-        <div><b>DCR Core File:</b> ${d.hasDcrCore}</div>
-        <div><b>pollerConfig.json:</b> ${d.hasPollerConfig}</div>
-        <div><b>tableSchema.json:</b> ${d.hasTableSchema}</div>
-        <div><b>Inline dcrConfig in Connector:</b> ${d.inlineConnectorDcrConfig}</div>
-        <div><b>DCE Resource:</b> ${d.hasDceResource}</div>
-        <div><b>HTTP Signals:</b> ${d.httpSignals}</div>
-        <div><b>Poller Kind Hit:</b> ${d.pollerKindHit}</div>
-        <div><b>Legacy Kind Hit:</b> ${d.legacyKindHit}</div>
-        <div><b>host.json:</b> ${d.hasHost}</div>
-        <div><b>functionApp.json:</b> ${d.hasFunctionApp}</div>
-      </div>
-    </details>`;
+  if(arch.type==='CCF'){
+    if(ccfSignals.size===0) return 'Classified as CCF, but no explicit CCF signals were captured.';
+    const map={
+      dcrConfig:'DCR configuration present',
+      apiPoller:'REST API poller keywords',
+      codeless:'Codeless connector metadata',
+      streams:'Defined ingestion streams'
+    };
+    const reasons=[...ccfSignals].map(s=>map[s]||s);
+    if(!httpSignals.size) reasons.push('No HTTP Data Collector indicators');
+    return 'CCF because: ' + reasons.join('; ');
+  }
+  if(arch.type.startsWith('HTTP')){
+    if(httpSignals.size===0) return 'Classified as HTTP Data Collector API, but no explicit HTTP signals were captured.';
+    const map={
+      'workspaceId+sharedKey':'Shared key workspace auth',
+      'x-ms-signature':'x-ms-signature request signing',
+      'opinsights-endpoint':'Legacy opinsights ingestion endpoint',
+      'data-collector':'Explicit data collector mechanism'
+    };
+    const reasons=[...httpSignals].map(s=>map[s]||s);
+    if(!ccfSignals.size) reasons.push('No CCF indicators');
+    return 'HTTP Data Collector API because: ' + reasons.join('; ');
+  }
+  return 'Unknown: no decisive CCF or HTTP ingestion signals found.';
+}
+</script>
+
+// --- Replace updateSolutionMeta() with the enhanced version ---
+<script>
+function updateSolutionMeta(){
+  const el=document.getElementById('solutionMeta');
+  const m=STATE.meta;
+  const art=STATE.artifacts;
+  const arch=STATE.solutionAnalysis;
+  if(!el) return;
+  if(!m||!art){ el.textContent='No metadata.'; return; }
+
+  // Color chips (simple deterministic palette)
+  const PALETTE=['#2563eb','#0d9488','#9333ea','#dc2626','#d97706','#059669','#6366f1','#0891b2','#7c3aed','#b45309','#047857','#4b5563','#be185d'];
+  function hashColor(str){
+    let h=0; for(let i=0;i<str.length;i++) h=(h*33+str.charCodeAt(i))>>>0;
+    return PALETTE[h % PALETTE.length];
   }
 
-  // Compose HTML
+  const chips=[];
+  // Architecture badge
+  if(arch?.type){
+    const t=arch.type;
+    const c = t==='CCF' ? '#059669' : (t.startsWith('HTTP') ? '#b45309' : '#64748b');
+    chips.push(`<span class="badge arch-${t==='CCF'?'ccf':(t.startsWith('HTTP')?'http':'unknown')}" style="background:${c};color:#fff;">${escapeHtml(t)}</span>`);
+  }
+  // Categories
+  (m.categories||[]).forEach(cat=>{
+    chips.push(`<span class="badge" style="background:${hashColor(cat)};color:#fff;">${escapeHtml(cat)}</span>`);
+  });
+
+  // Build reasoning & evidence
+  const reasoning = buildArchitectureReasoning(arch, art);
+  const signalsObj = rebuildArchitectureSignals(art);
+  const evidenceList = signalsObj.evidence.length
+    ? '<ul style="margin:4px 0 0 12px;padding:0;font-size:.63rem;">' +
+        signalsObj.evidence.slice(0,12).map(e=>`<li style="margin:2px 0;">${escapeHtml(e)}</li>`).join('') +
+        (signalsObj.evidence.length>12 ? `<li>… +${signalsObj.evidence.length-12} more</li>` : '') +
+      '</ul>'
+    : '<span style="color:var(--text-dim);font-size:.63rem;">(No evidence strings captured)</span>';
+
   el.innerHTML = `
-    <div style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:8px;">${badges.join('')}</div>
-    <div style="font-size:12px;line-height:1.35;">
-      <div><b>Name:</b> ${esc(meta.solutionName||'(unknown)')}</div>
-      <div><b>Solution ID:</b> ${esc(meta.solutionId||'—')}</div>
-      <div><b>Publisher:</b> ${esc(meta.publisher||'—')}</div>
-      ${meta.contactEmail ? `<div><b>Contact:</b> ${esc(meta.contactEmail)}</div>`:''}
-      <div style="margin-top:6px;"><b>Main Template Resources:</b>
-        Total ${rc.total} |
-        DC ${rc.dataConnectors} |
-        AR ${rc.analyticRules} |
-        WB ${rc.workbooks} |
-        PB ${rc.playbooks} |
-        Other ${rc.others}
-      </div>
-      <div><b>Artifacts (classified):</b>
-        Conn ${counts.connectors} |
-        DCR ${counts.dcrs} |
-        Wkb ${counts.workbooks} |
-        Anl ${counts.analytics} |
-        Hunt ${counts.hunting} |
-        Ply ${counts.playbooks} |
-        Func ${counts.functions} |
-        Watch ${counts.watchlists} |
-        NB ${counts.notebooks} |
-        Core ${counts.coreFiles}
-      </div>
-      <div style="margin-top:6px;"><b>Architecture Reasoning:</b> ${esc(arch?.reasoning||'—')}</div>
-      <div><b>Ingestion Evidence:</b> ${evidenceBlock}</div>
-      ${debugHtml}
-    </div>
+    <div style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:6px;">${chips.join('')}</div>
+    <div><b>Name:</b> ${escapeHtml(m.solutionName||'(unknown)')}</div>
+    <div><b>ID:</b> ${escapeHtml(m.solutionId||'—')}</div>
+    <div><b>Publisher:</b> ${escapeHtml(m.publisher||'—')}</div>
+    ${m.offerId?`<div><b>Offer:</b> ${escapeHtml(m.offerId)}</div>`:''}
+    <div><b>Layout:</b> ${escapeHtml(STATE.layoutMode)}</div>
+    <hr style="border:none;border-top:1px solid var(--panel-border);margin:6px 0;">
+    <div style="font-size:.68rem;"><b>Architecture Reasoning:</b> ${escapeHtml(reasoning)}</div>
+    <div style="font-size:.68rem;margin-top:4px;"><b>Ingestion Evidence:</b> ${evidenceList}</div>
   `;
 }
 
