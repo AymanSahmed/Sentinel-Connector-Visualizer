@@ -54,6 +54,71 @@ table.artifact-table th{background:var(--panel-muted);font-weight:600;font-size:
   .disclaimer{font-size:10px;max-width:75%;}
 }
 </style>
+
+<style>
+#evidenceModalBackdrop {
+  position:fixed;inset:0;display:none;align-items:center;justify-content:center;
+  background:rgba(0,0,0,.55);z-index:10000;
+}
+.dark #evidenceModal {
+  background:var(--panel);
+  color:var(--text);
+}
+#evidenceModal {
+  background:#ffffff;
+  color:#0f172a;
+  width:clamp(480px,80%,1000px);
+  max-height:80vh;
+  border:1px solid var(--panel-border);
+  border-radius:12px;
+  box-shadow:0 10px 30px -5px rgba(0,0,0,.4);
+  display:flex;flex-direction:column;
+  font-size:.62rem;
+  overflow:hidden;
+}
+#evidenceModal header {
+  display:flex;align-items:center;justify-content:space-between;
+  padding:10px 14px;
+  background:var(--panel-muted);
+  font-weight:600;
+  letter-spacing:.5px;
+}
+#evidenceModal .modal-body {
+  padding:10px 14px;
+  overflow:auto;
+  line-height:1.05rem;
+}
+#evidenceModal .filters {
+  display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px;align-items:center;
+}
+#evidenceModal button.small {
+  background:var(--accent);color:#fff;border:none;border-radius:6px;
+  padding:4px 8px;font-size:.58rem;font-weight:600;cursor:pointer;
+}
+#evidenceModal button.small.alt {
+  background:var(--panel-muted);color:var(--text-dim);
+}
+#evidenceModal button.small:hover {
+  filter:brightness(1.07);
+}
+.evidence-row {
+  padding:4px 6px;border:1px solid var(--panel-border);border-radius:6px;
+  background:var(--panel);margin-bottom:4px;
+}
+.evidence-row.ccf {border-color:#059669;}
+.evidence-row.http {border-color:#b45309;}
+.evidence-row code {
+  background:var(--panel-muted);
+  padding:1px 3px;border-radius:4px;
+  font-size:.58rem;
+}
+#evidenceModal .footer-actions {
+  padding:8px 14px;
+  background:var(--panel-muted);
+  display:flex;justify-content:flex-end;gap:8px;
+}
+</style>
+
 </head>
 <body class="p-4" style="padding:1.2rem;display:flex;flex-direction:column;gap:1.1rem;">
 
@@ -195,6 +260,38 @@ table.artifact-table th{background:var(--panel-muted);font-weight:600;font-size:
       </div>
     </div>
   </main>
+</div>
+
+<div id="evidenceModalBackdrop">
+  <div id="evidenceModal">
+    <header>
+      <span>Detection Evidence</span>
+      <button id="evidenceCloseBtn" class="small alt" style="padding:4px 8px;">✕</button>
+    </header>
+    <div class="modal-body">
+      <div class="filters">
+        <label style="display:flex;flex-direction:column;font-size:.55rem;">
+          Side
+          <select id="evidenceSideFilter" class="input" style="width:120px;font-size:.58rem;">
+            <option value="all">All</option>
+            <option value="CCF">CCF</option>
+            <option value="HTTP">HTTP</option>
+          </select>
+        </label>
+        <label style="display:flex;flex-direction:column;font-size:.55rem;">
+          Search
+          <input id="evidenceSearch" class="input" placeholder="pattern or snippet..." style="width:180px;font-size:.58rem;">
+        </label>
+        <button id="evidenceExpandBtn" class="small alt">Expand All</button>
+        <button id="evidenceCopyBtn" class="small alt">Copy</button>
+        <div id="evidenceCount" style="font-size:.55rem;font-weight:600;color:var(--text-dim);margin-left:auto;"></div>
+      </div>
+      <div id="evidenceRows"></div>
+    </div>
+    <div class="footer-actions">
+      <button id="evidenceCloseBtn2" class="small alt">Close</button>
+    </div>
+  </div>
 </div>
 
 <script>
@@ -756,6 +853,14 @@ function buildArtifacts(files){
     c.linkedDcrIds=[];
     dcrNamesLower.forEach((orig,low)=>{ if(txt.includes(low)) c.linkedDcrIds.push(orig); });
   });
+
+  // NEW: expose raw file list for architecture analyzer (path + raw json + optional pre-rendered lowercase text)
+  acc.files = files.map(f=>({
+    path: f.path,
+    name: f.path.split('/').pop(),
+    raw:  f.json,
+    text: (()=>{ try { return JSON.stringify(f.json).toLowerCase(); } catch { return ''; } })()
+  }));
   return acc;
 }
 
@@ -873,6 +978,8 @@ async function extractSolutionMeta(owner,repo,branch,solution,paths){
    4) host.json + functionApp.json => Legacy
    Else => Unknown
 */
+
+/*
 function analyzeSolutionArchitecture(art){
   const strongCcf = new Set();
   const weakCcf   = new Set();
@@ -977,6 +1084,1245 @@ function analyzeSolutionArchitecture(art){
     }
   };
 }
+
+*/
+
+/*
+function analyzeSolutionArchitecture(art){
+  if(!art) return { type:'Unknown', reasoning:'No artifacts loaded.', connectors:[], evidence:[] };
+
+  // ---------- helpers ----------
+  const toTxt = v => {
+    try { return (typeof v === 'string' ? v : JSON.stringify(v||{})).toLowerCase(); }
+    catch { return ''; }
+  };
+  const fileList = Array.isArray(art.files) ? art.files : [];
+  const coreList = Array.isArray(art.coreFiles) ? art.coreFiles : [];
+
+  const fileNameSet = new Set(
+    fileList
+      .map(f => (f.path || f.name || '').toLowerCase())
+      .filter(Boolean)
+  );
+
+  const hasAnyFileNamed = (...needles) => needles.some(n => {
+    n = n.toLowerCase();
+    for(const f of fileNameSet){
+      if(f.endsWith('/'+n) || f === n || f.includes('/'+n)) return true;
+    }
+    return false;
+  });
+
+  // Sovereign & public cloud ODS / Log Analytics hosts
+  const odsHostRe = /(\/\/|\.)(ods|opinsights)\.azure\.(com|cn|us|de|gov)(\/|:|$)/;
+  const apiLogsRe = /\/api\/logs(\?|$)/;
+  const sharedKeyHdrRe = /authorization:\s*sharedkey/;
+  const logTypeHdrRe = /log-type/;
+  const xmsDateHdrRe = /x-ms-date/;
+  const timeGenFieldRe = /time-generated-field/;
+
+  // CCF platform packaging artifacts
+  const hasConnectorDefinitionFile = hasAnyFileNamed('connectorDefinition.json');
+  const hasPollerConfigFile        = hasAnyFileNamed('pollerConfig.json');
+  const hasAnyDcrJson              = hasAnyFileNamed('dcr.json','dcr.config.json','dataCollectionRule.json');
+  const hasAnyTableSchema          = hasAnyFileNamed('tableSchema.json','tables.json');
+  const hasAnyCreateUIDef          = hasAnyFileNamed('createUiDefinition.json');
+  const hasAnyMainTemplate         = hasAnyFileNamed('mainTemplate.json','azuredeploy.json');
+
+  // ---------- per-connector analysis ----------
+  const connectors = (art.connectors||[]).map(c=>{
+    const raw = c.raw || {};
+    const txt = toTxt(raw);
+    const mech = (c.mechanism||'').toLowerCase();
+    const id = c.id || c.name || c.path || 'connector';
+
+    const strongCcf = new Set();
+    const weakCcf   = new Set();
+    const strongHttp= new Set();
+    const weakHttp  = new Set();
+
+    const props = raw?.properties || {};
+    const hasDcrConfig = !!props?.dcrConfig;
+    const uiCfg        = props?.connectorUiConfig || props?.connectorUIConfig;
+    const hasUiConfig  = !!uiCfg;
+    const dataTypes    = Array.isArray(props?.dataTypes) ? props.dataTypes : [];
+    const graphQueries = Array.isArray(props?.graphQueries) ? props.graphQueries : [];
+    const hasStreams   = Array.isArray(c.streams) && c.streams.length>0;
+
+    const nameTxt = (c.name||c.path||c.id||'').toLowerCase();
+
+    // CCF signals
+    const mentionsPoller = /restapipoller|api\s*polling|pollerconfig|poller-config/.test(txt) || /pollerconfig/.test(nameTxt);
+    const mentionsCodeless = /codeless/.test(txt);
+    const mentionsDCE = /microsoft\.insights\/datacollectionendpoints/.test(txt);
+    const mentionsDCR = /microsoft\.insights\/datacollectionrules/.test(txt) || hasDcrConfig;
+
+    const hasFullCodeless = hasDcrConfig && hasUiConfig && dataTypes.length && graphQueries.length;
+    if(hasFullCodeless)              strongCcf.add('codeless-full (dcrConfig+uiConfig+dataTypes+graphQueries)');
+    if(mentionsPoller)               strongCcf.add('apiPoller');
+    if(hasStreams)                   strongCcf.add('streams');
+    if(mentionsDCE)                  strongCcf.add('dataCollectionEndpoint');
+    if(mentionsDCR)                  strongCcf.add('dataCollectionRule');
+
+    if(hasUiConfig && !hasFullCodeless)        weakCcf.add('uiConfig');
+    if(mentionsCodeless && !hasFullCodeless)   weakCcf.add('codeless-keyword');
+    if(graphQueries.length && !hasDcrConfig)   weakCcf.add('graphQueries-only');
+
+    // HTTP signals (strengthened to need endpoint/signature for combined workspaceId/sharedKey strong)
+    const hasWorkspaceId = /workspaceid|la_workspace_id|customerid/.test(txt);
+    const hasSharedKey   = /sharedkey|workspacekey|primarykey/.test(txt);
+    const hasSignature   = /x-ms-signature/.test(txt) || sharedKeyHdrRe.test(txt);
+    const hasApiLogs     = apiLogsRe.test(txt);
+    const hasOpInsights  = odsHostRe.test(txt);
+    const hasLogAnalyticsUri = /loganalyticsuri/.test(txt) && (hasOpInsights || /azure\.(com|cn|us|de|gov)/.test(txt));
+    const mentionsCollector = /datacollector|http data collector|data collector api/i.test(txt) || mech.includes('http data collector');
+
+    if(hasWorkspaceId && hasSharedKey &&
+       (hasApiLogs || hasOpInsights || hasLogAnalyticsUri || hasSignature)){
+      strongHttp.add('workspaceId+sharedKey+endpoint/signature');
+    } else {
+      if(hasWorkspaceId) weakHttp.add('workspaceId');
+      if(hasSharedKey)   weakHttp.add('sharedKey');
+    }
+    if(hasSignature)       strongHttp.add('x-ms-signature/SharedKey');
+    if(hasApiLogs)         strongHttp.add('/api/logs endpoint');
+    if(hasLogAnalyticsUri) strongHttp.add('logAnalyticsUri');
+    else if(hasOpInsights) weakHttp.add('opinsights-host');
+    if(mentionsCollector)  strongHttp.add('data-collector-api-mention');
+
+    // Ancillary HTTP hints
+    if(logTypeHdrRe.test(txt))   weakHttp.add('Log-Type-header');
+    if(xmsDateHdrRe.test(txt))   weakHttp.add('x-ms-date-header');
+    if(timeGenFieldRe.test(txt)) weakHttp.add('time-generated-field');
+
+    // Scoring & classification
+    const scoreCcf  = strongCcf.size*3 + weakCcf.size;
+    const scoreHttp = strongHttp.size*3 + weakHttp.size;
+    let arch='Neutral';
+    if(scoreCcf===0 && scoreHttp===0){
+      arch='Neutral';
+    } else if(scoreCcf >= scoreHttp + 2){
+      arch='CCF';
+    } else if(scoreHttp >= scoreCcf + 2){
+      arch='HTTP';
+    } else {
+      if(strongCcf.size > strongHttp.size) arch='CCF';
+      else if(strongHttp.size > strongCcf.size) arch='HTTP';
+      else arch='Mixed';
+    }
+
+    return {
+      id,
+      arch,
+      strongCcf:[...strongCcf],
+      weakCcf:[...weakCcf],
+      strongHttp:[...strongHttp],
+      weakHttp:[...weakHttp],
+      score:{ ccf:scoreCcf, http:scoreHttp }
+    };
+  });
+
+  // ---------- aggregate counts ----------
+  const counts = connectors.reduce((acc,c)=>{
+    acc[c.arch]=(acc[c.arch]||0)+1;
+    acc.total++;
+    return acc;
+  },{total:0});
+
+  // ---------- core template reinforcement ----------
+  let coreHasDcrResource=false;
+  let coreHasDceResource=false;
+  let coreHasWorkspaceCreds=false;
+  let coreHasHttpFlow=false; // explicit /api/logs
+  let coreHasCCFArtifacts=false;
+
+  const scanTemplateResources = (tmplRaw) => {
+    const resources = [];
+    (function collect(arr){
+      if(Array.isArray(arr)) arr.forEach(r=>{
+        resources.push(r);
+        if(Array.isArray(r.resources)) collect(r.resources);
+      });
+    })(tmplRaw?.resources);
+    return resources;
+  };
+
+  coreList.forEach(cf=>{
+    const raw=cf.raw||{};
+    const txt=toTxt(raw);
+    const resources = scanTemplateResources(raw);
+
+    for(const r of resources){
+      const t=(r?.type||'').toLowerCase();
+      if(t==='microsoft.insights/datacollectionrules') coreHasDcrResource=true;
+      if(t==='microsoft.insights/datacollectionendpoints') coreHasDceResource=true;
+      if(t.endsWith('microsoft.insights/datacollectionrules/associations')) coreHasDcrResource=true;
+    }
+
+    if(apiLogsRe.test(txt)) coreHasHttpFlow = true;
+    // workspace creds only strong when paired; still track combined appearance
+    if(/workspaceid/.test(txt) && /sharedkey|workspacekey|primarykey/.test(txt)) coreHasWorkspaceCreds = true;
+  });
+
+  if(hasConnectorDefinitionFile || hasPollerConfigFile) coreHasCCFArtifacts = true;
+
+  // ---------- final decision ----------
+  const strongCcfConnectors = connectors.filter(c=>c.arch==='CCF');
+  const strongHttpConnectors= connectors.filter(c=>c.arch==='HTTP');
+  const mixedConnectors     = connectors.filter(c=>c.arch==='Mixed');
+  const neutralConnectors   = connectors.filter(c=>c.arch==='Neutral');
+
+  let type='Unknown';
+  const totalStrongSignals = (arr,side) =>
+    arr.reduce((sum,c)=> sum + (side==='ccf'?c.strongCcf.length : c.strongHttp.length),0);
+
+  if(connectors.length===0){
+    if(coreHasCCFArtifacts || coreHasDcrResource || coreHasDceResource) type='CCF';
+    else if(coreHasHttpFlow || coreHasWorkspaceCreds) type='HTTP Data Collector API';
+    else type='Unknown';
+  } else {
+    const pct = v => v / connectors.length;
+    if(strongCcfConnectors.length && !strongHttpConnectors.length && !mixedConnectors.length){
+      type='CCF';
+    } else if(strongHttpConnectors.length && !strongCcfConnectors.length && !mixedConnectors.length){
+      type='HTTP Data Collector API';
+    } else if(pct(strongCcfConnectors.length) >= 0.6){
+      type='CCF';
+    } else if(pct(strongHttpConnectors.length) >= 0.6){
+      type='HTTP Data Collector API';
+    } else if(strongCcfConnectors.length || strongHttpConnectors.length || mixedConnectors.length){
+      const ccfStrongTotal  = totalStrongSignals(connectors,'ccf');
+      const httpStrongTotal = totalStrongSignals(connectors,'http');
+      if(ccfStrongTotal > httpStrongTotal) type='CCF';
+      else if(httpStrongTotal > ccfStrongTotal) type='HTTP Data Collector API';
+      else {
+        // Tie-break: prefer real packaging artifacts before default
+        if(coreHasCCFArtifacts || coreHasDcrResource || coreHasDceResource) type='CCF';
+        else if(coreHasHttpFlow || coreHasWorkspaceCreds) type='HTTP Data Collector API';
+        else type='CCF'; // modern default
+      }
+    } else {
+      if(coreHasCCFArtifacts || coreHasDcrResource || coreHasDceResource) type='CCF';
+      else if(coreHasHttpFlow || coreHasWorkspaceCreds) type='HTTP Data Collector API';
+      else type='Unknown';
+    }
+  }
+
+  // ---------- reasoning & evidence ----------
+  function buildReasoning(){
+    if(type==='Unknown'){
+      return 'Unknown: no decisive per-connector strong signals and no core CCF (connectorDefinition/pollerConfig/DCR/DCE) or HTTP (/api/logs + shared key) patterns.';
+    }
+    const parts=[];
+    parts.push(`Connectors: CCF=${strongCcfConnectors.length}, HTTP=${strongHttpConnectors.length}, Mixed=${mixedConnectors.length}, Neutral=${neutralConnectors.length}`);
+    if(coreHasCCFArtifacts) parts.push('Packaging has connectorDefinition/pollerConfig');
+    if(coreHasDcrResource)  parts.push('Template includes dataCollectionRules');
+    if(coreHasDceResource)  parts.push('Template includes dataCollectionEndpoints');
+    if(coreHasHttpFlow)     parts.push('Template includes /api/logs flow');
+    if(coreHasWorkspaceCreds) parts.push('Template shows workspaceId+sharedKey parameters');
+    const sideSignals = type==='CCF'
+      ? strongCcfConnectors.flatMap(c=>c.strongCcf)
+      : strongHttpConnectors.flatMap(c=>c.strongHttp);
+    if(sideSignals.length){
+      parts.push(`Dominant strong signals: ${[...new Set(sideSignals)].join(', ')}`);
+    } else {
+      parts.push('Decision based on majority/core reinforcement');
+    }
+    return `${type} because: ` + parts.join('; ');
+  }
+
+  const evidence = [];
+  connectors.forEach(c=>{
+    if(c.strongCcf.length) evidence.push(`${c.id}: CCF [${c.strongCcf.join(', ')}]`);
+    if(c.strongHttp.length) evidence.push(`${c.id}: HTTP [${c.strongHttp.join(', ')}]`);
+  });
+  if(coreHasCCFArtifacts) evidence.push('Core: connectorDefinition.json/pollerConfig.json present');
+  if(coreHasDcrResource)  evidence.push('Core: dataCollectionRules resource');
+  if(coreHasDceResource)  evidence.push('Core: dataCollectionEndpoints resource');
+  if(coreHasHttpFlow)     evidence.push('Core: /api/logs flow present');
+  if(coreHasWorkspaceCreds) evidence.push('Core: workspaceId+sharedKey pattern');
+
+  return {
+    type,
+    connectors,
+    counts: {
+      ccf: strongCcfConnectors.length,
+      http: strongHttpConnectors.length,
+      mixed: mixedConnectors.length,
+      neutral: neutralConnectors.length,
+      total: connectors.length
+    },
+    core: {
+      ccfArtifacts: coreHasCCFArtifacts,
+      dcrResource: coreHasDcrResource,
+      dceResource: coreHasDceResource,
+      httpApiLogs: coreHasHttpFlow,
+      workspaceKeyPair: coreHasWorkspaceCreds
+    },
+    reasoning: buildReasoning(),
+    evidence
+  };
+}
+*/
+
+
+/*
+function analyzeSolutionArchitecture(art){
+  if(!art) return {
+    type:'Unknown',
+    reasoning:'No artifacts loaded.',
+    connectors:[],
+    evidence:[],
+    reasoningLines:['No artifacts loaded.'],
+    evidenceLines:[],
+    endpoints:{http:[],ccf:[]},
+    modes:{poll:false,push:false,summary:'None'}
+  };
+
+  // ---------- helpers ----------
+  const toTxt = v => {
+    try { return (typeof v === 'string' ? v : JSON.stringify(v||{})).toLowerCase(); }
+    catch { return ''; }
+  };
+  const fileList = Array.isArray(art.files) ? art.files : [];
+  const coreList = Array.isArray(art.coreFiles) ? art.coreFiles : [];
+
+  const fileNameSet = new Set(
+    fileList
+      .map(f => (f.path || f.name || '').toLowerCase())
+      .filter(Boolean)
+  );
+
+  const hasAnyFileNamed = (...needles) => needles.some(n => {
+    n = n.toLowerCase();
+    for(const f of fileNameSet){
+      if(f.endsWith('/'+n) || f === n || f.includes('/'+n)) return true;
+    }
+    return false;
+  });
+
+  // Sovereign & public cloud ingestion hosts
+  const odsHostRe = /(\/\/|\.)(ods|opinsights)\.azure\.(com|cn|us|de|gov)(\/|:|$)/;
+  const apiLogsRe = /\/api\/logs(\?|$)/;
+  const sharedKeyHdrRe = /authorization:\s*sharedkey/;
+  const logTypeHdrRe = /log-type/;
+  const xmsDateHdrRe = /x-ms-date/;
+  const timeGenFieldRe = /time-generated-field/;
+
+  // CCF packaging artifacts
+  const hasConnectorDefinitionFile = hasAnyFileNamed('connectorDefinition.json');
+  const hasPollerConfigFile        = hasAnyFileNamed('pollerConfig.json');
+  const hasAnyDcrJson              = hasAnyFileNamed('dcr.json','dcr.config.json','dataCollectionRule.json');
+  const hasAnyTableSchema          = hasAnyFileNamed('tableSchema.json','tables.json');
+  const hasAnyCreateUIDef          = hasAnyFileNamed('createUiDefinition.json');
+  const hasAnyMainTemplate         = hasAnyFileNamed('mainTemplate.json','azuredeploy.json');
+
+  // Endpoint collectors
+  const httpEndpointSet = new Set();
+  const ccfEndpointSet  = new Set(); // future: if you parse DCE URLs explicitly
+
+  // ---------- per-connector analysis ----------
+  const connectors = (art.connectors||[]).map(c=>{
+    const raw = c.raw || {};
+    const txt = toTxt(raw);
+    const mech = (c.mechanism||'').toLowerCase();
+    const id = c.id || c.name || c.path || 'connector';
+
+    const strongCcf = new Set();
+    const weakCcf   = new Set();
+    const strongHttp= new Set();
+    const weakHttp  = new Set();
+
+    const props = raw?.properties || {};
+    const hasDcrConfig = !!props?.dcrConfig;
+    const uiCfg        = props?.connectorUiConfig || props?.connectorUIConfig;
+    const hasUiConfig  = !!uiCfg;
+    const dataTypes    = Array.isArray(props?.dataTypes) ? props.dataTypes : [];
+    const graphQueries = Array.isArray(props?.graphQueries) ? props.graphQueries : [];
+    const hasStreams   = Array.isArray(c.streams) && c.streams.length>0;
+
+    const nameTxt = (c.name||c.path||c.id||'').toLowerCase();
+
+    // CCF signals
+    const mentionsPoller   = /restapipoller|api\s*polling|pollerconfig|poller-config/.test(txt) || /pollerconfig/.test(nameTxt);
+    const mentionsCodeless = /codeless/.test(txt);
+    const mentionsDCE      = /microsoft\.insights\/datacollectionendpoints/.test(txt);
+    const mentionsDCR      = /microsoft\.insights\/datacollectionrules/.test(txt) || hasDcrConfig;
+
+    const hasFullCodeless = hasDcrConfig && hasUiConfig && dataTypes.length && graphQueries.length;
+    if(hasFullCodeless)              strongCcf.add('codeless-full (dcrConfig+uiConfig+dataTypes+graphQueries)');
+    if(mentionsPoller)               strongCcf.add('apiPoller');
+    if(hasStreams)                   strongCcf.add('streams');
+    if(mentionsDCE)                  strongCcf.add('dataCollectionEndpoint');
+    if(mentionsDCR)                  strongCcf.add('dataCollectionRule');
+
+    if(hasUiConfig && !hasFullCodeless)        weakCcf.add('uiConfig');
+    if(mentionsCodeless && !hasFullCodeless)   weakCcf.add('codeless-keyword');
+    if(graphQueries.length && !hasDcrConfig)   weakCcf.add('graphQueries-only');
+
+    // HTTP signals
+    const hasWorkspaceId = /workspaceid|la_workspace_id|customerid/.test(txt);
+    const hasSharedKey   = /sharedkey|workspacekey|primarykey/.test(txt);
+    const hasSignature   = /x-ms-signature/.test(txt) || sharedKeyHdrRe.test(txt);
+    const hasApiLogs     = apiLogsRe.test(txt);
+    const hasOpInsights  = odsHostRe.test(txt);
+    const hasLogAnalyticsUri = /loganalyticsuri/.test(txt) && (hasOpInsights || /azure\.(com|cn|us|de|gov)/.test(txt));
+    const mentionsCollector = /datacollector|http data collector|data collector api/i.test(txt) || mech.includes('http data collector');
+
+    // HTTP endpoint harvesting (URI patterns)
+    const uriMatches = (txt.match(/https?:\/\/[a-z0-9.-]+[^\s"']* /gi) || []).slice(0,30);
+    uriMatches.forEach(u=>{
+      const ul=u.toLowerCase();
+      if(/api\/logs/.test(ul) || /loganalyticsuri/.test(ul) || /opinsights/.test(ul) || /ods\./.test(ul)){
+        httpEndpointSet.add(u.replace(/["',;]+$/,''));
+      }
+    });
+
+    if(hasWorkspaceId && hasSharedKey &&
+       (hasApiLogs || hasOpInsights || hasLogAnalyticsUri || hasSignature)){
+      strongHttp.add('workspaceId+sharedKey+endpoint/signature');
+    } else {
+      if(hasWorkspaceId) weakHttp.add('workspaceId');
+      if(hasSharedKey)   weakHttp.add('sharedKey');
+    }
+    if(hasSignature)       strongHttp.add('x-ms-signature/SharedKey');
+    if(hasApiLogs)         strongHttp.add('/api/logs endpoint');
+    if(hasLogAnalyticsUri) strongHttp.add('logAnalyticsUri');
+    else if(hasOpInsights) weakHttp.add('opinsights-host');
+    if(mentionsCollector)  strongHttp.add('data-collector-api-mention');
+
+    if(logTypeHdrRe.test(txt))   weakHttp.add('Log-Type-header');
+    if(xmsDateHdrRe.test(txt))   weakHttp.add('x-ms-date-header');
+    if(timeGenFieldRe.test(txt)) weakHttp.add('time-generated-field');
+
+    // Scoring & classification
+    const scoreCcf  = strongCcf.size*3 + weakCcf.size;
+    const scoreHttp = strongHttp.size*3 + weakHttp.size;
+    let arch='Neutral';
+    if(scoreCcf===0 && scoreHttp===0){
+      arch='Neutral';
+    } else if(scoreCcf >= scoreHttp + 2){
+      arch='CCF';
+    } else if(scoreHttp >= scoreCcf + 2){
+      arch='HTTP';
+    } else {
+      if(strongCcf.size > strongHttp.size) arch='CCF';
+      else if(strongHttp.size > strongCcf.size) arch='HTTP';
+      else arch='Mixed';
+    }
+
+    // Ingestion mode contribution
+    const modes = new Set();
+    if(strongCcf.has('apiPoller') || strongCcf.has('codeless-full (dcrConfig+uiConfig+dataTypes+graphQueries)')) modes.add('poll');
+    if(strongHttp.has('workspaceId+sharedKey+endpoint/signature') || strongHttp.has('/api/logs endpoint')) modes.add('push');
+
+    return {
+      id,
+      arch,
+      strongCcf:[...strongCcf],
+      weakCcf:[...weakCcf],
+      strongHttp:[...strongHttp],
+      weakHttp:[...weakHttp],
+      score:{ ccf:scoreCcf, http:scoreHttp },
+      modes:[...modes]
+    };
+  });
+
+  // ---------- aggregate counts ----------
+  const counts = connectors.reduce((acc,c)=>{
+    acc[c.arch]=(acc[c.arch]||0)+1;
+    acc.total++;
+    return acc;
+  },{total:0});
+
+  // ---------- core template reinforcement ----------
+  let coreHasDcrResource=false;
+  let coreHasDceResource=false;
+  let coreHasWorkspaceCreds=false;
+  let coreHasHttpFlow=false;
+  let coreHasCCFArtifacts=false;
+  let coreHasAssociations=false;
+  const coreHttpEndpoints = new Set();
+
+  const scanTemplateResources = (tmplRaw) => {
+    const resources = [];
+    (function collect(arr){
+      if(Array.isArray(arr)) arr.forEach(r=>{
+        resources.push(r);
+        if(Array.isArray(r.resources)) collect(r.resources);
+      });
+    })(tmplRaw?.resources);
+    return resources;
+  };
+
+  coreList.forEach(cf=>{
+    const raw=cf.raw||{};
+    const txt=toTxt(raw);
+    const resources = scanTemplateResources(raw);
+
+    for(const r of resources){
+      const t=(r?.type||'').toLowerCase();
+      if(t==='microsoft.insights/datacollectionrules') coreHasDcrResource=true;
+      if(t==='microsoft.insights/datacollectionendpoints') coreHasDceResource=true;
+      if(t.endsWith('datacollectionrules/associations')) {
+        coreHasAssociations=true;
+        coreHasDcrResource=true;
+      }
+    }
+
+    if(apiLogsRe.test(txt)){
+      coreHasHttpFlow = true;
+    }
+
+    if(/workspaceid/.test(txt) && /sharedkey|workspacekey|primarykey/.test(txt)){
+      coreHasWorkspaceCreds = true;
+    }
+
+    // Capture ingestion URIs in templates
+    const uriMatches = (txt.match(/https?:\/\/[a-z0-9.-]+[^\s"']* /gi) || []).slice(0,50);
+    uriMatches.forEach(u=>{
+      const ul=u.toLowerCase();
+      if(/api\/logs/.test(ul) || /opinsights/.test(ul) || /ods\./.test(ul)){
+        coreHttpEndpoints.add(u.replace(/["',;]+$/,''));
+      }
+    });
+  });
+
+  if(hasConnectorDefinitionFile || hasPollerConfigFile) coreHasCCFArtifacts = true;
+
+  // ---------- final decision ----------
+  const strongCcfConnectors = connectors.filter(c=>c.arch==='CCF');
+  const strongHttpConnectors= connectors.filter(c=>c.arch==='HTTP');
+  const mixedConnectors     = connectors.filter(c=>c.arch==='Mixed');
+  const neutralConnectors   = connectors.filter(c=>c.arch==='Neutral');
+
+  let type='Unknown';
+  const totalStrongSignals = (arr,side) =>
+    arr.reduce((sum,c)=> sum + (side==='ccf'?c.strongCcf.length : c.strongHttp.length),0);
+
+  if(connectors.length===0){
+    if(coreHasCCFArtifacts || coreHasDcrResource || coreHasDceResource) type='CCF';
+    else if(coreHasHttpFlow || coreHasWorkspaceCreds) type='HTTP Data Collector API';
+    else type='Unknown';
+  } else {
+    const pct = v => v / connectors.length;
+    if(strongCcfConnectors.length && !strongHttpConnectors.length && !mixedConnectors.length){
+      type='CCF';
+    } else if(strongHttpConnectors.length && !strongCcfConnectors.length && !mixedConnectors.length){
+      type='HTTP Data Collector API';
+    } else if(pct(strongCcfConnectors.length) >= 0.6){
+      type='CCF';
+    } else if(pct(strongHttpConnectors.length) >= 0.6){
+      type='HTTP Data Collector API';
+    } else if(strongCcfConnectors.length || strongHttpConnectors.length || mixedConnectors.length){
+      const ccfStrongTotal  = totalStrongSignals(connectors,'ccf');
+      const httpStrongTotal = totalStrongSignals(connectors,'http');
+      if(ccfStrongTotal > httpStrongTotal) type='CCF';
+      else if(httpStrongTotal > ccfStrongTotal) type='HTTP Data Collector API';
+      else {
+        if(coreHasCCFArtifacts || coreHasDcrResource || coreHasDceResource) type='CCF';
+        else if(coreHasHttpFlow || coreHasWorkspaceCreds) type='HTTP Data Collector API';
+        else type='CCF'; // modern default tie-break
+      }
+    } else {
+      if(coreHasCCFArtifacts || coreHasDcrResource || coreHasDceResource) type='CCF';
+      else if(coreHasHttpFlow || coreHasWorkspaceCreds) type='HTTP Data Collector API';
+      else type='Unknown';
+    }
+  }
+
+  // ---------- ingestion modes summary ----------
+  const modePoll = connectors.some(c=>c.modes.includes('poll'));
+  const modePush = connectors.some(c=>c.modes.includes('push')) || coreHasHttpFlow;
+  let modeSummary='None';
+  if(modePoll && modePush) modeSummary='Mixed (poll + push)';
+  else if(modePoll) modeSummary='Poll (CCF platform)';
+  else if(modePush) modeSummary='Push (HTTP Data Collector)';
+  else modeSummary='Undetermined';
+
+  // ---------- reasoning & evidence ----------
+  const reasoningLines = [];
+  reasoningLines.push(`Final Classification: ${type}`);
+  reasoningLines.push(`Connector Distribution: CCF=${strongCcfConnectors.length}, HTTP=${strongHttpConnectors.length}, Mixed=${mixedConnectors.length}, Neutral=${neutralConnectors.length}, Total=${connectors.length}`);
+  if(coreHasCCFArtifacts || coreHasDcrResource || coreHasDceResource || coreHasAssociations)
+    reasoningLines.push(
+      `Core CCF Signals: ${[
+        coreHasCCFArtifacts?'connectorDefinition/pollerConfig':'',
+        coreHasDcrResource?'dataCollectionRules':'',
+        coreHasDceResource?'dataCollectionEndpoints':'',
+        coreHasAssociations?'DCR associations':''
+      ].filter(Boolean).join(', ')}`
+    );
+  if(coreHasHttpFlow || coreHasWorkspaceCreds)
+    reasoningLines.push(
+      `Core HTTP Signals: ${[
+        coreHasHttpFlow?'/api/logs flows':'',
+        coreHasWorkspaceCreds?'workspaceId+sharedKey':''
+      ].filter(Boolean).join(', ')}`
+    );
+
+  const sideSignals = type==='CCF'
+    ? strongCcfConnectors.flatMap(c=>c.strongCcf)
+    : strongHttpConnectors.flatMap(c=>c.strongHttp);
+  const uniqSideSignals=[...new Set(sideSignals)];
+  if(uniqSideSignals.length){
+    reasoningLines.push(`Dominant Strong Signals (${type==='CCF'?'CCF':'HTTP'}): ${uniqSideSignals.join(', ')}`);
+  } else {
+    reasoningLines.push('Dominant Strong Signals: (none aggregated, decision via majority/core tie-break)');
+  }
+
+  reasoningLines.push(`Ingestion Modes: ${modeSummary}`);
+  if(httpEndpointSet.size || coreHttpEndpoints.size){
+    reasoningLines.push(`Observed HTTP Endpoints: ${[...httpEndpointSet,...coreHttpEndpoints].slice(0,12).join(', ')}`);
+  }
+  reasoningLines.push(`Tie-Break Logic: Prefers explicit packaging artifacts (connectorDefinition/pollerConfig/DCR/DCE) over generic workspace credentials; defaults to modern CCF when perfectly tied.`);
+
+  // Combined multiline reasoning string (legacy consumers)
+  const reasoning = `Architecture Reasoning:\n` + reasoningLines.map(l=>'• '+l).join('\n');
+
+  // Evidence lines
+  const evidenceLines = [];
+  connectors.forEach(c=>{
+    if(c.strongCcf.length) evidenceLines.push(`${c.id}: CCF strong [${c.strongCcf.join(', ')}]`);
+    if(c.strongHttp.length) evidenceLines.push(`${c.id}: HTTP strong [${c.strongHttp.join(', ')}]`);
+    if(!c.strongCcf.length && !c.strongHttp.length && c.arch!=='Neutral')
+      evidenceLines.push(`${c.id}: ${c.arch} (mixed via weak/tie signals)`);
+  });
+  if(coreHasCCFArtifacts)  evidenceLines.push('Core: connectorDefinition.json/pollerConfig.json');
+  if(coreHasDcrResource)   evidenceLines.push('Core: dataCollectionRules resource(s)');
+  if(coreHasDceResource)   evidenceLines.push('Core: dataCollectionEndpoints resource(s)');
+  if(coreHasAssociations)  evidenceLines.push('Core: DCR associations');
+  if(coreHasHttpFlow)      evidenceLines.push('Core: /api/logs flow');
+  if(coreHasWorkspaceCreds) evidenceLines.push('Core: workspaceId+sharedKey pattern');
+  if(httpEndpointSet.size || coreHttpEndpoints.size)
+    evidenceLines.push('HTTP Endpoints Observed: ' + [...httpEndpointSet,...coreHttpEndpoints].slice(0,20).join(', '));
+
+  const evidence = 'Ingestion Evidence:\n' + evidenceLines.map(l=>'• '+l).join('\n');
+
+  return {
+    type,
+    connectors,
+    counts: {
+      ccf: strongCcfConnectors.length,
+      http: strongHttpConnectors.length,
+      mixed: mixedConnectors.length,
+      neutral: neutralConnectors.length,
+      total: connectors.length
+    },
+    core: {
+      ccfArtifacts: coreHasCCFArtifacts,
+      dcrResource: coreHasDcrResource,
+      dceResource: coreHasDceResource,
+      associations: coreHasAssociations,
+      httpApiLogs: coreHasHttpFlow,
+      workspaceKeyPair: coreHasWorkspaceCreds
+    },
+    reasoning,
+    evidence,
+    reasoningLines,
+    evidenceLines,
+    endpoints: {
+      http:[...httpEndpointSet,...coreHttpEndpoints],
+      ccf:[...ccfEndpointSet] // placeholder for future DCE-specific URIs
+    },
+    modes:{
+      poll:modePoll,
+      push:modePush,
+      summary:modeSummary
+    }
+  };
+}
+*/ 
+
+
+/* ================================================
+   Architecture Analyzer Constants (tunable)
+   ================================================ */
+const ARCH_CONST = {
+  odsHostRe: /(\/\/|\.)(ods|opinsights)\.azure\.(com|cn|us|de|gov)(\/|:|$)/i,
+  apiLogsRe: /\/api\/logs(\?|$)/i,
+  sharedKeyHdrRe: /authorization:\s*sharedkey/i,
+  logTypeHdrRe: /(^|\W)log-type(\W|$)/i,
+  xmsDateHdrRe: /x-ms-date/i,
+  timeGenFieldRe: /time-generated-field/i,
+  // Mode thresholds
+  modes: {
+    strict:  { majorityPct: 0.65, strongDelta: 3 },
+    balanced:{ majorityPct: 0.60, strongDelta: 2 },
+    lenient: { majorityPct: 0.55, strongDelta: 2 }
+  }
+};
+/*
+function analyzeSolutionArchitecture(art, options={}){
+  if(!art) return {
+    type:'Unknown',
+    reasoning:'No artifacts loaded.',
+    connectors:[],
+    evidence:[],
+    signalsCatalog:{connectors:[],core:[]},
+    counts:{ccf:0,http:0,mixed:0,neutral:0,total:0},
+    core:{},
+    confidence:0,
+    reasoningLines:['No artifacts loaded.'],
+    evidenceLines:[]
+  };
+
+  const modeCfg = ARCH_CONST.modes[options.mode] || ARCH_CONST.modes.balanced;
+  const tiePref = options.tieBreakPreference || 'ccf';
+
+  // ---------- helpers ----------
+  const toTxt = v => {
+    try { return (typeof v === 'string' ? v : JSON.stringify(v||{})).toLowerCase(); }
+    catch { return ''; }
+  };
+  const fileList = Array.isArray(art.files) ? art.files : [];
+  const coreList = Array.isArray(art.coreFiles) ? art.coreFiles : [];
+
+  const fileNameSet = new Set(
+    fileList.map(f => (f.path || f.name || '').toLowerCase()).filter(Boolean)
+  );
+  const hasAnyFileNamed = (...needles) => needles.some(n => {
+    n = n.toLowerCase();
+    for(const f of fileNameSet){
+      if(f.endsWith('/'+n) || f === n || f.includes('/'+n)) return true;
+    }
+    return false;
+  });
+
+  // Packaging / CCF artifacts
+  const hasConnectorDefinitionFile = hasAnyFileNamed('connectorDefinition.json');
+  const hasPollerConfigFile        = hasAnyFileNamed('pollerConfig.json');
+  const hasAnyDcrJson              = hasAnyFileNamed('dcr.json','dcr.config.json','dataCollectionRule.json');
+  const hasAnyTableSchema          = hasAnyFileNamed('tableSchema.json','tables.json');
+  const packagingArtifacts = {
+    connectorDefinition: hasConnectorDefinitionFile,
+    pollerConfig: hasPollerConfigFile,
+    dcrJson: hasAnyDcrJson,
+    tableSchema: hasAnyTableSchema
+  };
+
+  // ---------- per-connector analysis ----------
+  const connectorSignals = [];
+  const connectors = (art.connectors||[]).map(c=>{
+    const raw = c.raw || {};
+    const txt = toTxt(raw);
+    const mech = (c.mechanism||'').toLowerCase();
+    const id = c.id || c.name || c.path || 'connector';
+
+    const strongCcf = new Set();
+    const weakCcf   = new Set();
+    const strongHttp= new Set();
+    const weakHttp  = new Set();
+
+    const props = raw?.properties || {};
+    const hasDcrConfig = !!props?.dcrConfig;
+    const hasUiConfig  = !!(props?.connectorUiConfig || props?.connectorUIConfig);
+    const dataTypes    = Array.isArray(props?.dataTypes) ? props.dataTypes : [];
+    const graphQueries = Array.isArray(props?.graphQueries) ? props.graphQueries : [];
+    const hasStreams   = Array.isArray(c.streams) && c.streams.length>0;
+
+    const localSignals = { id, ccf:{ strong:[], weak:[] }, http:{ strong:[], weak:[] } };
+
+    // CCF signals
+    const fullCodeless = hasDcrConfig && hasUiConfig && dataTypes.length && graphQueries.length;
+    if(fullCodeless){ strongCcf.add('codeless-full'); localSignals.ccf.strong.push('codeless-full (dcrConfig+uiConfig+dataTypes+graphQueries)'); }
+    if(hasDcrConfig && !fullCodeless){ strongCcf.add('dcrConfig'); localSignals.ccf.strong.push('properties.dcrConfig'); }
+    // streams downgraded to weak unless full codeless present
+    if(hasStreams && !fullCodeless){ weakCcf.add('streams'); localSignals.ccf.weak.push('connector.streams (weak)'); }
+    if(/restapipoller|api\s*polling|pollerconfig|poller-config/.test(txt)){
+      strongCcf.add('apiPoller'); localSignals.ccf.strong.push('text: restApiPoller|api polling|pollerConfig');
+    }
+    if(hasUiConfig && !fullCodeless){
+      weakCcf.add('uiConfig'); localSignals.ccf.weak.push('properties.connectorUiConfig');
+    }
+    if(/codeless/.test(txt) && !fullCodeless){
+      weakCcf.add('codeless-keyword'); localSignals.ccf.weak.push('text: codeless');
+    }
+    if(graphQueries.length && !hasDcrConfig){
+      weakCcf.add('graphQueries-only'); localSignals.ccf.weak.push('properties.graphQueries without dcrConfig');
+    }
+
+    // HTTP signals
+    const hasWorkspaceId = /workspaceid|customerid|la_workspace_id/.test(txt);
+    const hasSharedKey   = /sharedkey|workspacekey|primarykey/.test(txt);
+    const hasSignature   = /x-ms-signature/.test(txt) || ARCH_CONST.sharedKeyHdrRe.test(txt);
+    const hasApiLogs     = ARCH_CONST.apiLogsRe.test(txt);
+    const hasOpInsights  = ARCH_CONST.odsHostRe.test(txt);
+    const hasLogAnalyticsUri = /loganalyticsuri/.test(txt) && (hasOpInsights || /azure\.(com|cn|us|de|gov)/.test(txt));
+    const mentionsCollector = /datacollector|http data collector|data collector api/i.test(txt) || mech.includes('http data collector');
+
+    if(hasWorkspaceId && hasSharedKey &&
+       (hasApiLogs || hasOpInsights || hasLogAnalyticsUri || hasSignature)){
+      strongHttp.add('workspaceId+sharedKey+endpoint/signature');
+      localSignals.http.strong.push('workspaceId+sharedKey + (api/logs|ODS|logAnalyticsUri|signature)');
+    } else {
+      if(hasWorkspaceId){ weakHttp.add('workspaceId'); localSignals.http.weak.push('workspaceId|customerId|la_workspace_id'); }
+      if(hasSharedKey){   weakHttp.add('sharedKey');   localSignals.http.weak.push('sharedKey|workspaceKey|primaryKey'); }
+    }
+    if(hasSignature){       strongHttp.add('x-ms-signature'); localSignals.http.strong.push('header: x-ms-signature or Authorization: SharedKey'); }
+    if(hasApiLogs){         strongHttp.add('/api/logs');       localSignals.http.strong.push('path: /api/logs'); }
+    if(hasLogAnalyticsUri){ strongHttp.add('logAnalyticsUri'); localSignals.http.strong.push('param: logAnalyticsUri + Azure host'); }
+    else if(hasOpInsights){ weakHttp.add('opinsights-host');   localSignals.http.weak.push('host: *.ods|opinsights.azure.*'); }
+    if(mentionsCollector){  weakHttp.add('data-collector-mention'); localSignals.http.weak.push('keyword: data collector api'); }
+    if(ARCH_CONST.logTypeHdrRe.test(txt)){   weakHttp.add('Log-Type-header');      localSignals.http.weak.push('header: Log-Type'); }
+    if(ARCH_CONST.xmsDateHdrRe.test(txt)){   weakHttp.add('x-ms-date-header');     localSignals.http.weak.push('header: x-ms-date'); }
+    if(ARCH_CONST.timeGenFieldRe.test(txt)){ weakHttp.add('time-generated-field'); localSignals.http.weak.push('field: time-generated-field'); }
+
+    // Scoring
+    const scoreCcf  = strongCcf.size*3 + weakCcf.size;
+    const scoreHttp = strongHttp.size*3 + weakHttp.size;
+    let arch='Neutral';
+    if(scoreCcf===0 && scoreHttp===0) arch='Neutral';
+    else if(scoreCcf >= scoreHttp + modeCfg.strongDelta) arch='CCF';
+    else if(scoreHttp >= scoreCcf + modeCfg.strongDelta) arch='HTTP';
+    else {
+      if(strongCcf.size > strongHttp.size) arch='CCF';
+      else if(strongHttp.size > strongCcf.size) arch='HTTP';
+      else arch='Mixed';
+    }
+
+    connectorSignals.push(localSignals);
+
+    return {
+      id,
+      arch,
+      strongCcf:[...strongCcf],
+      weakCcf:[...weakCcf],
+      strongHttp:[...strongHttp],
+      weakHttp:[...weakHttp],
+      score:{ ccf:scoreCcf, http:scoreHttp }
+    };
+  });
+
+  // ---------- counts ----------
+  const counts = connectors.reduce((acc,c)=>{
+    acc[c.arch]=(acc[c.arch]||0)+1;
+    acc.total++;
+    return acc;
+  },{total:0});
+
+  // ---------- core reinforcement ----------
+  let coreHasDcr=false, coreHasDce=false, coreHasWorkspaceCreds=false, coreHasApiLogs=false;
+  const coreSignals = [];
+
+  function collectResources(raw){
+    const out=[];
+    (function walk(arr){
+      if(Array.isArray(arr)) arr.forEach(r=>{
+        out.push(r);
+        if(Array.isArray(r.resources)) walk(r.resources);
+      });
+    })(raw?.resources);
+    return out;
+  }
+
+  coreList.forEach(cf=>{
+    const raw=cf.raw||{};
+    const txt=toTxt(raw);
+    collectResources(raw).forEach(r=>{
+      const t=(r?.type||'').toLowerCase();
+      if(t==='microsoft.insights/datacollectionrules'){ coreHasDcr=true; coreSignals.push('resource: dataCollectionRules'); }
+      if(t==='microsoft.insights/datacollectionendpoints'){ coreHasDce=true; coreSignals.push('resource: dataCollectionEndpoints'); }
+      if(t==='microsoft.insights/datacollectionrules/associations'){ coreHasDcr=true; coreSignals.push('resource: DCR associations'); }
+    });
+    if(ARCH_CONST.apiLogsRe.test(txt)){ coreHasApiLogs=true; coreSignals.push('http: /api/logs in core'); }
+    if(/workspaceid/.test(txt) && /sharedkey|workspacekey|primarykey/.test(txt)){
+      coreHasWorkspaceCreds=true; coreSignals.push('http: workspaceId+sharedKey in core');
+    }
+    if(ARCH_CONST.odsHostRe.test(txt) && /workspaceid/.test(txt)){
+      coreSignals.push('http: ODS host + workspaceId');
+    }
+  });
+
+  const corePackaging = [];
+  if(packagingArtifacts.connectorDefinition){ corePackaging.push('packaging: connectorDefinition.json'); }
+  if(packagingArtifacts.pollerConfig){        corePackaging.push('packaging: pollerConfig.json'); }
+  if(packagingArtifacts.dcrJson){             corePackaging.push('packaging: DCR json'); }
+  if(packagingArtifacts.tableSchema){         corePackaging.push('packaging: table schema'); }
+  coreSignals.push(...corePackaging);
+
+  const core = {
+    ccfArtifacts: corePackaging.length>0,
+    dcrResource: coreHasDcr,
+    dceResource: coreHasDce,
+    httpApiLogs: coreHasApiLogs,
+    workspaceKeyPair: coreHasWorkspaceCreds
+  };
+
+  // ---------- final decision ----------
+  const strongCcfConnectors = connectors.filter(c=>c.arch==='CCF');
+  const strongHttpConnectors= connectors.filter(c=>c.arch==='HTTP');
+  const mixedConnectors     = connectors.filter(c=>c.arch==='Mixed');
+  const neutralConnectors   = connectors.filter(c=>c.arch==='Neutral');
+  const pct = v => connectors.length ? v/connectors.length : 0;
+  const totalStrong = (arr,side) => arr.reduce((s,c)=> s + (side==='ccf'?c.strongCcf.length:c.strongHttp.length),0);
+
+  let type='Unknown';
+  if(connectors.length===0){
+    if(core.ccfArtifacts || core.dcrResource || core.dceResource) type='CCF';
+    else if(core.httpApiLogs || core.workspaceKeyPair) type='HTTP Data Collector API';
+  } else {
+    if(strongCcfConnectors.length && !strongHttpConnectors.length && !mixedConnectors.length) type='CCF';
+    else if(strongHttpConnectors.length && !strongCcfConnectors.length && !mixedConnectors.length) type='HTTP Data Collector API';
+    else if(pct(strongCcfConnectors.length) >= modeCfg.majorityPct) type='CCF';
+    else if(pct(strongHttpConnectors.length) >= modeCfg.majorityPct) type='HTTP Data Collector API';
+    else {
+      const ccfStrongTotal  = totalStrong(connectors,'ccf');
+      const httpStrongTotal = totalStrong(connectors,'http');
+      if(ccfStrongTotal > httpStrongTotal) type='CCF';
+      else if(httpStrongTotal > ccfStrongTotal) type='HTTP Data Collector API';
+      else {
+        // tie-break
+        if(core.ccfArtifacts || core.dcrResource || core.dceResource){
+          type='CCF';
+        } else if(core.httpApiLogs || core.workspaceKeyPair){
+          type='HTTP Data Collector API';
+        } else {
+            if(tiePref==='ccf') type='CCF';
+            else if(tiePref==='http') type='HTTP Data Collector API';
+            else type='Unknown';
+        }
+      }
+    }
+  }
+  if(!type) type='Unknown';
+
+  // ---------- confidence ----------
+  const majorityShare = Math.max(pct(strongCcfConnectors.length), pct(strongHttpConnectors.length));
+  let confidence = 0.15 + 0.55*majorityShare;
+  if(type==='CCF'){
+    if(core.ccfArtifacts) confidence += 0.12;
+    if(core.dcrResource || core.dceResource) confidence += 0.08;
+    if(core.httpApiLogs) confidence -= 0.05;
+  } else if(type==='HTTP Data Collector API'){
+    if(core.httpApiLogs) confidence += 0.12;
+    if(core.workspaceKeyPair) confidence += 0.06;
+    if(core.dcrResource || core.dceResource) confidence -= 0.05;
+  } else if(type==='Unknown'){
+    confidence = 0.05;
+  }
+  // penalty for heavy mixed connectors
+  const mixedRatio = pct(mixedConnectors.length);
+  confidence -= mixedRatio*0.10;
+  confidence = Math.max(0,Math.min(1,confidence));
+
+    // NEW: Force confidence to 100% if any DCR evidence exists
+  const hasConnectorDcr = connectors.some(c =>
+    c.strongCcf.includes('dcrConfig') ||
+    c.strongCcf.includes('codeless-full') // full codeless implies dcrConfig
+  );
+  const hasPackagingDcr = packagingArtifacts.dcrJson; // earlier variable in function
+  if (core.dcrResource || hasPackagingDcr || hasConnectorDcr) {
+    confidence = 1.0;
+  }
+
+
+  // ---------- reasoning + evidence ----------
+  const reasoningLines = [];
+  reasoningLines.push(`Final Classification: ${type}`);
+  reasoningLines.push(`Connectors distribution: CCF=${strongCcfConnectors.length}, HTTP=${strongHttpConnectors.length}, Mixed=${mixedConnectors.length}, Neutral=${neutralConnectors.length}, Total=${connectors.length}`);
+  if(core.ccfArtifacts || core.dcrResource || core.dceResource)
+    reasoningLines.push(`Core CCF signals: ${[
+      core.ccfArtifacts?'packaging artifacts':'',
+      core.dcrResource?'DCR resources':'',
+      core.dceResource?'DCE resources':''
+    ].filter(Boolean).join(', ')}`);
+  if(core.httpApiLogs || core.workspaceKeyPair)
+    reasoningLines.push(`Core HTTP signals: ${[
+      core.httpApiLogs?'/api/logs':'',
+      core.workspaceKeyPair?'workspaceId+sharedKey':''
+    ].filter(Boolean).join(', ')}`);
+  const sideSignals = type==='CCF'
+    ? strongCcfConnectors.flatMap(c=>c.strongCcf)
+    : strongHttpConnectors.flatMap(c=>c.strongHttp);
+  reasoningLines.push(sideSignals.length
+    ? `Dominant strong signals: ${[...new Set(sideSignals)].join(', ')}`
+    : 'Dominant strong signals: (none aggregated; majority/core tie-break applied)');
+  reasoningLines.push(`Mode: ${options.mode||'balanced'}; tieBreakPreference: ${tiePref}`);
+  reasoningLines.push(`Confidence: ${confidence.toFixed(2)}`);
+  reasoningLines.push(`Streams treated as weak unless part of full codeless bundle.`);
+  reasoningLines.push(`Strong HTTP requires endpoint/signature context (reduces param-only false positives).`);
+
+  const evidenceLines = [];
+  connectors.forEach(c=>{
+    if(c.strongCcf.length) evidenceLines.push(`${c.id}: CCF strong [${c.strongCcf.join(', ')}]`);
+    if(c.strongHttp.length) evidenceLines.push(`${c.id}: HTTP strong [${c.strongHttp.join(', ')}]`);
+    if(!c.strongCcf.length && !c.strongHttp.length && c.arch!=='Neutral')
+      evidenceLines.push(`${c.id}: ${c.arch} (weak/mixed signals)`);
+  });
+  if(core.ccfArtifacts)   evidenceLines.push('Core: packaging artifacts (connectorDefinition/pollerConfig/DCR/table schema)');
+  if(core.dcrResource)    evidenceLines.push('Core: dataCollectionRules resource(s)');
+  if(core.dceResource)    evidenceLines.push('Core: dataCollectionEndpoints resource(s)');
+  if(core.httpApiLogs)    evidenceLines.push('Core: /api/logs flow');
+  if(core.workspaceKeyPair) evidenceLines.push('Core: workspaceId+sharedKey parameters');
+
+  const reasoning = 'Architecture Reasoning:\n' + reasoningLines.map(l=>'• '+l).join('\n');
+  const evidence  = 'Ingestion Evidence:\n' + evidenceLines.map(l=>'• '+l).join('\n');
+
+  return {
+    type,
+    connectors,
+    counts:{
+      ccf: strongCcfConnectors.length,
+      http: strongHttpConnectors.length,
+      mixed: mixedConnectors.length,
+      neutral: neutralConnectors.length,
+      total: connectors.length
+    },
+    core,
+    confidence,
+    reasoning,
+    evidence,
+    reasoningLines,
+    evidenceLines,
+    signalsCatalog:{
+      connectors: connectorSignals,
+      core: coreSignals
+    }
+  };
+}
+*/
+
+function analyzeSolutionArchitecture(art, options={}){
+  if(!art) return {
+    type:'CCF', // forced fallback to one of the two
+    connectors:[],
+    counts:{ccf:0,http:0,total:0},
+    core:{},
+    reasoning:'CCF: no artifacts loaded; defaulting per enforced binary classification.',
+    evidence:[],
+    reasoningLines:['Defaulted to CCF (no artifacts).'],
+    evidenceLines:[],
+    signalsCatalog:{connectors:[],core:[]}
+  };
+
+  const toTxt = v => {
+    try { return (typeof v === 'string' ? v : JSON.stringify(v||{})).toLowerCase(); }
+    catch { return ''; }
+  };
+
+  // File name inspection for packaging artifacts
+  const fileList = Array.isArray(art.files) ? art.files : [];
+  const fileNameSet = new Set(fileList.map(f => (f.path||f.name||'').toLowerCase()).filter(Boolean));
+  const hasAnyFileNamed = (...needles) => needles.some(n => {
+    n = n.toLowerCase();
+    for(const f of fileNameSet){
+      if(f.endsWith('/'+n) || f === n || f.includes('/'+n)) return true;
+    }
+    return false;
+  });
+
+  // Regex constants
+  const odsHostRe = /(\/\/|\.)(ods|opinsights)\.azure\.(com|cn|us|de|gov)(\/|:|$)/i;
+  const apiLogsRe = /\/api\/logs(\?|$)/i;
+  const sharedKeyHdrRe = /authorization:\s*sharedkey/i;
+  const logTypeHdrRe = /(^|\W)log-type(\W|$)/i;
+  const xmsDateHdrRe = /x-ms-date/i;
+  const timeGenFieldRe = /time-generated-field/i;
+
+  // Packaging artifacts (strong CCF indicators)
+  const hasConnectorDefinitionFile = hasAnyFileNamed('connectorDefinition.json');
+  const hasPollerConfigFile        = hasAnyFileNamed('pollerConfig.json');
+  const hasAnyDcrJson              = hasAnyFileNamed('dcr.json','dcr.config.json','dataCollectionRule.json');
+  const hasAnyTableSchema          = hasAnyFileNamed('tableSchema.json','tables.json');
+
+  // Per-connector analysis
+  const connectorSignals = [];
+  const connectors = (art.connectors||[]).map(c=>{
+    const raw = c.raw || {};
+    const txt = toTxt(raw);
+    const mech = (c.mechanism||'').toLowerCase();
+    const id = c.id || c.name || c.path || 'connector';
+
+    const strongCcf = new Set();
+    const weakCcf   = new Set();
+    const strongHttp= new Set();
+    const weakHttp  = new Set();
+
+    const props = raw.properties || {};
+    const hasDcrConfig = !!props.dcrConfig;
+    const hasUiConfig  = !!(props.connectorUiConfig || props.connectorUIConfig);
+    const dataTypes    = Array.isArray(props.dataTypes)?props.dataTypes:[];
+    const graphQueries = Array.isArray(props.graphQueries)?props.graphQueries:[];
+    const hasStreams   = Array.isArray(c.streams)&&c.streams.length>0;
+
+    const localSignals = { id, ccf:{strong:[],weak:[]}, http:{strong:[],weak:[]} };
+
+    const fullCodeless = hasDcrConfig && hasUiConfig && dataTypes.length && graphQueries.length;
+    if(fullCodeless){ strongCcf.add('codeless-full'); localSignals.ccf.strong.push('codeless-full'); }
+    if(hasDcrConfig && !fullCodeless){ strongCcf.add('dcrConfig'); localSignals.ccf.strong.push('dcrConfig'); }
+    if(/restapipoller|api\s*polling|pollerconfig|poller-config/.test(txt)){ strongCcf.add('apiPoller'); localSignals.ccf.strong.push('apiPoller'); }
+    if(hasUiConfig && !fullCodeless){ weakCcf.add('uiConfig'); localSignals.ccf.weak.push('uiConfig'); }
+    if(graphQueries.length && !hasDcrConfig){ weakCcf.add('graphQueries'); localSignals.ccf.weak.push('graphQueries-only'); }
+    if(hasStreams && !fullCodeless){ weakCcf.add('streams'); localSignals.ccf.weak.push('streams'); }
+    if(/codeless/.test(txt) && !fullCodeless){ weakCcf.add('codeless-keyword'); localSignals.ccf.weak.push('codeless-keyword'); }
+
+    // HTTP signals
+    const hasWorkspaceId = /workspaceid|customerid|la_workspace_id/.test(txt);
+    const hasSharedKey   = /sharedkey|workspacekey|primarykey/.test(txt);
+    const hasSignature   = /x-ms-signature/.test(txt) || sharedKeyHdrRe.test(txt);
+    const hasApiLogs     = apiLogsRe.test(txt);
+    const hasOpInsights  = odsHostRe.test(txt);
+    const hasLogAnalyticsUri = /loganalyticsuri/.test(txt) && (hasOpInsights || /azure\.(com|cn|us|de|gov)/.test(txt));
+    const mentionsCollector = /datacollector|http data collector|data collector api/i.test(txt) || mech.includes('http data collector');
+
+    if(hasWorkspaceId && hasSharedKey && (hasApiLogs || hasOpInsights || hasLogAnalyticsUri || hasSignature)){
+      strongHttp.add('workspaceId+sharedKey+endpoint/signature');
+      localSignals.http.strong.push('workspaceId+sharedKey+endpoint/signature');
+    } else {
+      if(hasWorkspaceId){ weakHttp.add('workspaceId'); localSignals.http.weak.push('workspaceId'); }
+      if(hasSharedKey){   weakHttp.add('sharedKey');   localSignals.http.weak.push('sharedKey'); }
+    }
+    if(hasSignature){       strongHttp.add('x-ms-signature');     localSignals.http.strong.push('x-ms-signature'); }
+    if(hasApiLogs){         strongHttp.add('/api/logs');          localSignals.http.strong.push('/api/logs'); }
+    if(hasLogAnalyticsUri){ strongHttp.add('logAnalyticsUri');    localSignals.http.strong.push('logAnalyticsUri'); }
+    else if(hasOpInsights){ weakHttp.add('opinsights-host');      localSignals.http.weak.push('opinsights-host'); }
+    if(mentionsCollector){  weakHttp.add('data-collector');       localSignals.http.weak.push('data-collector-mention'); }
+    if(logTypeHdrRe.test(txt)){   weakHttp.add('Log-Type');       localSignals.http.weak.push('Log-Type-header'); }
+    if(xmsDateHdrRe.test(txt)){   weakHttp.add('x-ms-date');      localSignals.http.weak.push('x-ms-date-header'); }
+    if(timeGenFieldRe.test(txt)){ weakHttp.add('time-generated'); localSignals.http.weak.push('time-generated-field'); }
+
+    const scoreCcf  = strongCcf.size*3 + weakCcf.size;
+    const scoreHttp = strongHttp.size*3 + weakHttp.size;
+
+    // Connector-level arch forced binary
+    let arch;
+    if(scoreCcf === 0 && scoreHttp === 0) {
+      arch = 'CCF'; // arbitrary default to align with global rule
+    } else if(scoreCcf >= scoreHttp) arch='CCF';
+    else arch='HTTP';
+
+    connectorSignals.push(localSignals);
+
+    return {
+      id,
+      arch,
+      strongCcf:[...strongCcf],
+      weakCcf:[...weakCcf],
+      strongHttp:[...strongHttp],
+      weakHttp:[...weakHttp],
+      score:{ ccf:scoreCcf, http:scoreHttp }
+    };
+  });
+
+  // Core template reinforcement (DCR / DCE / HTTP)
+  const coreFiles = Array.isArray(art.coreFiles)?art.coreFiles:[];
+  let coreHasDcr=false, coreHasDce=false, coreHasApiLogs=false, coreHasWorkspaceCreds=false;
+
+  function collectResources(raw){
+    const out=[];
+    (function walk(arr){
+      if(Array.isArray(arr)) arr.forEach(r=>{
+        out.push(r);
+        if(Array.isArray(r.resources)) walk(r.resources);
+      });
+    })(raw?.resources);
+    return out;
+  }
+
+  coreFiles.forEach(cf=>{
+    const raw=cf.raw||{};
+    const txt=toTxt(raw);
+    collectResources(raw).forEach(r=>{
+      const t=(r?.type||'').toLowerCase();
+      if(t==='microsoft.insights/datacollectionrules') coreHasDcr=true;
+      if(t==='microsoft.insights/datacollectionendpoints') coreHasDce=true;
+      if(t==='microsoft.insights/datacollectionrules/associations') coreHasDcr=true;
+    });
+    if(apiLogsRe.test(txt)) coreHasApiLogs=true;
+    if(/workspaceid/.test(txt) && /sharedkey|workspacekey|primarykey/.test(txt)) coreHasWorkspaceCreds=true;
+  });
+
+  // Aggregate scores
+  const totalCcfScore  = connectors.reduce((s,c)=>s+c.score.ccf,0);
+  const totalHttpScore = connectors.reduce((s,c)=>s+c.score.http,0);
+
+  const anyConnectorDcr = connectors.some(c=>c.strongCcf.includes('dcrConfig')||c.strongCcf.includes('codeless-full'));
+  const packagingDcr = hasAnyDcrJson;
+
+  // Final forced binary classification
+  let type;
+  if(coreHasDcr || anyConnectorDcr || packagingDcr) {
+    type='CCF';
+  } else if(!coreHasDcr && !anyConnectorDcr && !packagingDcr &&
+            (coreHasApiLogs || (coreHasWorkspaceCreds && (totalHttpScore>0)) ||
+             connectors.some(c=>c.strongHttp.length>0))) {
+    type='HTTP Data Collector API';
+  } else {
+    // Score comparison fallback
+    if(totalCcfScore >= totalHttpScore) type='CCF';
+    else type='HTTP Data Collector API';
+  }
+
+  // Counts (binary)
+  const counts = {
+    ccf: connectors.filter(c=>c.arch==='CCF').length,
+    http: connectors.filter(c=>c.arch==='HTTP').length,
+    total: connectors.length
+  };
+
+  const core = {
+    dcrResource: coreHasDcr,
+    dceResource: coreHasDce,
+    httpApiLogs: coreHasApiLogs,
+    workspaceKeyPair: coreHasWorkspaceCreds,
+    packaging: {
+      connectorDefinition: hasConnectorDefinitionFile,
+      pollerConfig: hasPollerConfigFile,
+      dcrJson: hasAnyDcrJson,
+      tableSchema: hasAnyTableSchema
+    }
+  };
+
+  // Reasoning assembly
+  const reasoningLines = [];
+  reasoningLines.push(`Final Classification: ${type}`);
+  reasoningLines.push(`Connector scores (aggregate): CCF=${totalCcfScore} HTTP=${totalHttpScore}`);
+  reasoningLines.push(`Connector distribution: CCF=${counts.ccf} HTTP=${counts.http} Total=${counts.total}`);
+  if(core.packaging.connectorDefinition || core.packaging.pollerConfig || core.packaging.dcrJson || core.packaging.tableSchema){
+    reasoningLines.push('Packaging artifacts: '+
+      Object.entries(core.packaging).filter(([k,v])=>v).map(([k])=>k).join(', '));
+  }
+  if(core.dcrResource) reasoningLines.push('Core template includes dataCollectionRules');
+  if(core.dceResource) reasoningLines.push('Core template includes dataCollectionEndpoints');
+  if(core.httpApiLogs) reasoningLines.push('Core template includes /api/logs flow');
+  if(core.workspaceKeyPair) reasoningLines.push('Core template includes workspaceId+sharedKey parameters');
+  if(anyConnectorDcr) reasoningLines.push('Connector-level dcrConfig detected');
+  if(packagingDcr) reasoningLines.push('DCR JSON file present');
+  reasoningLines.push('Binary fallback: ties or absence of decisive HTTP endpoint default to CCF.');
+  const reasoning = 'Architecture Reasoning:\n' + reasoningLines.map(l=>'• '+l).join('\n');
+
+  // Evidence list (strong signals only)
+  const evidenceLines = [];
+  connectors.forEach(c=>{
+    if(c.strongCcf.length) evidenceLines.push(`${c.id}: CCF strong [${c.strongCcf.join(', ')}]`);
+    if(c.strongHttp.length) evidenceLines.push(`${c.id}: HTTP strong [${c.strongHttp.join(', ')}]`);
+  });
+  if(core.packaging.connectorDefinition || core.packaging.pollerConfig) evidenceLines.push('Core: connectorDefinition/pollerConfig present');
+  if(core.packaging.dcrJson) evidenceLines.push('Core: DCR JSON packaging present');
+  if(core.dcrResource) evidenceLines.push('Core: dataCollectionRules resource');
+  if(core.dceResource) evidenceLines.push('Core: dataCollectionEndpoints resource');
+  if(core.httpApiLogs) evidenceLines.push('Core: /api/logs flow');
+  if(core.workspaceKeyPair) evidenceLines.push('Core: workspaceId+sharedKey parameters');
+  const evidence = 'Ingestion Evidence:\n' + evidenceLines.map(l=>'• '+l).join('\n');
+
+  return {
+    type,
+    connectors,
+    counts,
+    core,
+    reasoning,
+    evidence,
+    reasoningLines,
+    evidenceLines,
+    signalsCatalog:{
+      connectors: connectorSignals,
+      core: reasoningLines.filter(l=>/Core|Packaging|Connector-level|DCR JSON/.test(l))
+    }
+  };
+}
+
+
 
 function analyzeCreateUiDefinition(json){
   if(!json||typeof json!=='object') return null;
@@ -1635,14 +2981,57 @@ function buildLegend(){
 
 function rebuildArchitectureSignals(artifacts){
   const result={
-    ccfSignals: new Set(),
-    httpSignals: new Set(),
-    evidence: [] // human-readable lines
+    ccfSignals:new Set(),
+    httpSignals:new Set(),
+    evidence:[],
+    opinsightsUris:new Set()  // collected full URIs
   };
   if(!artifacts) return result;
 
+  // Generic deep scan for opinsights URIs
+  function walk(node){
+    if(!node) return;
+    if(Array.isArray(node)){
+      node.forEach(walk);
+      return;
+    }
+    if(typeof node==='object'){
+      for(const k in node){
+        const v=node[k];
+        if(typeof v==='string'){
+          const lower=v.toLowerCase();
+          if(lower.includes('opinsights.azure.com') || lower.includes('.ods.opinsights.azure.com')){
+            result.opinsightsUris.add(v.trim());
+            // Capture explicit property semantics
+            if(/loganalyticsuri|loganalyticsurl/.test(k.toLowerCase())){
+              result.evidence.push(`Found ${k}="${v}" (HTTP ingestion endpoint)`);
+            }
+          }
+        }
+        walk(v);
+      }
+    }
+  }
+
+  // Scan core files for endpoints and CCF hints
+  (artifacts.coreFiles||[]).forEach(cf=>{
+    const raw=cf.raw||{};
+    walk(raw);
+    const txt=JSON.stringify(raw).toLowerCase();
+    if(/workspaceid/.test(txt) && /sharedkey/.test(txt)){
+      result.httpSignals.add('workspaceId+sharedKey');
+      result.evidence.push(`Core file "${cf.id||cf.path}": workspaceId + sharedKey pair (HTTP)`);
+    }
+    if(/dcrconfig/.test(txt)){
+      result.ccfSignals.add('dcrConfig');
+      result.evidence.push(`Core file "${cf.id||cf.path}": dcrConfig reference (CCF)`);
+    }
+  });
+
+  // Scan connectors
   (artifacts.connectors||[]).forEach(conn=>{
     const raw=conn.raw||{};
+    walk(raw);
     const txt=JSON.stringify(raw).toLowerCase();
     const mech=(conn.mechanism||'').toLowerCase();
 
@@ -1659,12 +3048,12 @@ function rebuildArchitectureSignals(artifacts){
       result.ccfSignals.add('codeless');
       result.evidence.push(`Connector "${conn.id||conn.name||'unnamed'}": "codeless" keyword (CCF)`);
     }
-    if(Array.isArray(conn.streams)&&conn.streams.length){
+    if(Array.isArray(conn.streams) && conn.streams.length){
       result.ccfSignals.add('streams');
       result.evidence.push(`Connector "${conn.id||conn.name||'unnamed'}": defines ${conn.streams.length} stream(s) (CCF)`);
     }
 
-    // HTTP Data Collector signals
+    // HTTP signals
     if(/workspaceid/.test(txt)&&/sharedkey/.test(txt)){
       result.httpSignals.add('workspaceId+sharedKey');
       result.evidence.push(`Connector "${conn.id||conn.name||'unnamed'}": workspaceId + sharedKey found (HTTP)`);
@@ -1675,11 +3064,9 @@ function rebuildArchitectureSignals(artifacts){
     }
     if(/opinsights\.azure\.com/.test(txt)){
       result.httpSignals.add('opinsights-endpoint');
-      // Highlight logAnalyticsUri pattern if present
-      if(/loganalyticsuri/.test(txt)){
-        result.evidence.push(`Connector "${conn.id||conn.name||'unnamed'}": logAnalyticsUri with opinsights endpoint (HTTP)`);
-      } else {
-        result.evidence.push(`Connector "${conn.id||conn.name||'unnamed'}": opinsights ingestion endpoint (HTTP)`);
+      // evidence for presence already added via walk if it hit a property value
+      if(![...result.opinsightsUris].some(u=>txt.includes(u.toLowerCase()))){
+        result.evidence.push(`Connector "${conn.id||conn.name||'unnamed'}": opinsights ingestion endpoint string (HTTP)`);
       }
     }
     if(/datacollector/.test(txt)||mech.includes('http data collector')){
@@ -1688,61 +3075,49 @@ function rebuildArchitectureSignals(artifacts){
     }
   });
 
-  // Core files evidence (optional)
-  (artifacts.coreFiles||[]).forEach(cf=>{
-    const raw=cf.raw||{};
-    const txt=JSON.stringify(raw).toLowerCase();
-    if(/opinsights\.azure\.com/.test(txt)){
-      result.httpSignals.add('opinsights-endpoint');
-      result.evidence.push(`Core file "${cf.id||cf.path}": opinsights endpoint string (HTTP)`);
-    }
-    if(/workspaceid/.test(txt)&&/sharedkey/.test(txt)){
-      result.httpSignals.add('workspaceId+sharedKey');
-      result.evidence.push(`Core file "${cf.id||cf.path}": workspaceId + sharedKey pair (HTTP)`);
-    }
-    if(/dcrconfig/.test(txt)){
-      result.ccfSignals.add('dcrConfig');
-      result.evidence.push(`Core file "${cf.id||cf.path}": dcrConfig reference (CCF)`);
-    }
-  });
-
   return result;
 }
 
 function buildArchitectureReasoning(arch, artifacts){
   if(!arch || !arch.type) return 'No classification yet.';
-  const { ccfSignals, httpSignals, evidence } = rebuildArchitectureSignals(artifacts);
+  const { ccfSignals, httpSignals, opinsightsUris } = rebuildArchitectureSignals(artifacts);
+  const uriList=[...opinsightsUris];
+
+  function appendUris(base){
+    if(!uriList.length) return base;
+    const shown=uriList.slice(0,2).join(', ');
+    const more=uriList.length>2?` (+${uriList.length-2} more)`:'';
+    return `${base}; Endpoint(s): ${shown}${more}`;
+  }
 
   if(arch.type==='CCF'){
-    if(ccfSignals.size===0) return 'Classified as CCF, but no explicit CCF signals were captured.';
+    if(ccfSignals.size===0) return 'CCF (no explicit CCF signals captured)';
     const map={
       dcrConfig:'DCR configuration present',
       apiPoller:'REST API poller keywords',
       codeless:'Codeless connector metadata',
       streams:'Defined ingestion streams'
     };
-    const reasons=[...ccfSignals].map(s=>map[s]||s);
-    if(!httpSignals.size) reasons.push('No HTTP Data Collector indicators');
-    return 'CCF because: ' + reasons.join('; ');
+    let reason='CCF because: '+[...ccfSignals].map(s=>map[s]||s).join('; ');
+    if(!httpSignals.size) reason+='; No HTTP Data Collector indicators';
+    return appendUris(reason);
   }
   if(arch.type.startsWith('HTTP')){
-    if(httpSignals.size===0) return 'Classified as HTTP Data Collector API, but no explicit HTTP signals were captured.';
+    if(httpSignals.size===0) return 'HTTP Data Collector API (no explicit HTTP signals captured)';
     const map={
       'workspaceId+sharedKey':'Shared key workspace auth',
-      'x-ms-signature':'x-ms-signature request signing',
+      'x-ms-signature':'Signed requests (x-ms-signature)',
       'opinsights-endpoint':'Legacy opinsights ingestion endpoint',
-      'data-collector':'Explicit data collector mechanism'
+      'data-collector':'Data Collector mechanism'
     };
-    const reasons=[...httpSignals].map(s=>map[s]||s);
-    if(!ccfSignals.size) reasons.push('No CCF indicators');
-    return 'HTTP Data Collector API because: ' + reasons.join('; ');
+    let reason='HTTP Data Collector API because: '+[...httpSignals].map(s=>map[s]||s).join('; ');
+    if(!ccfSignals.size) reason+='; No CCF indicators';
+    return appendUris(reason);
   }
-  return 'Unknown: no decisive CCF or HTTP ingestion signals found.';
+  return appendUris('Unknown: no decisive CCF or HTTP ingestion signals');
 }
-</script>
 
-// --- Replace updateSolutionMeta() with the enhanced version ---
-<script>
+/*
 function updateSolutionMeta(){
   const el=document.getElementById('solutionMeta');
   const m=STATE.meta;
@@ -1790,8 +3165,1058 @@ function updateSolutionMeta(){
     <hr style="border:none;border-top:1px solid var(--panel-border);margin:6px 0;">
     <div style="font-size:.68rem;"><b>Architecture Reasoning:</b> ${escapeHtml(reasoning)}</div>
     <div style="font-size:.68rem;margin-top:4px;"><b>Ingestion Evidence:</b> ${evidenceList}</div>
+    
+
   `;
+
+if(arch){
+  el.innerHTML += `<div style="margin-top:6px;font-size:.68rem;"><b>Architecture Reasoning:</b> ${escapeHtml(arch.reasoning)}</div>`;
+  const ev = arch.evidence.length
+    ? '<ul style="margin:4px 0 0 14px;padding:0;font-size:.63rem;">' +
+        arch.evidence.slice(0,12).map(e=>`<li>${escapeHtml(e)}</li>`).join('') +
+        (arch.evidence.length>12?`<li>… +${arch.evidence.length-12} more</li>`:'') +
+      '</ul>'
+    : '<span style="font-size:.63rem;color:var(--text-dim)">(No evidence)</span>';
+  el.innerHTML += `<div style="margin-top:4px;font-size:.65rem;"><b>Ingestion Evidence:</b> ${ev}</div>`;
 }
+}
+*/
+/*
+function updateSolutionMeta(){
+  const box = document.getElementById('solutionMeta');
+  if(!box) return;
+  const analysis = STATE.solutionAnalysis;
+  const meta      = STATE.meta;
+  box.innerHTML = '';
+
+  // ---------- helpers ----------
+  const esc = s => escapeHtml(s||'');
+  const makeSection = (title, innerHTML) => {
+    const wrap = document.createElement('div');
+    wrap.style.marginTop='10px';
+    wrap.style.fontSize='.63rem';
+    wrap.style.lineHeight='1.05rem';
+    wrap.innerHTML = `<strong style="display:block;margin-bottom:3px;">${esc(title)}</strong>${innerHTML}`;
+    return wrap;
+  };
+  const makeBadge = (txt, cls='') => `<span class="badge" style="display:inline-block;margin:2px 4px 2px 0;${cls?cls:''}">${esc(txt)}</span>`;
+  const bulletList = (items, max=40) => {
+    if(!items || !items.length) return '<em style="color:var(--text-dim)">None</em>';
+    const trimmed = items.slice(0,max);
+    const more = items.length - trimmed.length;
+    return trimmed.map(i=>'&bull; '+esc(i)).join('<br>') + (more>0? `<br><span style="color:var(--muted)">… +${more} more</span>`:'');
+  };
+  function toggleable(id,title,bullets){
+    const container = document.createElement('div');
+    container.className='meta-toggle-block';
+    container.style.marginTop='10px';
+    container.style.fontSize='.63rem';
+
+    const header = document.createElement('div');
+    header.style.cursor='pointer';
+    header.style.userSelect='none';
+    header.style.fontWeight='600';
+    header.style.display='flex';
+    header.style.alignItems='center';
+    header.style.gap='6px';
+
+    const caret = document.createElement('span');
+    caret.textContent='▸';
+    caret.style.transition='transform .18s';
+    const titleSpan = document.createElement('span');
+    titleSpan.textContent=title;
+
+    header.appendChild(caret);
+    header.appendChild(titleSpan);
+
+    const body = document.createElement('div');
+    body.style.marginTop='4px';
+    body.style.display='none';
+    body.innerHTML = bullets;
+
+    header.addEventListener('click',()=>{
+      const open = body.style.display==='none';
+      body.style.display=open?'block':'none';
+      caret.style.transform=open?'rotate(90deg)':'rotate(0deg)';
+    });
+
+    container.appendChild(header);
+    container.appendChild(body);
+    return container;
+  }
+
+  // ---------- architecture badge ----------
+  let archType = (analysis?.type)||'Unknown';
+  // Hybrid label refine: both have strong connectors
+  const strongCcfCount  = analysis?.counts?.ccf||0;
+  const strongHttpCount = analysis?.counts?.http||0;
+  if(/ccf/i.test(archType) && strongHttpCount>0) archType='Mixed (CCF dominant)';
+  if(/http/i.test(archType) && strongCcfCount>0) archType='Mixed (HTTP dominant)';
+  if(archType==='CCF' && strongHttpCount>0 && strongCcfCount>0) archType='Mixed (tie lean CCF)';
+  if(archType==='HTTP Data Collector API' && strongCcfCount>0 && strongHttpCount>0) archType='Mixed (tie lean HTTP)';
+
+  const archDiv = document.createElement('div');
+  archDiv.className='arch-highlight ' + archType.toLowerCase().split(/\s+/)[0];
+  archDiv.textContent = archType;
+  box.appendChild(archDiv);
+
+  // ---------- basic meta ----------
+  const nameLine = document.createElement('div');
+  nameLine.style.marginTop='6px';
+  nameLine.style.fontSize='.7rem';
+  nameLine.style.fontWeight='600';
+  nameLine.textContent = meta?.solutionName || 'Solution';
+  box.appendChild(nameLine);
+
+  if(meta?.publisher){
+    const pub = document.createElement('div');
+    pub.style.fontSize='.6rem';
+    pub.style.color='var(--text-dim)';
+    pub.textContent = `Publisher: ${meta.publisher}`;
+    box.appendChild(pub);
+  }
+
+  // Categories / Domains
+  if(meta?.categories?.length){
+    const cats = document.createElement('div');
+    cats.style.marginTop='6px';
+    cats.innerHTML = meta.categories.map(c=>makeBadge(c)).join('');
+    box.appendChild(cats);
+  }
+  if(meta?.domains?.length){
+    const doms = document.createElement('div');
+    doms.style.marginTop='4px';
+    doms.innerHTML = meta.domains.map(d=>makeBadge(d,'background:var(--panel-muted);')).join('');
+    box.appendChild(doms);
+  }
+
+  // ---------- artifact counts summary ----------
+  if(analysis?.counts){
+    const counts = analysis.counts;
+    const sumWrap = document.createElement('div');
+    sumWrap.style.marginTop='8px';
+    sumWrap.style.fontSize='.6rem';
+    sumWrap.style.display='flex';
+    sumWrap.style.flexWrap='wrap';
+    sumWrap.style.gap='4px';
+    function chip(label,val){
+      return `<span class="badge" style="background:var(--panel-muted);color:var(--text-dim);">${esc(label)}: ${val}</span>`;
+    }
+    sumWrap.innerHTML = [
+      chip('Connectors', counts.total),
+      chip('CCF', counts.ccf),
+      chip('HTTP', counts.http),
+      chip('Mixed', counts.mixed),
+      chip('Neutral', counts.neutral)
+    ].join('');
+    box.appendChild(sumWrap);
+  }
+
+  // ---------- core signals ----------
+  if(analysis?.core){
+    const c = analysis.core;
+    const coreWrap = document.createElement('div');
+    coreWrap.style.marginTop='8px';
+    coreWrap.style.fontSize='.6rem';
+    coreWrap.innerHTML = `<strong>Core Signals:</strong><br>` + [
+      c.ccfArtifacts?makeBadge('connectorDefinition/pollerConfig'):'',
+      c.dcrResource?makeBadge('DCR resource'):'',
+      c.dceResource?makeBadge('DCE resource'):'',
+      c.associations?makeBadge('DCR associations'):'',
+      c.httpApiLogs?makeBadge('/api/logs'):'',
+      c.workspaceKeyPair?makeBadge('workspaceId+sharedKey'):''
+    ].filter(Boolean).join('');
+    box.appendChild(coreWrap);
+  }
+
+  // ---------- ingestion mode ----------
+  if(analysis?.modes){
+    const modeWrap = document.createElement('div');
+    modeWrap.style.marginTop='6px';
+    modeWrap.style.fontSize='.6rem';
+    modeWrap.innerHTML = `<strong>Ingestion Mode:</strong> ${esc(analysis.modes.summary)}`;
+    box.appendChild(modeWrap);
+  }
+
+  // ---------- reasoning ----------
+  if(analysis?.reasoningLines?.length){
+    const reasoningBullets = bulletList(analysis.reasoningLines, 60);
+    box.appendChild(toggleable('reasoning','Architecture Reasoning', reasoningBullets));
+  } else if(analysis?.reasoning){
+    // Fallback legacy string
+    box.appendChild(makeSection('Architecture Reasoning', `<pre style="white-space:pre-wrap;font-size:.58rem;margin:0;">${esc(analysis.reasoning)}</pre>`));
+  }
+
+  // ---------- evidence ----------
+  if(analysis?.evidenceLines?.length){
+    const evidenceBullets = bulletList(analysis.evidenceLines, 120);
+    box.appendChild(toggleable('evidence','Ingestion Evidence', evidenceBullets));
+  } else if(analysis?.evidence){
+    box.appendChild(makeSection('Ingestion Evidence', `<pre style="white-space:pre-wrap;font-size:.58rem;margin:0;">${esc(analysis.evidence)}</pre>`));
+  }
+
+  // ---------- endpoints (HTTP) ----------
+  const httpEndpoints = (analysis?.endpoints?.http||[]).filter(Boolean);
+  if(httpEndpoints.length){
+    const endList = bulletList(httpEndpoints.map(e=>e), 30);
+    box.appendChild(toggleable('endpoints','Observed HTTP Endpoints', endList));
+  }
+
+  // ---------- hybrid hint ----------
+  if(/mixed/i.test(archType)){
+    const hybridNote = document.createElement('div');
+    hybridNote.style.marginTop='8px';
+    hybridNote.style.fontSize='.58rem';
+    hybridNote.style.color='var(--danger)';
+    hybridNote.textContent = 'Hybrid/Mixed: both ingestion paths show strong indicators. Review connector-specific evidence for transition or dual-mode design.';
+    box.appendChild(hybridNote);
+  }
+
+  // ---------- empty fallback ----------
+  if(!analysis){
+    const empty = document.createElement('div');
+    empty.style.marginTop='10px';
+    empty.style.fontSize='.6rem';
+    empty.style.color='var(--text-dim)';
+    empty.textContent='No analysis available.';
+    box.appendChild(empty);
+  }
+}
+*/
+/*
+function updateSolutionMeta(){
+  const box = document.getElementById('solutionMeta');
+  if(!box) return;
+  const meta = STATE.meta;
+  const analysis = STATE.solutionAnalysis;
+  box.innerHTML='';
+
+  const esc = s => escapeHtml(s||'');
+
+  // Architecture badge
+  let arch = analysis?.type || 'Unknown';
+  const strongCcf = analysis?.counts?.ccf||0;
+  const strongHttp = analysis?.counts?.http||0;
+  if(/ccf/i.test(arch) && strongHttp>0) arch='Mixed (CCF dominant)';
+  if(/http/i.test(arch) && strongCcf>0) arch='Mixed (HTTP dominant)';
+
+  const archDiv=document.createElement('div');
+  archDiv.className='arch-highlight ' + arch.toLowerCase().split(/\s+/)[0];
+  archDiv.textContent=arch;
+  box.appendChild(archDiv);
+
+  // Confidence badge
+  if(typeof analysis?.confidence==='number'){
+    const conf=document.createElement('div');
+    conf.style.marginTop='4px';
+    conf.style.fontSize='.6rem';
+    conf.innerHTML=`<strong>Confidence:</strong> ${(analysis.confidence*100).toFixed(0)}%`;
+    box.appendChild(conf);
+  }
+
+  // Name / publisher
+  const name=document.createElement('div');
+  name.style.marginTop='6px';
+  name.style.fontSize='.7rem';
+  name.style.fontWeight='600';
+  name.textContent=meta?.solutionName||'Solution';
+  box.appendChild(name);
+
+  if(meta?.publisher){
+    const pub=document.createElement('div');
+    pub.style.fontSize='.6rem';
+    pub.style.color='var(--text-dim)';
+    pub.textContent='Publisher: '+meta.publisher;
+    box.appendChild(pub);
+  }
+
+  // Categories / Domains
+  function badges(arr){
+    return arr.map(x=>`<span class="badge" style="margin:2px 4px 2px 0;">${esc(x)}</span>`).join('');
+  }
+  if(meta?.categories?.length){
+    const cats=document.createElement('div');
+    cats.style.marginTop='6px';
+    cats.innerHTML=badges(meta.categories);
+    box.appendChild(cats);
+  }
+  if(meta?.domains?.length){
+    const doms=document.createElement('div');
+    doms.style.marginTop='4px';
+    doms.innerHTML=badges(meta.domains);
+    box.appendChild(doms);
+  }
+
+  // Counts
+  if(analysis?.counts){
+    const c=analysis.counts;
+    const counts=document.createElement('div');
+    counts.style.marginTop='8px';
+    counts.style.fontSize='.6rem';
+    counts.style.display='flex';
+    counts.style.flexWrap='wrap';
+    counts.style.gap='4px';
+    const chip=(label,val)=>`<span class="badge" style="background:var(--panel-muted);color:var(--text-dim);">${esc(label)}:${val}</span>`;
+    counts.innerHTML=[
+      chip('Connectors',c.total),
+      chip('CCF',c.ccf),
+      chip('HTTP',c.http),
+      chip('Mixed',c.mixed),
+      chip('Neutral',c.neutral)
+    ].join('');
+    box.appendChild(counts);
+  }
+
+  // Core signals
+  if(analysis?.core){
+    const core=analysis.core;
+    const coreDiv=document.createElement('div');
+    coreDiv.style.marginTop='8px';
+    coreDiv.style.fontSize='.6rem';
+    coreDiv.innerHTML='<strong>Core Signals:</strong><br>'+
+      [
+        core.ccfArtifacts?'connectorDefinition/pollerConfig/DCR/tableSchema':'',
+        core.dcrResource?'DCR resource':'',
+        core.dceResource?'DCE resource':'',
+        core.httpApiLogs?'/api/logs':'',
+        core.workspaceKeyPair?'workspaceId+sharedKey':''
+      ].filter(Boolean).map(x=>`<span class="badge" style="margin:2px 4px 2px 0;">${esc(x)}</span>`).join('');
+    box.appendChild(coreDiv);
+  }
+
+  // Reasoning
+  if(analysis?.reasoningLines?.length){
+    const r=document.createElement('div');
+    r.style.marginTop='10px';
+    r.style.fontSize='.63rem';
+    r.style.lineHeight='1.05rem';
+    r.innerHTML='<strong>Architecture Reasoning</strong><br>'+
+      analysis.reasoningLines.map(l=>'&bull; '+esc(l)).join('<br>');
+    box.appendChild(r);
+  }
+
+  // Evidence
+  if(analysis?.evidenceLines?.length){
+    const e=document.createElement('div');
+    e.style.marginTop='10px';
+    e.style.fontSize='.63rem';
+    e.style.lineHeight='1.05rem';
+    e.innerHTML='<strong>Ingestion Evidence</strong><br>'+
+      analysis.evidenceLines.map(l=>'&bull; '+esc(l)).join('<br>');
+    box.appendChild(e);
+  }
+
+  // Optional signals catalog (per connector)
+  if(STATE.showSignalsCatalog && analysis?.signalsCatalog?.connectors?.length){
+    const sc=document.createElement('div');
+    sc.style.marginTop='12px';
+    sc.style.fontSize='.6rem';
+    sc.innerHTML='<strong>Signals Catalog (Connectors)</strong>';
+    analysis.signalsCatalog.connectors.forEach(cs=>{
+      const block=document.createElement('div');
+      block.style.marginTop='6px';
+      block.style.padding='4px 6px';
+      block.style.background='var(--panel-muted)';
+      block.style.borderRadius='6px';
+      const strongCcf=cs.ccf.strong.length?`<div style="color:#059669">CCF strong: ${esc(cs.ccf.strong.join(', '))}</div>`:'';
+      const weakCcf=cs.ccf.weak.length?`<div style="color:#10b981">CCF weak: ${esc(cs.ccf.weak.join(', '))}</div>`:'';
+      const strongHttp=cs.http.strong.length?`<div style="color:#b45309">HTTP strong: ${esc(cs.http.strong.join(', '))}</div>`:'';
+      const weakHttp=cs.http.weak.length?`<div style="color:#f59e0b">HTTP weak: ${esc(cs.http.weak.join(', '))}</div>`:'';
+      block.innerHTML=`<div style="font-weight:600">${esc(cs.id)}</div>${strongCcf}${weakCcf}${strongHttp}${weakHttp}`;
+      sc.appendChild(block);
+    });
+    box.appendChild(sc);
+  }
+
+  // Mixed/hybrid advisory
+  if(/mixed/i.test(arch)){
+    const hybrid=document.createElement('div');
+    hybrid.style.marginTop='8px';
+    hybrid.style.fontSize='.58rem';
+    hybrid.style.color='var(--danger)';
+    hybrid.textContent='Hybrid/Mixed: review connector signal sets for transition or dual-mode ingestion.';
+    box.appendChild(hybrid);
+  }
+}
+*/
+
+/*
+function updateSolutionMeta(){
+  const box = document.getElementById('solutionMeta');
+  if(!box) return;
+  const meta = STATE.meta;
+  const analysis = STATE.solutionAnalysis;
+  box.innerHTML='';
+
+  const esc = s => escapeHtml(s||'');
+
+  if(!analysis){
+    box.textContent='No analysis.';
+    return;
+  }
+
+  // -------- Architecture Badge (binary: CCF or HTTP) --------
+  let arch = analysis.type || 'CCF';
+  const archClass = arch.toLowerCase().startsWith('http') ? 'http' : 'ccf';
+  const archDiv = document.createElement('div');
+  archDiv.className = 'arch-highlight ' + archClass;
+  archDiv.textContent = arch;
+  box.appendChild(archDiv);
+
+  // -------- Solution Name / Publisher --------
+  const nameEl = document.createElement('div');
+  nameEl.style.marginTop='6px';
+  nameEl.style.fontSize='.7rem';
+  nameEl.style.fontWeight='600';
+  nameEl.textContent = meta?.solutionName || 'Solution';
+  box.appendChild(nameEl);
+
+  if(meta?.publisher){
+    const pub = document.createElement('div');
+    pub.style.fontSize='.6rem';
+    pub.style.color='var(--text-dim)';
+    pub.textContent = 'Publisher: ' + meta.publisher;
+    box.appendChild(pub);
+  }
+
+  // -------- Categories / Domains --------
+  function badges(arr, extraStyle=''){
+    return arr.map(x=>`<span class="badge" style="margin:2px 4px 2px 0;${extraStyle}">${esc(x)}</span>`).join('');
+  }
+  if(meta?.categories?.length){
+    const cats = document.createElement('div');
+    cats.style.marginTop='6px';
+    cats.innerHTML = badges(meta.categories);
+    box.appendChild(cats);
+  }
+  if(meta?.domains?.length){
+    const doms = document.createElement('div');
+    doms.style.marginTop='4px';
+    doms.innerHTML = badges(meta.domains,'background:var(--panel-muted);');
+    box.appendChild(doms);
+  }
+
+  // -------- Counts (binary) --------
+  if(analysis?.counts){
+    const c = analysis.counts;
+    const countsWrap = document.createElement('div');
+    countsWrap.style.marginTop='8px';
+    countsWrap.style.fontSize='.6rem';
+    countsWrap.style.display='flex';
+    countsWrap.style.flexWrap='wrap';
+    countsWrap.style.gap='4px';
+    const chip = (label,val)=>`<span class="badge" style="background:var(--panel-muted);color:var(--text-dim);">${esc(label)}:${val}</span>`;
+    countsWrap.innerHTML = [
+      chip('Connectors', c.total),
+      chip('CCF', c.ccf),
+      chip('HTTP', c.http)
+    ].join('');
+    box.appendChild(countsWrap);
+  }
+
+  // -------- Core / Packaging Signals --------
+  if(analysis?.core){
+    const core = analysis.core;
+    const coreDiv = document.createElement('div');
+    coreDiv.style.marginTop='8px';
+    coreDiv.style.fontSize='.6rem';
+    const pk = core.packaging || {};
+    const coreBadges = [
+      pk.connectorDefinition ? 'connectorDefinition.json' : '',
+      pk.pollerConfig ? 'pollerConfig.json' : '',
+      pk.dcrJson ? 'DCR JSON' : '',
+      pk.tableSchema ? 'tableSchema.json' : '',
+      core.dcrResource ? 'dataCollectionRules resource' : '',
+      core.dceResource ? 'dataCollectionEndpoints resource' : '',
+      core.httpApiLogs ? '/api/logs flow' : '',
+      core.workspaceKeyPair ? 'workspaceId+sharedKey params' : ''
+    ].filter(Boolean);
+    coreDiv.innerHTML = '<strong>Core & Packaging Signals:</strong><br>' +
+      (coreBadges.length ? coreBadges.map(b=>`<span class="badge" style="margin:2px 4px 2px 0;">${esc(b)}</span>`).join('') :
+        '<em style="color:var(--text-dim)">None</em>');
+    box.appendChild(coreDiv);
+  }
+
+  // -------- Reasoning --------
+  if(Array.isArray(analysis.reasoningLines) && analysis.reasoningLines.length){
+    const rDiv = document.createElement('div');
+    rDiv.style.marginTop='10px';
+    rDiv.style.fontSize='.63rem';
+    rDiv.style.lineHeight='1.05rem';
+    rDiv.innerHTML = '<strong>Architecture Reasoning</strong><br>' +
+      analysis.reasoningLines.map(l=>'&bull; '+esc(l)).join('<br>');
+    box.appendChild(rDiv);
+  } else if(analysis.reasoning){
+    const rPre = document.createElement('pre');
+    rPre.style.whiteSpace='pre-wrap';
+    rPre.style.fontSize='.6rem';
+    rPre.style.marginTop='10px';
+    rPre.innerHTML = esc(analysis.reasoning);
+    box.appendChild(rPre);
+  }
+
+  // -------- Evidence --------
+  if(Array.isArray(analysis.evidenceLines) && analysis.evidenceLines.length){
+    const eDiv = document.createElement('div');
+    eDiv.style.marginTop='10px';
+    eDiv.style.fontSize='.63rem';
+    eDiv.style.lineHeight='1.05rem';
+    eDiv.innerHTML = '<strong>Ingestion Evidence</strong><br>' +
+      analysis.evidenceLines.map(l=>'&bull; '+esc(l)).join('<br>');
+    box.appendChild(eDiv);
+  } else if(analysis.evidence){
+    const ePre = document.createElement('pre');
+    ePre.style.whiteSpace='pre-wrap';
+    ePre.style.fontSize='.6rem';
+    ePre.style.marginTop='10px';
+    ePre.innerHTML = esc(analysis.evidence);
+    box.appendChild(ePre);
+  }
+
+  // -------- Optional Signals Catalog (toggle with STATE.showSignalsCatalog) --------
+  if(STATE.showSignalsCatalog && analysis?.signalsCatalog?.connectors?.length){
+    const scDiv = document.createElement('div');
+    scDiv.style.marginTop='12px';
+    scDiv.style.fontSize='.6rem';
+    scDiv.innerHTML = '<strong>Connector Signals Catalog</strong>';
+    analysis.signalsCatalog.connectors.forEach(cs=>{
+      const block = document.createElement('div');
+      block.style.marginTop='6px';
+      block.style.padding='4px 6px';
+      block.style.background='var(--panel-muted)';
+      block.style.borderRadius='6px';
+      const lines = [];
+      if(cs.ccf.strong.length) lines.push(`<div style="color:#059669">CCF strong: ${esc(cs.ccf.strong.join(', '))}</div>`);
+      if(cs.ccf.weak.length)   lines.push(`<div style="color:#10b981">CCF weak: ${esc(cs.ccf.weak.join(', '))}</div>`);
+      if(cs.http.strong.length)lines.push(`<div style="color:#b45309">HTTP strong: ${esc(cs.http.strong.join(', '))}</div>`);
+      if(cs.http.weak.length)  lines.push(`<div style="color:#f59e0b">HTTP weak: ${esc(cs.http.weak.join(', '))}</div>`);
+      block.innerHTML = `<div style="font-weight:600">${esc(cs.id)}</div>` + lines.join('');
+      scDiv.appendChild(block);
+    });
+    box.appendChild(scDiv);
+  }
+
+  // -------- Advisory when strong signals from both sides exist --------
+  const dualStrong = connectorsHaveDualStrong(analysis.connectors);
+  if(dualStrong){
+    const adv = document.createElement('div');
+    adv.style.marginTop='8px';
+    adv.style.fontSize='.58rem';
+    adv.style.color='var(--danger)';
+    adv.textContent='Both CCF and HTTP strong signals detected in different connectors; binary classification forced. Review per-connector evidence.';
+    box.appendChild(adv);
+  }
+
+  function connectorsHaveDualStrong(list){
+    if(!Array.isArray(list)) return false;
+    let anyCcf=false, anyHttp=false;
+    for(const c of list){
+      if(c.strongCcf?.length) anyCcf=true;
+      if(c.strongHttp?.length) anyHttp=true;
+      if(anyCcf && anyHttp) return true;
+    }
+    return false;
+  }
+}
+*/
+
+// --- Enhanced analyzer with per-line findings ---
+function analyzeSolutionArchitecture(art){
+  if(!art) return {
+    type:'CCF',
+    connectors:[],
+    counts:{ccf:0,http:0,total:0},
+    core:{},
+    reasoning:'Defaulted to CCF (no artifacts).',
+    evidence:[],
+    reasoningLines:['Default: no artifacts.'],
+    evidenceLines:[],
+    findings:[],
+    signalsCatalog:{connectors:[],core:[]}
+  };
+
+  const toPretty = obj => {
+    try { return JSON.stringify(obj, null, 2); } catch { return ''; }
+  };
+  const lower = s => s.toLowerCase();
+
+  // Build a quick index: file path -> { text, lines[] }
+  const fileObjs = Array.isArray(art.files) ? art.files : [];
+  const fileTextMap = new Map();
+  fileObjs.forEach(f=>{
+    const pretty = toPretty(f.raw);
+    fileTextMap.set(f.path, { text: pretty, lines: pretty.split(/\r?\n/) });
+  });
+
+  // Packaging artifact presence
+  const fileNameSet = new Set(fileObjs.map(f=>f.path.toLowerCase()));
+  const hasFile = (...names) => names.some(n => {
+    n = n.toLowerCase();
+    for(const fn of fileNameSet){
+      if(fn.endsWith('/'+n) || fn.endsWith(n)) return true;
+    }
+    return false;
+  });
+
+  const patterns = {
+    ccf: [
+      { key:'dcrConfig',              re:/\"dcrConfig\"\s*:/i },
+      { key:'connectorUiConfig',      re:/\"connectorUiConfig\"\s*:/i },
+      { key:'connectorUIConfig',      re:/\"connectorUIConfig\"\s*:/i },
+      { key:'restApiPoller',          re:/restapipoller|api\s*polling|poller[-_]config/i },
+      { key:'dataCollectionRulesRes', re:/microsoft\.insights\/datacollectionrules/i },
+      { key:'dataCollectionEndpointsRes', re:/microsoft\.insights\/datacollectionendpoints/i },
+      { key:'streamsKey',             re:/\"streams\"\s*:/i },
+      { key:'graphQueries',           re:/\"graphQueries\"\s*:/i }
+    ],
+    http: [
+      { key:'workspaceId',       re:/workspaceid|customerid|la_workspace_id/i },
+      { key:'sharedKey',         re:/sharedkey|workspacekey|primarykey/i },
+      { key:'apiLogsPath',       re:/\/api\/logs(\?|")/i },
+      { key:'xMsSignature',      re:/x-ms-signature/i },
+      { key:'authorizationSharedKey', re:/authorization:\s*sharedkey/i },
+      { key:'logAnalyticsUri',   re:/loganalyticsuri/i },
+      { key:'odsHost',           re:/(ods|opinsights)\.azure\.(com|cn|us|de|gov)/i },
+      { key:'logTypeHeader',     re:/log-type/i },
+      { key:'xMsDateHeader',     re:/x-ms-date/i },
+      { key:'timeGeneratedField',re:/time-generated-field/i }
+    ]
+  };
+
+  // Helper: record matches with line numbers
+  const findings = [];
+  function scanFile(path){
+    const ft = fileTextMap.get(path);
+    if(!ft) return;
+    const { text, lines } = ft;
+    function capture(side, patt){
+      let m;
+      const re = new RegExp(patt.re.source, patt.re.flags.includes('g') ? patt.re.flags : patt.re.flags+'g');
+      while((m = re.exec(text)) !== null){
+        // compute line by counting newlines before match.index
+        const prefix = text.slice(0, m.index);
+        const lineNumber = prefix.split(/\r?\n/).length;
+        const lineText = lines[lineNumber-1]?.trim() || '';
+        findings.push({
+          side,
+          pattern: patt.key,
+          file: path,
+          line: lineNumber,
+          lineText: lineText.slice(0,180)
+        });
+        // safety to avoid infinite loop on zero-width
+        if(m.index === re.lastIndex) re.lastIndex++;
+      }
+    }
+    patterns.ccf.forEach(p=>capture('CCF',p));
+    patterns.http.forEach(p=>capture('HTTP',p));
+  }
+
+  fileObjs.forEach(f=>scanFile(f.path));
+
+  // Per-connector scoring (binary)
+  const connectorSignals = [];
+  const connectors = (art.connectors||[]).map(c=>{
+    const raw = c.raw||{};
+    const txt = lower(JSON.stringify(raw||{}));
+    const id = c.id || c.name || c.path || 'connector';
+
+    const strongCcf = new Set();
+    const strongHttp= new Set();
+
+    const hasDcrConfig = !!raw?.properties?.dcrConfig;
+    const hasUiConfig  = !!(raw?.properties?.connectorUiConfig || raw?.properties?.connectorUIConfig);
+    const dataTypes    = Array.isArray(raw?.properties?.dataTypes)?raw.properties.dataTypes:[];
+    const graphQueries = Array.isArray(raw?.properties?.graphQueries)?raw.properties.graphQueries:[];
+    const fullCodeless = hasDcrConfig && hasUiConfig && dataTypes.length && graphQueries.length;
+
+    if(fullCodeless) strongCcf.add('codeless-full');
+    else if(hasDcrConfig) strongCcf.add('dcrConfig');
+    if(/restapipoller|api\s*polling|poller[-_]config/.test(txt)) strongCcf.add('apiPoller');
+    if(graphQueries.length && !fullCodeless) strongCcf.add('graphQueries');
+
+    const hasWorkspaceId = /workspaceid|customerid|la_workspace_id/.test(txt);
+    const hasSharedKey   = /sharedkey|workspacekey|primarykey/.test(txt);
+    const hasSignature   = /x-ms-signature|authorization:\s*sharedkey/.test(txt);
+    const hasApiLogs     = /\/api\/logs(\?|")/.test(txt);
+    const hasLogAnalytics = /loganalyticsuri/.test(txt);
+    const hasOdsHost     = /(ods|opinsights)\.azure\.(com|cn|us|de|gov)/.test(txt);
+
+    if(hasWorkspaceId && hasSharedKey && (hasSignature || hasApiLogs || hasOdsHost || hasLogAnalytics))
+      strongHttp.add('workspaceId+sharedKey+endpoint/signature');
+    if(hasSignature) strongHttp.add('x-ms-signature');
+    if(hasApiLogs)   strongHttp.add('/api/logs');
+    if(hasOdsHost)   strongHttp.add('ods/opinsights host');
+    if(hasLogAnalytics) strongHttp.add('logAnalyticsUri');
+
+    const scoreCcf = strongCcf.size;
+    const scoreHttp= strongHttp.size;
+    const arch = scoreCcf >= scoreHttp ? 'CCF' : 'HTTP';
+
+    connectorSignals.push({
+      id,
+      ccf:{strong:[...strongCcf],weak:[]},
+      http:{strong:[...strongHttp],weak:[]}
+    });
+
+    return {
+      id,
+      arch,
+      strongCcf:[...strongCcf],
+      strongHttp:[...strongHttp],
+      score:{ccf:scoreCcf,http:scoreHttp}
+    };
+  });
+
+  // Core resource hints
+  const coreFiles = Array.isArray(art.coreFiles)?art.coreFiles:[];
+  let coreHasDcr=false, coreHasDce=false, coreHasApiLogs=false, coreHasWorkspaceCreds=false;
+
+  function collectResources(raw){
+    const out=[];
+    (function walk(arr){
+      if(Array.isArray(arr)) arr.forEach(r=>{
+        out.push(r);
+        if(Array.isArray(r.resources)) walk(r.resources);
+      });
+    })(raw?.resources);
+    return out;
+  }
+
+  coreFiles.forEach(cf=>{
+    const raw=cf.raw||{};
+    const pretty=toPretty(raw);
+    const lines=pretty.split(/\r?\n/);
+    collectResources(raw).forEach(r=>{
+      const t=(r?.type||'').toLowerCase();
+      if(t==='microsoft.insights/datacollectionrules'){
+        coreHasDcr=true;
+        // find line in pretty text containing the type string
+        const idx = lines.findIndex(l=>l.toLowerCase().includes('microsoft.insights/datacollectionrules'));
+        findings.push({
+          side:'CCF', pattern:'dataCollectionRules resource',
+          file: cf.path, line: idx+1,
+          lineText: (lines[idx]||'').trim().slice(0,180)
+        });
+      }
+      if(t==='microsoft.insights/datacollectionendpoints'){
+        coreHasDce=true;
+        const idx = lines.findIndex(l=>l.toLowerCase().includes('microsoft.insights/datacollectionendpoints'));
+        findings.push({
+          side:'CCF', pattern:'dataCollectionEndpoints resource',
+          file: cf.path, line: idx+1,
+          lineText: (lines[idx]||'').trim().slice(0,180)
+        });
+      }
+    });
+    if(/\/api\/logs(\?|")/i.test(pretty)){
+      coreHasApiLogs=true;
+      const lnIndex=lines.findIndex(l=>/\/api\/logs(\?|")/i.test(l));
+      findings.push({
+        side:'HTTP', pattern:'/api/logs flow', file:cf.path, line:lnIndex+1,
+        lineText:(lines[lnIndex]||'').trim().slice(0,180)
+      });
+    }
+    if(/workspaceid/i.test(pretty) && /(sharedkey|workspacekey|primarykey)/i.test(pretty)){
+      coreHasWorkspaceCreds=true;
+      const lnIndex=lines.findIndex(l=>/workspaceid/i.test(l));
+      findings.push({
+        side:'HTTP', pattern:'workspaceId param', file:cf.path, line:lnIndex+1,
+        lineText:(lines[lnIndex]||'').trim().slice(0,180)
+      });
+      const lnIndex2=lines.findIndex(l=>/(sharedkey|workspacekey|primarykey)/i.test(l));
+      if(lnIndex2>=0){
+        findings.push({
+          side:'HTTP', pattern:'sharedKey param', file:cf.path, line:lnIndex2+1,
+          lineText:(lines[lnIndex2]||'').trim().slice(0,180)
+        });
+      }
+    }
+  });
+
+  // Packaging artifact synthetic findings
+  if(hasFile('connectorDefinition.json')){
+    findings.push({side:'CCF',pattern:'connectorDefinition.json',file:'(packaging)',line:1,lineText:'connectorDefinition.json present'});
+  }
+  if(hasFile('pollerConfig.json')){
+    findings.push({side:'CCF',pattern:'pollerConfig.json',file:'(packaging)',line:1,lineText:'pollerConfig.json present'});
+  }
+  if(hasFile('dcr.json','dcr.config.json','dataCollectionRule.json')){
+    findings.push({side:'CCF',pattern:'DCR JSON packaging',file:'(packaging)',line:1,lineText:'DCR JSON file present'});
+  }
+
+  // Classification (binary)
+  const anyConnectorDcr = connectors.some(c=>c.strongCcf.includes('dcrConfig')||c.strongCcf.includes('codeless-full'));
+  const packagingDcr = hasFile('dcr.json','dcr.config.json','dataCollectionRule.json');
+  const totalCcfScore = connectors.reduce((s,c)=>s+c.score.ccf,0);
+  const totalHttpScore= connectors.reduce((s,c)=>s+c.score.http,0);
+
+  let type;
+  if(coreHasDcr || anyConnectorDcr || packagingDcr) type='CCF';
+  else if(!coreHasDcr && !anyConnectorDcr && !packagingDcr &&
+          (coreHasApiLogs || coreHasWorkspaceCreds || totalHttpScore>totalCcfScore)) type='HTTP Data Collector API';
+  else type = totalCcfScore >= totalHttpScore ? 'CCF' : 'HTTP Data Collector API';
+
+  const counts = {
+    ccf: connectors.filter(c=>c.arch==='CCF').length,
+    http: connectors.filter(c=>c.arch==='HTTP').length,
+    total: connectors.length
+  };
+
+  const core = {
+    dcrResource: coreHasDcr,
+    dceResource: coreHasDce,
+    httpApiLogs: coreHasApiLogs,
+    workspaceKeyPair: coreHasWorkspaceCreds,
+    packaging:{
+      connectorDefinition: hasFile('connectorDefinition.json'),
+      pollerConfig: hasFile('pollerConfig.json'),
+      dcrJson: hasFile('dcr.json','dcr.config.json','dataCollectionRule.json')
+    }
+  };
+
+  // Reasoning: focus on cause, not counts
+  const reasoningLines = [];
+  reasoningLines.push(`Final: ${type}`);
+  if(core.packaging.connectorDefinition) reasoningLines.push('Detected connectorDefinition.json');
+  if(core.packaging.pollerConfig) reasoningLines.push('Detected pollerConfig.json');
+  if(core.packaging.dcrJson) reasoningLines.push('Detected DCR packaging JSON');
+  if(core.dcrResource) reasoningLines.push('Core template resource: dataCollectionRules');
+  if(core.dceResource) reasoningLines.push('Core template resource: dataCollectionEndpoints');
+  if(anyConnectorDcr) reasoningLines.push('Connector property: dcrConfig');
+  if(core.httpApiLogs) reasoningLines.push('Core flow: /api/logs');
+  if(core.workspaceKeyPair) reasoningLines.push('Core parameters: workspaceId + sharedKey');
+  if(!reasoningLines.some(l=>/CCF|dcr|connectorDefinition|pollerConfig/i.test(l)) && type==='CCF')
+    reasoningLines.push('Fallback to CCF (no decisive HTTP endpoint/signature).');
+  if(type==='HTTP Data Collector API' && !reasoningLines.some(l=>/api\/logs|workspaceId|sharedKey|signature/i.test(l)))
+    reasoningLines.push('Fallback to HTTP (higher HTTP score).');
+
+  const reasoning = 'Architecture Reasoning:\n' + reasoningLines.map(l=>'• '+l).join('\n');
+
+  // Evidence lines (summaries)
+  const evidenceLines = [];
+  if(type==='CCF'){
+    ['dcrConfig','codeless-full','apiPoller','connectorDefinition.json','pollerConfig.json','DCR JSON packaging','dataCollectionRules resource','dataCollectionEndpoints resource']
+      .forEach(sig=>{
+        if(findings.some(f=>f.side==='CCF' && f.pattern.toLowerCase().includes(sig.split(' ')[0].toLowerCase())))
+          evidenceLines.push(`CCF signal: ${sig}`);
+      });
+  }else{
+    ['/api/logs','workspaceId','sharedKey','x-ms-signature','logAnalyticsUri','ods/opinsights host']
+      .forEach(sig=>{
+        if(findings.some(f=>f.side==='HTTP' && f.pattern.toLowerCase().includes(sig.replace(/[^a-z]/gi,'').toLowerCase().slice(0,4))))
+          evidenceLines.push(`HTTP signal: ${sig}`);
+      });
+  }
+  const evidence = 'Ingestion Evidence:\n' + evidenceLines.map(l=>'• '+l).join('\n');
+
+  return {
+    type,
+    connectors,
+    counts,
+    core,
+    reasoning,
+    evidence,
+    reasoningLines,
+    evidenceLines,
+    findings, // detailed line-by-line matches
+    signalsCatalog:{
+      connectors: connectorSignals,
+      core: reasoningLines.filter(l=>/Detected|resource|flow|parameters|Fallback/i.test(l))
+    }
+  };
+}
+
+// --- Updated Solution Meta rendering focused on causes & line-level evidence ---
+function updateSolutionMeta(){
+  const box = document.getElementById('solutionMeta');
+  if(!box) return;
+  const meta = STATE.meta;
+  const analysis = STATE.solutionAnalysis;
+  box.innerHTML='';
+
+  const esc = s => escapeHtml(s||'');
+
+  if(!analysis){
+    box.textContent='No analysis.';
+    return;
+  }
+
+  // Architecture badge
+  const archClass = analysis.type.toLowerCase().startsWith('http')?'http':'ccf';
+  const archDiv = document.createElement('div');
+  archDiv.className='arch-highlight '+archClass;
+  archDiv.textContent=analysis.type;
+  box.appendChild(archDiv);
+
+  // Name / publisher
+  const nameEl=document.createElement('div');
+  nameEl.style.marginTop='6px';
+  nameEl.style.fontSize='.7rem';
+  nameEl.style.fontWeight='600';
+  nameEl.textContent=meta?.solutionName||'Solution';
+  box.appendChild(nameEl);
+  if(meta?.publisher){
+    const pub=document.createElement('div');
+    pub.style.fontSize='.6rem';
+    pub.style.color='var(--text-dim)';
+    pub.textContent='Publisher: '+meta.publisher;
+    box.appendChild(pub);
+  }
+
+  // Categories
+  if(meta?.categories?.length){
+    const cats=document.createElement('div');
+    cats.style.marginTop='4px';
+    cats.innerHTML=meta.categories.map(c=>`<span class="badge" style="margin:2px 4px 2px 0;">${esc(c)}</span>`).join('');
+    box.appendChild(cats);
+  }
+
+  // Cause summary
+  if(analysis.reasoningLines?.length){
+    const cause=document.createElement('div');
+    cause.style.marginTop='10px';
+    cause.style.fontSize='.63rem';
+    cause.style.lineHeight='1.05rem';
+    cause.innerHTML='<strong>Classification Cause</strong><br>'+
+      analysis.reasoningLines.map(l=>'&bull; '+esc(l)).join('<br>');
+    box.appendChild(cause);
+  }
+
+  // Evidence summary (high-level only)
+  if(analysis.evidenceLines?.length){
+    const ev=document.createElement('div');
+    ev.style.marginTop='10px';
+    ev.style.fontSize='.63rem';
+    ev.style.lineHeight='1.05rem';
+    ev.innerHTML='<strong>Signals Summary</strong><br>'+
+      analysis.evidenceLines.map(l=>'&bull; '+esc(l)).join('<br>');
+    box.appendChild(ev);
+  }
+
+  // Launch button for detailed line-level findings
+  if(analysis.findings?.length){
+    const btn=document.createElement('button');
+    btn.className='btn-muted';
+    btn.style.marginTop='10px';
+    btn.textContent=`View Detection Evidence (${analysis.findings.length})`;
+    btn.addEventListener('click',openDetectionEvidence);
+    box.appendChild(btn);
+  }
+
+  // Optional connector signal summary (toggle)
+  if(STATE.showSignalsCatalog && analysis.signalsCatalog?.connectors?.length){
+    const sc=document.createElement('div');
+    sc.style.marginTop='12px';
+    sc.style.fontSize='.6rem';
+    sc.innerHTML='<strong>Connector Signal Summary</strong>';
+    analysis.signalsCatalog.connectors.forEach(cs=>{
+      const b=document.createElement('div');
+      b.style.marginTop='6px';
+      b.style.padding='4px 6px';
+      b.style.background='var(--panel-muted)';
+      b.style.borderRadius='6px';
+      b.innerHTML=`<div style="font-weight:600">${esc(cs.id)}</div>`+
+        (cs.ccf.strong.length?`<div style="color:#059669">CCF strong: ${esc(cs.ccf.strong.join(', '))}</div>`:'')+
+        (cs.http.strong.length?`<div style="color:#b45309">HTTP strong: ${esc(cs.http.strong.join(', '))}</div>`:'');
+      sc.appendChild(b);
+    });
+    box.appendChild(sc);
+  }
+}
+
+function openDetectionEvidence(){
+  if(!STATE.solutionAnalysis?.findings?.length){
+    setStatus('No line-level findings.', true);
+    return;
+  }
+  const backdrop = document.getElementById('evidenceModalBackdrop');
+  backdrop.style.display='flex';
+  buildEvidenceRows();
+}
+function closeDetectionEvidence(){
+  const backdrop = document.getElementById('evidenceModalBackdrop');
+  backdrop.style.display='none';
+}
+function buildEvidenceRows(){
+  const rowsEl = document.getElementById('evidenceRows');
+  const sideFilter = document.getElementById('evidenceSideFilter').value;
+  const searchVal = document.getElementById('evidenceSearch').value.trim().toLowerCase();
+  const expandAll = !!rowsEl.dataset.expanded;
+
+  const findings = STATE.solutionAnalysis.findings || [];
+  const filtered = findings.filter(f=>{
+    if(sideFilter!=='all' && f.side!==sideFilter) return false;
+    if(searchVal){
+      const hay = (f.pattern+' '+f.lineText+' '+f.file).toLowerCase();
+      if(!hay.includes(searchVal)) return false;
+    }
+    return true;
+  });
+
+  rowsEl.innerHTML='';
+  filtered.forEach(f=>{
+    const div=document.createElement('div');
+    div.className='evidence-row '+(f.side.toLowerCase()==='ccf'?'ccf':'http');
+    const snippet = expandAll ? f.lineText : (f.lineText.length>140?f.lineText.slice(0,137)+'…':f.lineText);
+    div.innerHTML = `
+      <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
+        <code>${escapeHtml(f.file)}:${f.line}</code>
+        <span style="font-weight:600;">${escapeHtml(f.side)}</span>
+        <span style="color:var(--badge-text);">${escapeHtml(f.pattern)}</span>
+      </div>
+      <div style="margin-top:2px;color:var(--text-dim);">${escapeHtml(snippet)}</div>
+    `;
+    rowsEl.appendChild(div);
+  });
+
+  document.getElementById('evidenceCount').textContent = `${filtered.length} match${filtered.length!==1?'es':''}`;
+}
+
+function toggleExpandEvidence(){
+  const rowsEl = document.getElementById('evidenceRows');
+  rowsEl.dataset.expanded = rowsEl.dataset.expanded ? '' : '1';
+  document.getElementById('evidenceExpandBtn').textContent = rowsEl.dataset.expanded ? 'Collapse' : 'Expand All';
+  buildEvidenceRows();
+}
+
+function copyEvidence(){
+  const sideFilter = document.getElementById('evidenceSideFilter').value;
+  const searchVal = document.getElementById('evidenceSearch').value.trim().toLowerCase();
+  const findings = STATE.solutionAnalysis.findings || [];
+  const filtered = findings.filter(f=>{
+    if(sideFilter!=='all' && f.side!==sideFilter) return false;
+    if(searchVal){
+      const hay = (f.pattern+' '+f.lineText+' '+f.file).toLowerCase();
+      if(!hay.includes(searchVal)) return false;
+    }
+    return true;
+  });
+  const text = filtered.map(f => `${f.side}\t${f.pattern}\t${f.file}:${f.line}\t${f.lineText}`).join('\n');
+  try{
+    navigator.clipboard.writeText(text);
+    setStatus(`Copied ${filtered.length} evidence lines.`);
+  }catch{
+    setStatus('Clipboard copy failed', true);
+  }
+}
+
+// Wire modal events once DOM ready
+document.addEventListener('DOMContentLoaded', ()=>{
+  const backdrop = document.getElementById('evidenceModalBackdrop');
+  if(backdrop){
+    document.getElementById('evidenceCloseBtn').addEventListener('click',closeDetectionEvidence);
+    document.getElementById('evidenceCloseBtn2').addEventListener('click',closeDetectionEvidence);
+    document.getElementById('evidenceSideFilter').addEventListener('change',buildEvidenceRows);
+    document.getElementById('evidenceSearch').addEventListener('input',buildEvidenceRows);
+    document.getElementById('evidenceExpandBtn').addEventListener('click',toggleExpandEvidence);
+    document.getElementById('evidenceCopyBtn').addEventListener('click',copyEvidence);
+    document.addEventListener('keydown',e=>{ if(e.key==='Escape') closeDetectionEvidence(); });
+    backdrop.addEventListener('click',e=>{ if(e.target===backdrop) closeDetectionEvidence(); });
+  }
+});
+
+
 
 function buildDesignOverview(){
   const el=$('#designOverview');
@@ -2079,7 +4504,12 @@ async function handleVisualize(){
     STATE.artifacts=buildArtifacts(files);
     harvestEmbeddedArtifacts(STATE.artifacts);
      STATE.meta=await extractSolutionMeta(owner,repo,branchVal,solution,paths);
-    STATE.solutionAnalysis = analyzeSolutionArchitecture(STATE.artifacts);
+    /* STATE.solutionAnalysis = analyzeSolutionArchitecture(STATE.artifacts);*/ 
+    STATE.solutionAnalysis = analyzeSolutionArchitecture(STATE.artifacts, {
+  mode: 'balanced',          // 'strict' | 'lenient'
+  tieBreakPreference: 'ccf'  // 'http' | 'unknown'
+});
+updateSolutionMeta();
     const cuid=files.find(f=>/createuidefinition\.json$/i.test(f.path));
     STATE.createUiAnalysis=cuid?analyzeCreateUiDefinition(cuid.json):null;
 
