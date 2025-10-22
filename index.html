@@ -1,122 +1,790 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8" />
+<meta charset="UTF-8"/>
 <title>Sentinel Solution Visualizer</title>
 <meta name="viewport" content="width=device-width,initial-scale=1" />
 <meta name="description" content="Visualize Microsoft Sentinel solution artifacts, architecture, and dependencies." />
 <style>
+/* ==============================
+   Sentinel Solution Visualizer
+   Modernized Design System
+   ============================== */
+/* Core Theme Tokens */
 :root {
-  --bg:#f8fafc; --panel:#ffffff; --panel-border:#e2e8f0; --text:#4478ca; --text-dim:#475569;
-  --accent:#2563eb; --accent-strong:#1d4ed8; --muted:#94a3b8; --panel-muted:#f1f5f9;
-  --danger:#dc2626; --badge-bg:#eef2ff; --badge-text:#1d4ed8;
-}
-.dark {
-  --bg:#0f172a; --panel:#1e293b; --panel-border:#334155; --text:#f1f5f9; --text-dim:#94a3b8;
-  --accent:#3b82f6; --accent-strong:#1d4ed8; --muted:#64748b; --panel-muted:#243140;
-  --badge-bg:#1e293b; --badge-text:#60a5fa;
-}
-html,body{height:100%;margin:0;font-family:Inter,system-ui,sans-serif;background:var(--bg);color:var(--text);}
-h1{margin:0;font-size:1.9rem;font-weight:700;letter-spacing:-.5px;}
-.panel{background:var(--panel);border:1px solid var(--panel-border);border-radius:14px;}
-.panel-header{font-size:.7rem;letter-spacing:.06em;font-weight:600;text-transform:uppercase;color:var(--text-dim);}
-.badge{background:var(--badge-bg);color:var(--badge-text);padding:2px 6px;border-radius:6px;font-size:.6rem;font-weight:600;letter-spacing:.5px;}
-.btn{background:var(--accent);color:#fff;padding:6px 14px;border-radius:8px;font-size:.7rem;font-weight:600;display:inline-flex;align-items:center;gap:4px;border:none;cursor:pointer;}
-.btn:hover{background:var(--accent-strong);}
-.btn-muted{background:var(--panel-muted);color:var(--text-dim);padding:6px 12px;border-radius:8px;font-size:.7rem;font-weight:600;border:none;cursor:pointer;}
-.btn-muted:hover{background:var(--panel-border);color:var(--text);}
-.input{background:var(--panel);border:1px solid var(--panel-border);border-radius:8px;padding:6px 8px;font-size:.72rem;width:100%;box-sizing:border-box;}
-.input:focus{outline:2px solid var(--accent);outline-offset:1px;}
-.toggle{display:inline-flex;align-items:center;gap:6px;font-size:.63rem;}
-#viz{font:10px sans-serif;}
-.graph-link{transition:stroke-width .18s, stroke-opacity .25s;}
-.node-group rect{transition:filter .2s,stroke-width .2s;}
-.node-group:hover rect{filter:brightness(1.07);}
-.edge-label{font-size:.5rem;fill:var(--text-dim);pointer-events:none;user-select:none;}
-#tooltip{pointer-events:none;z-index:60;min-width:220px;max-width:440px;line-height:1.15rem;font-size:.62rem;}
-table.artifact-table{border-collapse:collapse;width:100%;font-size:.62rem;}
-table.artifact-table th,table.artifact-table td{border:1px solid var(--panel-border);padding:4px 6px;text-align:left;}
-table.artifact-table th{background:var(--panel-muted);font-weight:600;font-size:.58rem;cursor:pointer;}
-.arch-highlight {display:inline-block;font-size:1.15rem;font-weight:700;padding:6px 14px;border-radius:10px;background:linear-gradient(90deg,#334155,#475569);color:#fff;letter-spacing:.5px;box-shadow:0 2px 6px rgba(0,0,0,.35);position:relative;animation:pulseArch 3.2s ease-in-out infinite;transition:transform .25s;}
-.arch-highlight:hover {transform:scale(1.04);}
-.arch-highlight.ccf {background:linear-gradient(90deg,#047857,#10b981);}
-.arch-highlight.http {background:linear-gradient(90deg,#b45309,#f59e0b);}
-.arch-highlight.unknown {background:linear-gradient(90deg,#64748b,#475569);}
-@keyframes pulseArch {0%,100% { box-shadow:0 0 0 0 rgba(255,255,255,0.5); }50% { box-shadow:0 0 0 10px rgba(255,255,255,0); }}
-.disclaimer{
-  position:fixed;left:10px;bottom:10px;max-width:360px;font-size:11px;line-height:1.3;font-weight:500;
-  color:#b91c1c;background:rgba(255,255,255,.9);border:1px solid #fca5a5;padding:6px 8px 7px;border-radius:6px;
-  z-index:9999;backdrop-filter:blur(4px);
-}
-.dark .disclaimer{background:rgba(31,41,55,.75);color:#fecaca;border-color:#b91c1c;}
-@media (max-width:640px){
-  h1{font-size:1.4rem;}
-  .disclaimer{font-size:10px;max-width:75%;}
-}
-</style>
+  color-scheme: light dark;
+  --bg:            #f8fafc;
+  --bg-alt:        #f1f5f9;
+  --panel:         #ffffff;
+  --panel-alt:     #f9fafb;
+  --panel-muted:   #eef2f7;
+  --panel-border:  #e2e8f0;
+  --panel-border-strong:#cbd5e1;
 
-<style>
-#evidenceModalBackdrop {
-  position:fixed;inset:0;display:none;align-items:center;justify-content:center;
-  background:rgba(0,0,0,.55);z-index:10000;
+  --text:       #0f3e7a;
+  --text-dim:   #475569;
+  --text-muted: #64748b;
+  --text-invert:#ffffff;
+
+  --accent:        #2563eb;
+  --accent-rgb:    37,99,235;
+  --accent-strong: #1d4ed8;
+  --accent-soft:   #e0ecff;
+
+  --danger:     #dc2626;
+  --warn:       #d97706;
+  --success:    #059669;
+  --info:       #0ea5e9;
+
+  --badge-bg:   #eef2ff;
+  --badge-text: #1d4ed8;
+
+  --font-scale:1.15; 
+
+  --grad-arch-default: linear-gradient(90deg,#334155,#475569);
+  --grad-arch-ccf:     linear-gradient(90deg,#047857,#10b981);
+  --grad-arch-http:    linear-gradient(90deg,#b45309,#f59e0b);
+  --grad-arch-unknown: linear-gradient(90deg,#64748b,#475569);
+
+  /* Elevation */
+  --shadow-xs: 0 1px 2px rgba(0,0,0,.05);
+  --shadow-sm: 0 2px 4px rgba(0,0,0,.08);
+  --shadow-md: 0 4px 12px -2px rgba(0,0,0,.15);
+  --shadow-lg: 0 8px 24px -4px rgba(0,0,0,.20);
+  --shadow-glow-accent: 0 0 0 1px rgba(var(--accent-rgb),.15),0 0 0 6px rgba(var(--accent-rgb),.08);
+
+  /* Radii */
+  --radius-xs:4px;
+  --radius-sm:6px;
+  --radius:   10px;
+  --radius-lg:14px;
+  --radius-pill:999px;
+
+  /* Spacing Scale */
+  --space-1: .25rem;
+  --space-2: .4rem;
+  --space-3: .55rem;
+  --space-4: .7rem;
+  --space-5: .9rem;
+  --space-6: 1.15rem;
+  --space-7: 1.5rem;
+
+  /* Typography */
+  --font-sans: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, Cantarell, "Fira Sans", "Droid Sans", "Helvetica Neue", Arial, sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+
+  --fs-xxs:.55rem;
+  --fs-xs:.60rem;
+  --fs-sm:.68rem;
+  --fs-base:.75rem;
+  --fs-md:.85rem;
+  --fs-lg:1.0rem;
+  --fs-xl:1.25rem;
+  --fs-xxl:1.55rem;
+
+  /* Transitions & Motion */
+  --ease-out: cubic-bezier(.16,.7,.3,1);
+  --ease-in: cubic-bezier(.7,.1,.9,.3);
+  --transition-fast: 120ms var(--ease-out);
+  --transition-medium: 240ms var(--ease-out);
+
+  /* Layout / Misc */
+  --border-width:1px;
+  --focus-ring: 2px solid var(--accent);
+  --focus-ring-outline: 2px solid #ffffff;
+  --scrollbar-track: var(--panel);
+  --scrollbar-thumb: #cbd5e1;
+  --scrollbar-thumb-hover:#94a3b8;
 }
-.dark #evidenceModal {
+
+.dark {
+  --bg:#0f172a;
+  --bg-alt:#14243d;
+  --panel:#1e293b;
+  --panel-alt:#253348;
+  --panel-muted:#243140;
+  --panel-border:#334155;
+  --panel-border-strong:#475569;
+
+  --text:#f1f5f9;
+  --text-dim:#94a3b8;
+  --text-muted:#64748b;
+  --badge-bg:#1e293b;
+  --badge-text:#60a5fa;
+
+  --accent:#3b82f6;
+  --accent-strong:#1d4ed8;
+  --accent-soft:#1e3a8a;
+
+  --scrollbar-track:#1e293b;
+  --scrollbar-thumb:#475569;
+  --scrollbar-thumb-hover:#64748b;
+}
+
+/* Global Reset / Base */
+html,body {
+  height:100%;
+  margin:0;
+  font-family:var(--font-sans);
+  font-size:var(--fs-base);
+  background:var(--bg);
+  color:var(--text);
+  -webkit-font-smoothing:antialiased;
+  font-size: calc(var(--fs-base) * var(--font-scale));
+  text-rendering:optimizeLegibility;
+}
+
+body {
+  display:flex;
+  flex-direction:column;
+  gap:var(--space-6);
+  padding:var(--space-6);
+  line-height:1.35;
+}
+
+@media (max-width:860px){
+  body { padding:var(--space-4); }
+}
+
+h1,h2,h3,h4,h5 { font-weight:600; margin:0; }
+h1 {
+  font-size:var(--fs-xxl);
+  letter-spacing:-.5px;
+  display:flex;
+  align-items:center;
+  gap:.6rem;
+}
+
+/* Panels */
+.panel {
+  background:var(--panel);
+  border:var(--border-width) solid var(--panel-border);
+  border-radius:var(--radius-lg);
+  padding:var(--space-5);
+  box-shadow:var(--shadow-sm);
+  position:relative;
+  transition:background var(--transition-medium),border-color var(--transition-fast), box-shadow var(--transition-fast);
+  backdrop-filter:saturate(140%) blur(2px);
+}
+
+.panel:hover {
+  box-shadow:var(--shadow-md);
+}
+
+.panel:has(.panel-header + .skeleton){
+  min-height:88px;
+}
+
+.panel-header {
+  font-size:var(--fs-xxs);
+  letter-spacing:.08em;
+  font-weight:600;
+  text-transform:uppercase;
+  color:var(--text-dim);
+  display:flex;
+  align-items:center;
+  gap:.4rem;
+  user-select:none;
+}
+
+/* Badge */
+.badge {
+  display:inline-flex;
+  align-items:center;
+  gap:.25rem;
+  background:var(--badge-bg);
+  color:var(--badge-text);
+  padding:2px 8px;
+  border-radius:var(--radius-pill);
+  font-size:var(--fs-xxs);
+  font-weight:600;
+  letter-spacing:.5px;
+  line-height:1;
+  box-shadow:var(--shadow-xs) inset;
+  border:1px solid rgba(0,0,0,.05);
+}
+
+/* Inputs & Controls */
+.input,
+select.input,
+textarea.input {
+  appearance:none;
+  -webkit-appearance:none;
+  background:var(--panel);
+  border:1px solid var(--panel-border);
+  border-radius:var(--radius-sm);
+  padding:6px 10px;
+  font-size:var(--fs-sm);
+  font-family:inherit;
+  color:var(--text);
+  width:100%;
+  box-sizing:border-box;
+  line-height:1.25;
+  transition:border-color var(--transition-fast), background var(--transition-fast), color var(--transition-fast), box-shadow var(--transition-fast);
+}
+
+.input:focus,
+select.input:focus,
+textarea.input:focus {
+  outline:0;
+  box-shadow:var(--shadow-glow-accent);
+  border-color:var(--accent);
+}
+
+.input[disabled],
+.input:disabled {
+  opacity:.55;
+  cursor:not-allowed;
+  background:var(--panel-muted);
+  color:var(--text-muted);
+}
+
+select.input {
+  background:
+    var(--panel)
+    url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='14' height='14' stroke='%23475869' stroke-width='1.7' stroke-linecap='round' stroke-linejoin='round' fill='none'><polyline points='3 5 7 9 11 5'/></svg>")
+    no-repeat right 10px center / 14px;
+  padding-right:36px;
+  cursor:pointer;
+}
+
+.dark select.input {
+  background:
+    var(--panel)
+    url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='14' height='14' stroke='%2394a3b8' stroke-width='1.7' stroke-linecap='round' stroke-linejoin='round' fill='none'><polyline points='3 5 7 9 11 5'/></svg>")
+    no-repeat right 10px center / 14px;
+}
+
+select.input option,
+select.input optgroup {
   background:var(--panel);
   color:var(--text);
 }
-#evidenceModal {
-  background:#ffffff;
-  color:#0f172a;
-  width:clamp(480px,80%,1000px);
-  max-height:80vh;
-  border:1px solid var(--panel-border);
-  border-radius:12px;
-  box-shadow:0 10px 30px -5px rgba(0,0,0,.4);
-  display:flex;flex-direction:column;
-  font-size:.62rem;
-  overflow:hidden;
+
+.dark select.input option,
+.dark select.input optgroup {
+  background:var(--panel);
+  color:var(--text);
 }
+
+/* Dedicated Solution select override */
+#solutionSelect {
+  font-weight:600;
+  letter-spacing:.03em;
+}
+
+/* Toggle / small inline label */
+.toggle {
+  display:inline-flex;
+  align-items:center;
+  gap:.4rem;
+  font-size:var(--fs-xs);
+  font-weight:500;
+  color:var(--text-dim);
+  white-space:nowrap;
+}
+
+/* Buttons */
+.btn,
+.btn-muted,
+.btn-outline,
+.btn-ghost,
+.btn-danger {
+  --btn-bg:var(--accent);
+  --btn-color:#fff;
+  --btn-border:var(--accent);
+  --btn-shadow:var(--shadow-xs);
+  appearance:none;
+  border-radius:var(--radius-sm);
+  border:1px solid var(--btn-border);
+  background:var(--btn-bg);
+  color:var(--btn-color);
+  font-size:var(--fs-sm);
+  font-weight:600;
+  letter-spacing:.02em;
+  padding:7px 16px;
+  display:inline-flex;
+  align-items:center;
+  gap:.45rem;
+  cursor:pointer;
+  line-height:1.1;
+  user-select:none;
+  transition:background var(--transition-fast), box-shadow var(--transition-fast), transform var(--transition-fast), border-color var(--transition-fast), color var(--transition-fast);
+  position:relative;
+}
+
+.btn:hover {
+  background:var(--accent-strong);
+  box-shadow:var(--shadow-sm);
+}
+
+.btn:active {
+  transform:translateY(1px);
+}
+
+.btn-muted {
+  --btn-bg:var(--panel-muted);
+  --btn-color:var(--text-dim);
+  --btn-border:var(--panel-border);
+}
+
+.btn-muted:hover {
+  background:var(--panel-border);
+  color:var(--text);
+}
+
+.dark .btn-muted:hover {
+  background:var(--panel-alt);
+  color:var(--text);
+}
+
+.btn-outline {
+  --btn-bg:transparent;
+  --btn-color:var(--accent);
+  --btn-border:var(--accent);
+}
+
+.btn-outline:hover {
+  background:rgba(var(--accent-rgb),.07);
+  box-shadow:var(--shadow-xs);
+}
+
+.btn-ghost {
+  --btn-bg:transparent;
+  --btn-color:var(--text-dim);
+  --btn-border:transparent;
+  padding:6px 10px;
+}
+
+.btn-ghost:hover {
+  background:var(--panel-muted);
+  color:var(--text);
+}
+
+.btn-danger {
+  --btn-bg:var(--danger);
+  --btn-border:var(--danger);
+}
+
+.btn-danger:hover {
+  background:#b91c1c;
+}
+
+.btn:focus-visible,
+.btn-muted:focus-visible,
+.btn-outline:focus-visible,
+.btn-ghost:focus-visible,
+.btn-danger:focus-visible {
+  outline:0;
+  box-shadow:var(--shadow-glow-accent);
+}
+
+/* Pill variant utility */
+.btn-pill { border-radius:var(--radius-pill); }
+
+/* Table */
+table.artifact-table {
+  border-collapse:separate;
+  width:100%;
+  font-size:var(--fs-xs);
+  border-spacing:0 4px;
+}
+
+table.artifact-table thead th {
+  background:var(--panel-muted);
+  color:var(--text-dim);
+  font-weight:600;
+  font-size:var(--fs-xxs);
+  padding:6px 8px;
+  text-align:left;
+  position:sticky;
+  top:0;
+  z-index:2;
+  border-bottom:1px solid var(--panel-border);
+  cursor:pointer;
+  letter-spacing:.05em;
+}
+
+table.artifact-table tbody td {
+  background:var(--panel-alt);
+  border:1px solid var(--panel-border);
+  padding:6px 8px;
+  vertical-align:top;
+  transition:background var(--transition-fast), color var(--transition-fast);
+}
+
+table.artifact-table tbody tr {
+  border-radius:var(--radius-sm);
+}
+
+table.artifact-table tbody tr:hover td {
+  background:var(--panel);
+}
+
+.dark table.artifact-table tbody td {
+  background:#223147;
+}
+
+.dark table.artifact-table tbody tr:hover td {
+  background:var(--panel);
+}
+
+/* Scrollbars (WebKit + Firefox) */
+* {
+  scrollbar-width:thin;
+  scrollbar-color:var(--scrollbar-thumb) var(--scrollbar-track);
+}
+
+*::-webkit-scrollbar {
+  width:10px;
+  height:10px;
+}
+*::-webkit-scrollbar-track {
+  background:var(--scrollbar-track);
+}
+*::-webkit-scrollbar-thumb {
+  background:var(--scrollbar-thumb);
+  border-radius:10px;
+  border:2px solid var(--scrollbar-track);
+}
+*::-webkit-scrollbar-thumb:hover {
+  background:var(--scrollbar-thumb-hover);
+}
+
+/* Tooltip */
+#tooltip {
+  pointer-events:none;
+  z-index:60;
+  min-width:220px;
+  max-width:440px;
+  background:#0f172a;
+  color:#fff;
+  padding:8px 10px;
+  border-radius:var(--radius-sm);
+  box-shadow:var(--shadow-md);
+  font-size:var(--fs-xs);
+  line-height:1.15rem;
+  border:1px solid rgba(255,255,255,.08);
+  backdrop-filter:blur(4px);
+  transition:opacity var(--transition-fast), transform var(--transition-fast);
+  transform:translateY(4px);
+}
+
+#tooltip.show {
+  opacity:1!important;
+  transform:translateY(0);
+}
+
+/* Graph styling (D3) */
+#viz { font:10px var(--font-sans); }
+
+.graph-link {
+  transition:stroke-width .18s var(--ease-out), stroke-opacity .25s var(--ease-out);
+}
+
+.node-group rect {
+  transition:filter .25s var(--ease-out), stroke-width .2s var(--ease-out), transform .25s var(--ease-out);
+  transform-origin:center;
+}
+
+.node-group:hover rect {
+  filter:brightness(1.08);
+  transform:translateY(-2px);
+}
+
+.edge-label {
+  font-size:var(--fs-xxs);
+  fill:var(--text-dim);
+  pointer-events:none;
+  user-select:none;
+}
+
+/* Architecture Highlight Badge */
+.arch-highlight {
+  display:inline-flex;
+  align-items:center;
+  gap:.55rem;
+  font-size:1.1rem;
+  font-weight:700;
+  padding:10px 18px;
+  border-radius:var(--radius-pill);
+  background:var(--grad-arch-default);
+  color:#fff;
+  letter-spacing:.5px;
+  box-shadow:0 2px 8px rgba(0,0,0,.35), inset 0 0 0 1px rgba(255,255,255,.15);
+  position:relative;
+  isolation:isolate;
+  overflow:hidden;
+  cursor:default;
+  transition:transform var(--transition-medium), box-shadow var(--transition-medium);
+}
+
+.arch-highlight::after {
+  content:"";
+  position:absolute;
+  inset:0;
+  background:radial-gradient(circle at 25% 15%,rgba(255,255,255,.3),transparent 60%);
+  opacity:.35;
+  mix-blend-mode:overlay;
+  pointer-events:none;
+}
+
+.arch-highlight.legacy {
+  background:linear-gradient(90deg,#6d28d9,#9333ea);
+}
+.arch-highlight.unknown {
+  background:linear-gradient(90deg,#64748b,#475569);
+}
+
+.arch-highlight:hover {
+  transform:translateY(-2px);
+  box-shadow:var(--shadow-lg);
+}
+
+.arch-highlight.ccf { background:var(--grad-arch-ccf); }
+.arch-highlight.http { background:var(--grad-arch-http); }
+.arch-highlight.unknown { background:var(--grad-arch-unknown); }
+
+@media (prefers-reduced-motion:reduce){
+  .arch-highlight { animation:none; transition:none; }
+}
+
+/* Disclaimer */
+.disclaimer {
+  position:fixed;
+  left:14px;
+  bottom:14px;
+  max-width:360px;
+  font-size:11px;
+  line-height:1.35;
+  font-weight:500;
+  color:#b91c1c;
+  background:rgba(255,255,255,.92);
+  border:1px solid #fca5a5;
+  padding:8px 10px;
+  border-radius:var(--radius-sm);
+  z-index:9999;
+  backdrop-filter:blur(4px);
+  box-shadow:var(--shadow-sm);
+  transition:opacity var(--transition-medium);
+}
+
+.dark .disclaimer {
+  background:rgba(31,41,55,.78);
+  color:#fecaca;
+  border-color:#b91c1c;
+}
+
+@media (max-width:640px){
+  h1 { font-size:1.3rem; }
+  .disclaimer { font-size:10px; max-width:78%; }
+}
+
+/* Evidence Modal */
+#evidenceModalBackdrop {
+  position:fixed;
+  inset:0;
+  display:none;
+  align-items:center;
+  justify-content:center;
+  background:rgba(0,0,0,.55);
+  z-index:10000;
+  backdrop-filter:blur(5px);
+}
+
+#evidenceModal {
+  background:var(--panel);
+  color:var(--text);
+  width:clamp(500px,86%,1100px);
+  max-height:82vh;
+  border:1px solid var(--panel-border);
+  border-radius:var(--radius-lg);
+  box-shadow:var(--shadow-lg);
+  display:flex;
+  flex-direction:column;
+  font-size:var(--fs-xs);
+  overflow:hidden;
+  position:relative;
+  isolation:isolate;
+}
+
 #evidenceModal header {
-  display:flex;align-items:center;justify-content:space-between;
-  padding:10px 14px;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:.8rem;
+  padding:12px 18px;
   background:var(--panel-muted);
   font-weight:600;
   letter-spacing:.5px;
+  border-bottom:1px solid var(--panel-border);
 }
+
 #evidenceModal .modal-body {
-  padding:10px 14px;
+  padding:12px 18px;
   overflow:auto;
   line-height:1.05rem;
+  scrollbar-gutter:stable;
 }
+
 #evidenceModal .filters {
-  display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px;align-items:center;
+  display:flex;
+  flex-wrap:wrap;
+  gap:6px;
+  margin-bottom:10px;
+  align-items:flex-end;
 }
+
 #evidenceModal button.small {
-  background:var(--accent);color:#fff;border:none;border-radius:6px;
-  padding:4px 8px;font-size:.58rem;font-weight:600;cursor:pointer;
+  background:var(--accent);
+  color:#fff;
+  border:none;
+  border-radius:var(--radius-sm);
+  padding:5px 10px;
+  font-size:var(--fs-xxs);
+  font-weight:600;
+  cursor:pointer;
+  line-height:1;
+  letter-spacing:.03em;
+  transition:background var(--transition-fast), transform var(--transition-fast);
 }
+
 #evidenceModal button.small.alt {
-  background:var(--panel-muted);color:var(--text-dim);
+  background:var(--panel-muted);
+  color:var(--text-dim);
 }
+
 #evidenceModal button.small:hover {
   filter:brightness(1.07);
 }
-.evidence-row {
-  padding:4px 6px;border:1px solid var(--panel-border);border-radius:6px;
-  background:var(--panel);margin-bottom:4px;
+
+#evidenceModal button.small:active {
+  transform:translateY(1px);
 }
-.evidence-row.ccf {border-color:#059669;}
-.evidence-row.http {border-color:#b45309;}
+
+.evidence-row {
+  padding:6px 8px;
+  border:1px solid var(--panel-border);
+  border-radius:var(--radius-sm);
+  background:var(--panel-alt);
+  margin-bottom:6px;
+  position:relative;
+  transition:border-color var(--transition-fast), background var(--transition-fast);
+}
+
+.evidence-row:hover {
+  background:var(--panel);
+  border-color:var(--panel-border-strong);
+}
+
+.evidence-row.ccf { border-color:var(--success); }
+.evidence-row.http { border-color:var(--warn); }
+
 .evidence-row code {
   background:var(--panel-muted);
-  padding:1px 3px;border-radius:4px;
-  font-size:.58rem;
+  padding:2px 5px;
+  border-radius:var(--radius-xs);
+  font-size:var(--fs-xxs);
+  font-family:var(--font-mono);
+  letter-spacing:.3px;
 }
+
 #evidenceModal .footer-actions {
-  padding:8px 14px;
+  padding:10px 16px;
   background:var(--panel-muted);
-  display:flex;justify-content:flex-end;gap:8px;
+  display:flex;
+  justify-content:flex-end;
+  gap:8px;
+  border-top:1px solid var(--panel-border);
 }
+
+/* Loading Overlay */
+#loadingOverlay {
+  position:absolute;
+  inset:0;
+  display:none;
+  background:rgba(255,255,255,.9);
+  backdrop-filter:blur(4px);
+  z-index:50;
+  align-items:center;
+  justify-content:center;
+  flex-direction:column;
+  gap:1rem;
+}
+
+.dark #loadingOverlay {
+  background:rgba(15,23,42,.82);
+}
+
+.spinner {
+  width:52px;
+  height:52px;
+  border:5px solid var(--accent);
+  border-top-color:transparent;
+  border-radius:50%;
+  animation:spin 1s linear infinite;
+}
+
+@keyframes spin { to { transform:rotate(360deg); } }
+
+/* Zoom Buttons */
+#viz + div button.btn-muted {
+  width:42px;
+  height:42px;
+  font-size:1.05rem;
+  font-weight:700;
+  padding:0;
+  justify-content:center;
+}
+
+/* Utility Classes */
+.truncate {
+  max-width:100%;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  white-space:nowrap;
+}
+
+.flex { display:flex; }
+.flex-col { flex-direction:column; }
+.flex-wrap { flex-wrap:wrap; }
+.gap-xs { gap:var(--space-2); }
+.gap-sm { gap:var(--space-3); }
+.gap-md { gap:var(--space-4); }
+.gap-lg { gap:var(--space-6); }
+
+.text-dim { color:var(--text-dim); }
+.text-muted { color:var(--text-muted); }
+.text-accent { color:var(--accent); }
+
+.border-accent { border-color:var(--accent)!important; }
+.ring-accent { box-shadow:0 0 0 3px rgba(var(--accent-rgb),.35)!important; }
+
+.hidden { display:none!important; }
+
+/* Accessibility: reduced motion */
+@media (prefers-reduced-motion:reduce){
+  * {
+    animation-duration:.01ms!important;
+    animation-iteration-count:1!important;
+    transition:none!important;
+    scroll-behavior:auto!important;
+  }
+}
+
+/* Dark mode specific nuance overrides */
+.dark .panel { box-shadow:var(--shadow-xs); }
+.dark .panel:hover { box-shadow:var(--shadow-md); }
+.dark .evidence-row { background:#243447; }
+.dark .evidence-row:hover { background:#2e4259; }
+.dark #tooltip { background:#1e293b; color:var(--text); border-color:#334155; }
+.dark .input, .dark select.input { border-color:#475569; }
+.dark .input:focus, .dark select.input:focus { box-shadow:0 0 0 1px #1d4ed8,0 0 0 4px rgba(29,78,216,.35); }
+
+/* Force option colors explicitly (extra safety for some legacy engines) */
+.dark #solutionSelect option { background:var(--panel)!important; color:var(--text)!important; }
+
+/* End modern stylesheet */
 </style>
 
 </head>
@@ -567,17 +1235,51 @@ function isAnalyticRule(json){
   return hasQuery && (hasSeverity || hasTactics || kindHit);
 }
 
-function classifyArtifact(json,path){
-  const fileName=path.split('/').pop();
-  const lower=fileName.toLowerCase();
-  const lowerPath=path.toLowerCase();
-  const text=JSON.stringify(json||{});
-  const ltext=text.toLowerCase();
-  const baseDisplay=json?.name||json?.displayName||json?.title||json?.properties?.displayName||fileName.replace(/\.json$/,'');
 
-  /* Core file: mainTemplate */
+function extractServiceEndpoints(json){
+  const out=new Set();
+  const text=JSON.stringify(json||{}).toLowerCase();
+  // Match API path fragments (not just hosts)
+  const pathMatches = text.match(/\/api\/(events?|event|agents?|alerts?|logs|messages|telemetry|ingest)\b[^\s"']*/g) || [];
+  pathMatches.forEach(p=>{
+    // Normalize trimming trailing punctuation
+    out.add(p.replace(/[",\s]+$/,''));
+  });
+  // Poller hint -> synthetic endpoint
+  if(/restapipoller|api\s*polling/.test(text) && ![...out].some(e=>/\/api\/events?/.test(e))){
+    out.add('poller://event-api'); // synthetic marker
+  }
+  return [...out].slice(0,25);
+}
+
+
+
+// ================= UPDATED classifyArtifact =================
+
+function classifyArtifact(json, path) {
+  const fileName = path.split('/').pop();
+  const lowerFile = fileName.toLowerCase();
+  const lowerPath = path.toLowerCase();
+  let rawStr=''; try { rawStr = JSON.stringify(json||{}); } catch {}
+  const ltext = rawStr.toLowerCase();
+
+  const baseDisplay =
+    json?.name ||
+    json?.displayName ||
+    json?.title ||
+    json?.properties?.displayName ||
+    fileName.replace(/\.json$/,'');
+
+  // Exclusions (core/support)
+  const EXCLUDE_FILE = new Set([
+    'dcr.json','pollerconfig.json','createuidefinition.json','solutionmetadata.json',
+    'maintemplate.json','azuredeploy.json','tables.json','tableschema.json'
+  ]);
+
+  /* ---------- CORE / INFRA (unchanged from earlier logic except guarded by EXCLUDE_FILE) ---------- */
   if(/main(template)?\.json$/i.test(fileName)){
-    const resources=[];(function collect(a){ if(Array.isArray(a)) a.forEach(r=>{resources.push(r); if(Array.isArray(r?.resources)) collect(r.resources);});})(json.resources);
+    const resources=[];
+    (function collect(arr){ if(Array.isArray(arr)) arr.forEach(r=>{ resources.push(r); if(Array.isArray(r?.resources)) collect(r.resources);}); })(json.resources);
     let dc=0,ar=0,wb=0,pb=0,other=0;
     resources.forEach(r=>{
       const t=(r.type||'').toLowerCase();
@@ -587,109 +1289,122 @@ function classifyArtifact(json,path){
       else if(t.endsWith('/workflows')) pb++;
       else other++;
     });
-    return {type:'filecore',id:'mainTemplate.json',path,raw:json,coreKind:'mainTemplate',
-      resourceCounts:{total:resources.length,dataConnectors:dc,analyticRules:ar,workbooks:wb,playbooks:pb,others:other},
-      endpoints:extractEndpointsGeneric(json)};
+    return {
+      type:'filecore',
+      id:'mainTemplate.json',
+      path,
+      raw:json,
+      coreKind:'mainTemplate',
+      resourceCounts:{ total:resources.length,dataConnectors:dc,analyticRules:ar,workbooks:wb,playbooks:pb,others:other },
+      endpoints:extractEndpointsGeneric(json),
+      serviceEndpoints:extractServiceEndpoints(json)
+    };
   }
-  if(lower==='solutionmetadata.json'){
-    return {type:'filecore',id:'solutionMetadata.json',path,raw:json,coreKind:'solutionMetadata',
-      contentHubId:json.contentHubId||'',version:json.version||'',listingId:json.listingId||'',
+  if(lowerFile==='solutionmetadata.json'){
+    return {
+      type:'filecore', id:'solutionMetadata.json', path, raw:json, coreKind:'solutionMetadata',
+      contentHubId:json.contentHubId||'', version:json.version||'', listingId:json.listingId||'',
       offerId:json.offerId||json.offerID||json.marketplaceOfferId||'',
       categories:normalizeMetaList(json.categories||json.category),
-      domains:normalizeMetaList(json.domains||json.domain), endpoints:[]};
+      domains:normalizeMetaList(json.domains||json.domain),
+      endpoints:[]
+    };
   }
-  if(lower==='createuidefinition.json'){
-    const steps=(text.match(/"steps"\s*:/gi)||[]).length;
-    const params=(text.match(/"parameters"\s*:/gi)||[]).length;
-    return {type:'filecore',id:'createUiDefinition.json',path,raw:json,coreKind:'createUiDefinition',
-      stepsCount:steps,parametersCount:params,endpoints:extractEndpointsGeneric(json)};
+  if(lowerFile==='createuidefinition.json'){
+    const steps=(rawStr.match(/"steps"\s*:/gi)||[]).length;
+    const params=(rawStr.match(/"parameters"\s*:/gi)||[]).length;
+    return {
+      type:'filecore', id:'createUiDefinition.json', path, raw:json, coreKind:'createUiDefinition',
+      stepsCount:steps, parametersCount:params,
+      endpoints:extractEndpointsGeneric(json),
+      serviceEndpoints:extractServiceEndpoints(json)
+    };
   }
-  if(lower==='pollerconfig.json'){
+  if(lowerFile==='pollerconfig.json'){
     const schedule=json.schedule||json.pollInterval||json.frequency||json.interval||'';
-    return {type:'filecore',id:'pollerConfig.json',path,raw:json,coreKind:'pollerConfig',
-      schedule: typeof schedule==='object'?JSON.stringify(schedule):String(schedule||''),endpoints:extractEndpointsGeneric(json)};
+    return {
+      type:'filecore', id:'pollerConfig.json', path, raw:json, coreKind:'pollerConfig',
+      schedule: typeof schedule==='object'?JSON.stringify(schedule):String(schedule||''),
+      endpoints:extractEndpointsGeneric(json),
+      serviceEndpoints:extractServiceEndpoints(json)
+    };
   }
-  if(lower==='dcr.json'){
+  if(lowerFile==='dcr.json'){
     const flows=json?.properties?.dataFlows||json?.dataFlows||[];
     const flowsData=normalizeDcrFlows(flows);
     const streams=new Set(); flows.forEach(f=>(f.streams||[]).forEach(s=>streams.add(s)));
-    return {type:'filecore',id:'dcr.json',path,raw:json,coreKind:'dcr',
-      dataFlows:flows.length,streamCount:streams.size,flowsData,endpoints:extractEndpointsGeneric(json)};
+    return {
+      type:'filecore', id:'dcr.json', path, raw:json, coreKind:'dcr',
+      dataFlows:flows.length, streamCount:streams.size, flowsData,
+      endpoints:extractEndpointsGeneric(json),
+      serviceEndpoints:extractServiceEndpoints(json)
+    };
   }
-  if(lower==='host.json'||lower==='functionapp.json'){
-    return {type:'functioninfra',id:fileName,path,raw:json,bindingsCount:text.length,endpoints:extractEndpointsGeneric(json)};
+  if(lowerFile==='host.json'||lowerFile==='functionapp.json'){
+    return { type:'functioninfra', id:fileName, path, raw:json, bindingsCount:rawStr.length, endpoints:extractEndpointsGeneric(json) };
   }
-  if(lower==='azuredeploy.json'){
-    return {type:'deployment',id:'azuredeploy.json',path,raw:json,
-      resourceCount:Array.isArray(json?.resources)?json.resources.length:0,endpoints:extractEndpointsGeneric(json)};
+  if(lowerFile==='azuredeploy.json'){
+    return { type:'deployment', id:'azuredeploy.json', path, raw:json,
+      resourceCount:Array.isArray(json?.resources)?json.resources.length:0,
+      endpoints:extractEndpointsGeneric(json)
+    };
   }
 
-  /* Watchlists */
-  if(/\/watchlists\//i.test(lowerPath) || /"microsoft\.securityinsights\/watchlists"/.test(ltext)){
-    return {type:'watchlist',id:baseDisplay,path,raw:json,description:json?.properties?.description||''};
+  /* ---------- OTHER TYPES (same as before) ---------- */
+  if(/\/watchlists\//i.test(lowerPath)||/"microsoft\.securityinsights\/watchlists"/.test(ltext)){
+    return { type:'watchlist', id:baseDisplay, path, raw:json, description:json?.properties?.description||'' };
   }
-
-  /* KQL functions / parsers */
-  if(/\/parsers\//i.test(lowerPath) || /\/functions\//i.test(lowerPath) || /"functionalias"|\"parsertype\"/i.test(ltext)){
+  if(/\/parsers\//i.test(lowerPath)||/\/functions\//i.test(lowerPath)||/"functionalias"|\"parsertype\"/i.test(ltext)){
     const kql=json?.properties?.query||json?.query||json?.kql||'';
-    return {type:'kqlfunction',id:baseDisplay,path,raw:json,tables:extractTablesFromQuery(kql),queryMetrics:summarizeQueryMetrics(kql)};
+    return {
+      type:'kqlfunction', id:baseDisplay, path, raw:json,
+      tables:extractTablesFromQuery(kql), queryMetrics:summarizeQueryMetrics(kql)
+    };
   }
-
-  /* Notebooks */
-  if(/\/notebooks?\//i.test(lowerPath) && /"cells":\s*\[/.test(ltext)){
-    return {type:'notebook',id:baseDisplay,path,raw:json,cellCount:(json.cells||[]).length};
+  if(/\/notebooks?\//i.test(lowerPath)&&/"cells":\s*\[/.test(ltext)){
+    return { type:'notebook', id:baseDisplay, path, raw:json, cellCount:(json.cells||[]).length };
   }
-
-  /* Workbooks */
   if(lowerPath.includes('/workbooks/') || /"microsoft\.insights\/workbooks"/.test(ltext) || (/"workbook"/.test(ltext)&&json?.properties?.serializedData)){
     const query=json?.properties?.query||json?.query||'';
-    return {type:'workbook',id:baseDisplay,path,raw:json,description:json?.properties?.description||'',
-      tables:extractTablesFromQuery(query),queryMetrics:summarizeQueryMetrics(query)};
+    return {
+      type:'workbook', id:baseDisplay, path, raw:json,
+      description:json?.properties?.description||'',
+      tables:extractTablesFromQuery(query), queryMetrics:summarizeQueryMetrics(query)
+    };
   }
-
-  /* Analytics rules */
-    const analyticPathHint =
+  const analyticPathHint=
     /\/analytic[s]?[ _-]?rules?\//i.test(lowerPath) ||
     /\/alert[ _-]?rules?\//i.test(lowerPath) ||
     /\/detection[s]?\//i.test(lowerPath) ||
     /\/alertrules\//i.test(lowerPath);
-
-  if( analyticPathHint || isAnalyticRule(json) ){
+  if(analyticPathHint || isAnalyticRule(json)){
     const p=json.properties||{};
     const query=p.query||json.query||'';
     const severity=p.severity||json.severity||'';
     const tactics=(p.tactics||json.tactics||[]).join(', ');
-    if(DEBUG_CLASSIFY){
-      log(`AnalyticRule detected: path=${path} queryLen=${query.length} severity=${severity} tacticsRawLen=${(p.tactics||[]).length}`);
-    }
     return {
-      type:'analyticrule',
-      id: p.displayName || json.displayName || baseDisplay,
-      path,
-      raw:json,
-      tables: extractTablesFromQuery(query),
-      severity,
-      tactics,
-      queryMetrics: summarizeQueryMetrics(query)
+      type:'analyticrule', id:p.displayName||json.displayName||baseDisplay, path, raw:json,
+      tables:extractTablesFromQuery(query), severity, tactics, queryMetrics:summarizeQueryMetrics(query)
+    };
+  }
+  if(/\/hunting queries\//i.test(lowerPath)||/\/huntingqueries\//i.test(lowerPath)||(json?.tags && json.tags['hidden-sentinelContentType']==='HuntingQuery')){
+    const query=json?.properties?.query||json?.query||'';
+    return {
+      type:'huntingquery', id:baseDisplay, path, raw:json,
+      tables:extractTablesFromQuery(query), queryMetrics:summarizeQueryMetrics(query)
+    };
+  }
+  if(/\/playbooks\//i.test(lowerPath)||(json?.definition||json?.properties?.definition)){
+    const wf=json?.definition||json?.properties?.definition;
+    return {
+      type:'playbook', id:baseDisplay, path, raw:json,
+      triggers:wf?.triggers?Object.keys(wf.triggers).length:0,
+      actions:wf?.actions?Object.keys(wf.actions).length:0
     };
   }
 
-  /* Hunting queries */
-  if(/\/hunting queries\//.test(lowerPath)||/\/huntingqueries\//.test(lowerPath)||(json?.tags && json.tags['hidden-sentinelContentType']==='HuntingQuery')){
-    const query=json?.properties?.query||json?.query||'';
-    return {type:'huntingquery',id:baseDisplay,path,raw:json,tables:extractTablesFromQuery(query),queryMetrics:summarizeQueryMetrics(query)};
-  }
-
-  /* Playbooks */
-  if(/\/playbooks\//.test(lowerPath)||(json?.definition||json?.properties?.definition)){
-    const wf=json?.definition||json?.properties?.definition;
-    return {type:'playbook',id:baseDisplay,path,raw:json,
-      triggers: wf?.triggers?Object.keys(wf.triggers).length:0,
-      actions: wf?.actions?Object.keys(wf.actions).length:0};
-  }
-
-  /* DCR-like dependency (non core dcr.json) */
-  if(lower!=='dcr.json' && (/microsoft\.insights\/datacollectionrules/.test(ltext) || json?.properties?.dataFlows || json?.dataFlows)){
+  /* ---------- DCR-LIKE DEPENDENCY (non-core) ---------- */
+  if(lowerFile!=='dcr.json' && (/microsoft\.insights\/datacollectionrules/.test(ltext)||json?.properties?.dataFlows||json?.dataFlows)){
     const flows=json?.properties?.dataFlows||json?.dataFlows||[];
     const flowsData=normalizeDcrFlows(flows);
     const tables=new Set(), streams=new Set();
@@ -698,76 +1413,403 @@ function classifyArtifact(json,path){
       const tf=f.transformKql||f.transformKQL||'';
       const into=tf.match(/into\s+table\s+([a-z0-9_]+)/ig);
       if(into) into.forEach(m=>{
-        const t=m.split(/\s+/).pop();
-        if(t) tables.add(t.toLowerCase());
+        const t=m.split(/\s+/).pop(); if(t) tables.add(t.toLowerCase());
       });
     });
     flowsData.forEach(fd=>fd.outputTables.forEach(t=>tables.add(t.toLowerCase())));
     return {
-      type:'dependency',
-      id:baseDisplay,
-      path,
-      raw:json,
-      dataFlows:flows.length,
-      tables:[...tables].sort(),
-      streams:[...streams].sort(),
-      flowsData,
-      endpoints:extractEndpointsGeneric(json)
+      type:'dependency', id:baseDisplay, path, raw:json,
+      dataFlows:flows.length, tables:[...tables].sort(), streams:[...streams].sort(),
+      flowsData, endpoints:extractEndpointsGeneric(json), serviceEndpoints:extractServiceEndpoints(json)
     };
   }
 
-  /* Refined connector heuristic */
-  const rawKind=(json?.kind||json?.properties?.kind||'').toLowerCase();
-  const uiCfg=json?.properties?.connectorUiConfig||json?.properties?.connectorUIConfig;
-  const dcrCfg=json?.properties?.dcrConfig;
-  const hasDcr=!!dcrCfg;
-  const hasDataTypes=Array.isArray(json?.properties?.dataTypes);
-  const isConnectorFolder=/\/data[ _-]?connectors?\//i.test(lowerPath);
-  const allowedConnectorPath=/Solutions\/[^/]+\/Data[ _-]?Connectors\//i.test(path);
-  const httpSignals=/(workspaceid.+sharedkey|x-ms-signature|opinsights\.azure\.com|api\/logs\?)/i.test(ltext);
-  const strongStructure=uiCfg && hasDcr;
-
-  let ingestionType='Other';
-  if(hasDcr) ingestionType='CCF-DCR';
-  else if(uiCfg && /codeless|apipolling|restapipoller/.test(rawKind)) ingestionType='CCF-UI';
-  else if(httpSignals) ingestionType='HTTP Data Collector';
-
-  const connectorStrong=
-    ((isConnectorFolder && allowedConnectorPath) && (uiCfg||hasDcr||hasDataTypes)) ||
-    strongStructure ||
-    (uiCfg && (hasDcr||hasDataTypes)) ||
-    (uiCfg && /codeless|apipolling|restapipoller/.test(rawKind)) ||
-    (httpSignals && uiCfg);
-
-  if(connectorStrong){
-    if(allowedConnectorPath || strongStructure){
-      const tables=hasDataTypes?json.properties.dataTypes.map(dt=>dt?.name||dt).filter(Boolean):[];
-      const streams=[];
-      if(dcrCfg?.streamDeclarations) dcrCfg.streamDeclarations.forEach(s=>s?.streamName&&streams.push(s.streamName));
-      const desc=uiCfg?.description||json?.properties?.description||'';
-      const publisher=uiCfg?.publisher||json?.properties?.publisher||json?.properties?.author||'';
-      const domain=uiCfg?.domain||json?.properties?.domain||'';
-      const metricNames=Array.isArray(uiCfg?.graphQueries)?[...new Set(uiCfg.graphQueries.map(g=>g?.metricName).filter(Boolean))]:[];
-      return {
-        type:'connector',
-        id:uiCfg?.title||uiCfg?.displayName||baseDisplay,
-        path,
-        raw:json,
-        mechanism:ingestionType,
-        ingestionType,
-        kindCategory: ingestionType==='HTTP Data Collector'?'HTTP Data Collector':detectKindCategory(json),
-        tables:[...new Set(tables)],
-        streams:[...new Set(streams)],
-        description:desc,
-        publisher,domain,metricNames,
-        endpoints:extractEndpointsGeneric(json)
-      };
-    }
+  /* ---------- CONNECTOR DETECTION (tight) ---------- */
+  if(EXCLUDE_FILE.has(lowerFile)) {
+    // These are never the connector definition (already handled above)
+    return { type:'json', id:baseDisplay, path, raw:json };
   }
 
-  /* Fallback generic */
-  return {type:'json',id:baseDisplay,path,raw:json};
+  const props = json?.properties||{};
+  const metaKind=(json?.metadata?.kind||props?.metadata?.kind||'').toLowerCase();
+  const rawKind=(json?.kind||props?.kind||'').toLowerCase();
+
+  const uiCfg=props.connectorUiConfig||props.connectorUIConfig;
+  const dcrCfg=props.dcrConfig;
+  const dataTypes = Array.isArray(props.dataTypes)?props.dataTypes:[];
+  const graphQueries = Array.isArray(uiCfg?.graphQueries)?uiCfg.graphQueries:[];
+  const streamDecl = Array.isArray(dcrCfg?.streamDeclarations)?dcrCfg.streamDeclarations:[];
+  const connectorId = props.connectorId || json.id || props.id;
+
+  const inConnectorFolder = /Solutions\/[^/]+\/(Data[ _-]?Connectors?|DataConnectors|Connectors?)\//i.test(path);
+
+  const strongSignals = [];
+  const mediumSignals = [];
+  const identitySignals = [];
+
+  if(dcrCfg) strongSignals.push('dcrConfig');
+  if(uiCfg) strongSignals.push('uiConfig');
+  if(metaKind==='dataconnector') strongSignals.push('metadata.kind=dataConnector');
+  if(rawKind==='dataconnector') strongSignals.push('kind=dataConnector');
+  if(/restapipoller|apipolling/.test(rawKind)) mediumSignals.push('restApiPoller');
+  if(/codeless/.test(rawKind)) mediumSignals.push('codelessKind');
+
+  if(dataTypes.length) mediumSignals.push('dataTypes');
+  if(graphQueries.length) mediumSignals.push('graphQueries');
+  if(streamDecl.length) mediumSignals.push('streamDeclarations');
+
+  if(connectorId) identitySignals.push('connectorId');
+
+  // Quick negative: if only medium signals = streamDeclarations (from a DCR-like) AND no strong signals & not in connector folder -> not a connector
+  if(!strongSignals.length && !identitySignals.length && !inConnectorFolder) {
+    return { type:'json', id:baseDisplay, path, raw:json };
+  }
+
+  // Required anchor: at least one of (connectorId, metadata.kind=dataConnector, uiConfig, dcrConfig)
+  const hasAnchor = connectorId || uiCfg || dcrCfg || (metaKind==='dataconnector');
+  if(!hasAnchor) {
+    return { type:'json', id:baseDisplay, path, raw:json };
+  }
+
+  // Score
+  let score = strongSignals.length*5 + mediumSignals.length*2 + (identitySignals.length?2:0);
+  if(inConnectorFolder) score += 1;
+  if(score < 5 && !inConnectorFolder) {
+    // Too weak outside canonical folder
+    return { type:'json', id:baseDisplay, path, raw:json };
+  }
+
+  const ingestionType = dcrCfg ? 'CCF-DCR' :
+                        uiCfg ? 'CCF-UI' :
+                        (streamDecl.length && dataTypes.length ? 'CCF-DCR' : 'Unknown');
+
+  const tables = dataTypes.map(dt=>dt?.name||dt).filter(Boolean);
+  const streams = streamDecl.map(s=>s?.streamName).filter(Boolean);
+
+  const title = uiCfg?.title || uiCfg?.displayName || props.displayName || json.title || json.name || baseDisplay;
+  const desc = uiCfg?.description || props.description || json.descriptionMarkdown || '';
+  const publisher = uiCfg?.publisher || props.publisher || props.author || json.publisher || '';
+  const domain = uiCfg?.domain || props.domain || '';
+  const logo = uiCfg?.logo || props.logo || json.logo || '';
+  const metricNames = graphQueries.map(g=>g?.metricName).filter(Boolean);
+
+  log(`Connector candidate(score=${score}): ${connectorId||title} strong=[${strongSignals}] medium=[${mediumSignals}] folder=${inConnectorFolder}`);
+
+  return {
+    type:'connector',
+    id:title,
+    rawId:connectorId || title,
+    path,
+    raw:json,
+    mechanism:ingestionType,
+    ingestionType,
+    kindCategory:
+      ingestionType==='CCF-DCR'?'CCF – DCR':
+      ingestionType==='CCF-UI'?'CCF – UI':'',
+    tables:[...new Set(tables)],
+    streams:[...new Set(streams)],
+    description:desc,
+    publisher,
+    domain,
+    metricNames:[...new Set(metricNames)],
+    branding:{logo},
+    endpoints:extractEndpointsGeneric(json),
+    serviceEndpoints:extractServiceEndpoints(json),
+    metadataKind: metaKind || undefined,
+    rawKind: rawKind || undefined,
+    score,
+    strongSignals,
+    mediumSignals,
+    dir: path.slice(0, path.lastIndexOf('/'))
+  };
 }
+
+// ================= UPDATED harvestEmbeddedArtifacts =================
+
+function harvestEmbeddedArtifacts(artifacts){
+  const mt = artifacts.coreFiles.find(c=>c.coreKind==='mainTemplate');
+  if(!mt || !mt.raw) return;
+
+  const resources = Array.isArray(mt.raw.resources) ? mt.raw.resources : [];
+  const exists = (arr, id) => arr.some(x => x.id === id);
+
+  resources.forEach(r=>{
+    const t=(r.type||'').toLowerCase();
+    const props=r.properties||{};
+
+    // Embedded Data Connectors
+    if(t.endsWith('/dataconnectors')){
+      const connectorId = props.connectorId || props.displayName || r.name?.split('/').pop() || 'DataConnector';
+      if(!exists(artifacts.connectors, connectorId)){
+        const uiCfg=props.connectorUiConfig||props.connectorUIConfig;
+        const dcrCfg=props.dcrConfig;
+        const hasDcr=!!dcrCfg;
+        const ingestionType = hasDcr ? 'CCF-DCR' : (uiCfg?'CCF-UI':'Unknown');
+        artifacts.connectors.push({
+          type:'connector',
+          id:uiCfg?.title||uiCfg?.displayName||props.displayName||connectorId,
+          rawId:connectorId,
+          path:'(embedded mainTemplate)',
+          raw:r,
+            mechanism:ingestionType,
+            ingestionType,
+            kindCategory: hasDcr?'CCF – DCR': uiCfg?'CCF – UI':'',
+            tables: Array.isArray(props.dataTypes)?props.dataTypes.map(dt=>dt?.name||dt).filter(Boolean):[],
+            streams: dcrCfg?.streamDeclarations?dcrCfg.streamDeclarations.map(s=>s.streamName).filter(Boolean):[],
+            description: uiCfg?.description||props.description||'',
+            publisher: uiCfg?.publisher||props.publisher||'',
+            domain: uiCfg?.domain||props.domain||'',
+            metricNames: Array.isArray(uiCfg?.graphQueries)?[...new Set(uiCfg.graphQueries.map(g=>g?.metricName).filter(Boolean))]:[],
+            branding:{logo: uiCfg?.logo||props.logo||''},
+            endpoints: extractEndpointsGeneric(r),
+            serviceEndpoints: extractServiceEndpoints(r),
+            embedded:true,
+            score: 100,
+            strongSignals: ['embeddedResource'],
+            mediumSignals: [],
+            dir: '(embedded)'
+        });
+        log(`Embedded connector harvested: ${connectorId}`);
+      }
+    }
+
+    // (Other embedded artifact types omitted here for brevity—retain existing code if you had it)
+  });
+}
+
+// ---- NEW helper: choose one connector definition per directory ----
+function refineConnectorCandidates(list){
+  if(!Array.isArray(list) || list.length===0) return list;
+  const groups = list.reduce((m,c)=>{
+    const key = c.dir || '';
+    if(!m[key]) m[key]=[];
+    m[key].push(c);
+    return m;
+  },{});
+  const out=[];
+  Object.entries(groups).forEach(([dir, arr])=>{
+    if(arr.length===1 || dir==='(embedded)'){
+      out.push(...arr);
+      return;
+    }
+    // Pick highest score; tie-breaker: has dcrConfig, then uiConfig, then more tables
+    arr.sort((a,b)=>{
+      if(b.score !== a.score) return b.score - a.score;
+      const aStrong = (a.strongSignals||[]).includes('dcrConfig') ? 2 :
+                      (a.strongSignals||[]).includes('uiConfig') ? 1 : 0;
+      const bStrong = (b.strongSignals||[]).includes('dcrConfig') ? 2 :
+                      (b.strongSignals||[]).includes('uiConfig') ? 1 : 0;
+      if(bStrong !== aStrong) return bStrong - aStrong;
+      return (b.tables?.length||0) - (a.tables?.length||0);
+    });
+    const primary = arr[0];
+    out.push(primary);
+    arr.slice(1).forEach(support=>{
+      log(`Connector support file (same dir -> not counted): ${support.rawId||support.id} dir=${dir}`);
+    });
+  });
+  return out;
+}
+
+
+// (Ensure buildArtifacts still calls harvestEmbeddedArtifacts(acc) after classification & dedupe.)
+
+function refineConnectorCandidates(list){
+  if(!Array.isArray(list) || list.length===0) return list;
+  const groups = list.reduce((m,c)=>{
+    const key = c.dir || '';
+    if(!m[key]) m[key]=[];
+    m[key].push(c);
+    return m;
+  },{});
+  const out=[];
+  Object.entries(groups).forEach(([dir, arr])=>{
+    if(arr.length===1 || dir==='(embedded)'){
+      out.push(...arr);
+      return;
+    }
+    // Pick highest score; tie-breaker: has dcrConfig, then uiConfig, then more tables
+    arr.sort((a,b)=>{
+      if(b.score !== a.score) return b.score - a.score;
+      const aStrong = (a.strongSignals||[]).includes('dcrConfig') ? 2 :
+                      (a.strongSignals||[]).includes('uiConfig') ? 1 : 0;
+      const bStrong = (b.strongSignals||[]).includes('dcrConfig') ? 2 :
+                      (b.strongSignals||[]).includes('uiConfig') ? 1 : 0;
+      if(bStrong !== aStrong) return bStrong - aStrong;
+      return (b.tables?.length||0) - (a.tables?.length||0);
+    });
+    const primary = arr[0];
+    out.push(primary);
+    arr.slice(1).forEach(support=>{
+      log(`Connector support file (same dir -> not counted): ${support.rawId||support.id} dir=${dir}`);
+    });
+  });
+  return out;
+}
+
+// ---- REVISED buildArtifacts inserting refine step & removing earlier extra dedupe ----
+function buildArtifacts(files){
+  const acc = {
+    connectors:[], dcrs:[], workbooks:[], analytics:[], hunting:[],
+    playbooks:[], watchlists:[], functions:[], notebooks:[], infra:[],
+    deploy:[], others:[], coreFiles:[], serviceEndpoints:[], files:[]
+  };
+
+  acc.files = (Array.isArray(files)?files:[]).map(f=>{
+    let text=''; try{ text=JSON.stringify(f.json).toLowerCase(); }catch{}
+    return { path:f.path, name:f.path.split('/').pop(), raw:f.json, text };
+  });
+
+  files.forEach(f=>{
+    const c = classifyArtifact(f.json, f.path);
+    if(!c){ log('Classifier returned null for '+f.path,true); return; }
+    switch(c.type){
+      case 'connector': acc.connectors.push(c); break;
+      case 'dependency': acc.dcrs.push(c); break;
+      case 'workbook': acc.workbooks.push(c); break;
+      case 'analyticrule': acc.analytics.push(c); break;
+      case 'huntingquery': acc.hunting.push(c); break;
+      case 'playbook': acc.playbooks.push(c); break;
+      case 'watchlist': acc.watchlists.push(c); break;
+      case 'kqlfunction': acc.functions.push(c); break;
+      case 'notebook': acc.notebooks.push(c); break;
+      case 'functioninfra': acc.infra.push(c); break;
+      case 'deployment': acc.deploy.push(c); break;
+      case 'filecore': acc.coreFiles.push(c); break;
+      default: acc.others.push(c);
+    }
+  });
+
+  // Embedded harvest
+  harvestEmbeddedArtifacts(acc);
+
+  // First dedupe (identity)
+  acc.connectors = dedupeConnectors(acc.connectors);
+
+  // Directory refinement (keep single definitive per dir)
+  acc.connectors = refineConnectorCandidates(acc.connectors);
+
+  // Re-dedupe just in case refinement produced duplicates merging dirs
+  acc.connectors = dedupeConnectors(acc.connectors);
+
+  // Link connectors -> DCR dependencies
+  const dcrNamesLower = new Map(acc.dcrs.map(d=>[d.id.toLowerCase(), d.id]));
+  acc.connectors.forEach(conn=>{
+    const txt = JSON.stringify(conn.raw||{}).toLowerCase();
+    conn.linkedDcrIds = [];
+    dcrNamesLower.forEach((orig, low)=>{ if(txt.includes(low)) conn.linkedDcrIds.push(orig); });
+  });
+
+  // Aggregate service endpoints
+  const seMap = new Map();
+  function addServiceEndpoints(list, sourceType, sourceId){
+    (list||[]).forEach(se=>{
+      const key=se.toLowerCase();
+      if(!seMap.has(key)) seMap.set(key,{id:se,sources:[]});
+      seMap.get(key).sources.push({type:sourceType,id:sourceId});
+    });
+  }
+  acc.connectors.forEach(c=>addServiceEndpoints(c.serviceEndpoints,'connector',c.id));
+  acc.dcrs.forEach(d=>addServiceEndpoints(d.serviceEndpoints,'dcr',d.id));
+  acc.coreFiles.filter(cf=>cf.coreKind==='dcr'&&cf.serviceEndpoints?.length)
+               .forEach(cf=>addServiceEndpoints(cf.serviceEndpoints,'core',cf.id));
+  acc.serviceEndpoints=[...seMap.values()];
+
+  log(`Artifact build complete: connectors=${acc.connectors.length}, dcrs=${acc.dcrs.length}, embedded=${acc.connectors.filter(c=>c.embedded).length}`);
+
+  return acc;
+}
+
+/* KEEP ONLY THIS dedupeConnectors (remove older duplicate) */
+function dedupeConnectors(list){
+  if(!Array.isArray(list)||list.length<=1) return list;
+  function canonicalKey(c){
+    const rawId=(c.raw?.properties?.connectorId)||(c.raw?.id)||c.rawId||c.id||'';
+    return rawId.toLowerCase()
+      .replace(/\(.*?\)/g,'')
+      .replace(/connector|integration|data$/g,'')
+      .replace(/[\s._-]+/g,'')
+      .replace(/v\d+$/,'');
+  }
+  function score(c){
+    const rank = c.ingestionType==='CCF-DCR'?5:
+                 c.ingestionType==='CCF-UI'?4:
+                 c.ingestionType==='HTTP Data Collector'?3:
+                 c.ingestionType==='Azure Function'?2:1;
+    const richness=(c.tables?.length||0)+(c.streams?.length||0);
+    return rank*10 + richness - (c.path||'').length/800 + (c.score||0)/10;
+  }
+  const groups=[...list.reduce((m,c)=>{
+    const k=canonicalKey(c);
+    if(!m.has(k)) m.set(k,[]);
+    m.get(k).push(c);
+    return m;
+  },new Map()).entries()];
+  const out=[];
+  groups.forEach(([key,arr])=>{
+    if(arr.length===1){ out.push(arr[0]); return; }
+    arr.sort((a,b)=>score(b)-score(a));
+    out.push(arr[0]);
+    arr.slice(1).forEach(c=>log(`Dedup (drop variant) ${c.id}`));
+  });
+  return out;
+}
+
+
+/* Updated dedupeConnectors to leverage rawId aggressively */
+function dedupeConnectors(list){
+  if(!Array.isArray(list)||list.length<=1) return list;
+  function canonicalKey(c){
+    const rawId=(c.raw?.id)|| (c.raw?.properties?.connectorId) || c.rawId || c.id || '';
+    return String(rawId).toLowerCase()
+      .replace(/\(.*?\)/g,'')
+      .replace(/connector|integration|data$/g,'')
+      .replace(/[\s._-]+/g,'')
+      .replace(/v\d+$/,'');
+  }
+  function score(c){
+    const rank=c.ingestionType==='CCF-DCR'?5:
+               c.ingestionType==='CCF-UI'?4:
+               c.ingestionType==='HTTP Data Collector'?3:
+               c.ingestionType==='Azure Function'?2:1;
+    const richness=(c.tables?.length||0)+(c.streams?.length||0);
+    const penalty=/sample|test|old|deprecated|legacy/i.test(c.path||'')?-3:0;
+    return rank*12 + richness + penalty - (c.path||'').length/600;
+  }
+  function jaccard(a,b){
+    if(!a.size && !b.size) return 1;
+    let inter=0; a.forEach(v=>{if(b.has(v)) inter++;});
+    const uni=a.size+b.size-inter;
+    return uni? inter/uni:0;
+  }
+  const groups=[...list.reduce((m,c)=>{
+    const k=canonicalKey(c);
+    if(!m.has(k)) m.set(k,[]);
+    m.get(k).push(c);
+    return m;
+  },new Map()).entries()];
+  const out=[];
+  groups.forEach(([key,arr])=>{
+    if(arr.length===1){ out.push(arr[0]); return; }
+    arr.sort((a,b)=>score(b)-score(a));
+    const primary=arr[0];
+    const primarySet=new Set([...(primary.tables||[]),...(primary.streams||[])].map(s=>s.toLowerCase()));
+    out.push(primary);
+    for(let i=1;i<arr.length;i++){
+      const cand=arr[i];
+      const candSet=new Set([...(cand.tables||[]),...(cand.streams||[])].map(s=>s.toLowerCase()));
+      const sim=jaccard(primarySet,candSet);
+      if(sim>=0.7){
+        log(`Dedup connector dropped "${cand.id}" (sim ${sim.toFixed(2)})`);
+      }else{
+        out.push(cand);
+      }
+    }
+  });
+  return out;
+}
+
+
 
 /* Connector dedupe */
 function dedupeConnectors(list){
@@ -821,46 +1863,98 @@ function dedupeConnectors(list){
 
 /* Build artifacts bucket */
 function buildArtifacts(files){
-  const acc={
-    connectors:[],dcrs:[],workbooks:[],analytics:[],hunting:[],playbooks:[],
-    watchlists:[],functions:[],notebooks:[],
-    infra:[],deploy:[],others:[],coreFiles:[]
+  const acc = {
+    connectors:[],
+    dcrs:[],
+    workbooks:[],
+    analytics:[],
+    hunting:[],
+    playbooks:[],
+    watchlists:[],
+    functions:[],
+    notebooks:[],
+    infra:[],
+    deploy:[],
+    others:[],
+    coreFiles:[],
+    serviceEndpoints:[], // aggregated later
+    files:[]             // raw file list (path + raw + pre-lowered text)
   };
+
+  // Build raw file list early (supports analyzer line-level)
+  acc.files = (Array.isArray(files)?files:[]).map(f=>{
+    let text='';
+    try{ text = JSON.stringify(f.json).toLowerCase(); }catch{}
+    return {
+      path:f.path,
+      name:f.path.split('/').pop(),
+      raw:f.json,
+      text
+    };
+  });
+
+  // Classify each file
   files.forEach(f=>{
-    const c=classifyArtifact(f.json,f.path);
-    if(!c){ log('Classifier undefined for '+f.path,true); return; }
+    const c = classifyArtifact(f.json, f.path);
+    if(!c){
+      log('Classifier undefined for '+f.path, true);
+      return;
+    }
     switch(c.type){
-      case 'connector':acc.connectors.push(c);break;
-      case 'dependency':acc.dcrs.push(c);break;
-      case 'workbook':acc.workbooks.push(c);break;
-      case 'analyticrule':acc.analytics.push(c);break;
-      case 'huntingquery':acc.hunting.push(c);break;
-      case 'playbook':acc.playbooks.push(c);break;
-      case 'watchlist':acc.watchlists.push(c);break;
-      case 'kqlfunction':acc.functions.push(c);break;
-      case 'notebook':acc.notebooks.push(c);break;
-      case 'functioninfra':acc.infra.push(c);break;
-      case 'deployment':acc.deploy.push(c);break;
-      case 'filecore':acc.coreFiles.push(c);break;
-      default:acc.others.push(c);
+      case 'connector':     acc.connectors.push(c); break;
+      case 'dependency':    acc.dcrs.push(c); break;
+      case 'workbook':      acc.workbooks.push(c); break;
+      case 'analyticrule':  acc.analytics.push(c); break;
+      case 'huntingquery':  acc.hunting.push(c); break;
+      case 'playbook':      acc.playbooks.push(c); break;
+      case 'watchlist':     acc.watchlists.push(c); break;
+      case 'kqlfunction':   acc.functions.push(c); break;
+      case 'notebook':      acc.notebooks.push(c); break;
+      case 'functioninfra': acc.infra.push(c); break;
+      case 'deployment':    acc.deploy.push(c); break;
+      case 'filecore':      acc.coreFiles.push(c); break;
+      default:              acc.others.push(c);
     }
   });
-  acc.connectors=dedupeConnectors(acc.connectors);
 
-  const dcrNamesLower=new Map(acc.dcrs.map(d=>[d.id.toLowerCase(),d.id]));
-  acc.connectors.forEach(c=>{
-    const txt=JSON.stringify(c.raw).toLowerCase();
-    c.linkedDcrIds=[];
-    dcrNamesLower.forEach((orig,low)=>{ if(txt.includes(low)) c.linkedDcrIds.push(orig); });
+  // Deduplicate connectors (existing helper)
+  acc.connectors = dedupeConnectors(acc.connectors);
+
+  // Link connectors to DCR dependencies (simple name text match)
+  const dcrNamesLower = new Map(acc.dcrs.map(d=>[d.id.toLowerCase(), d.id]));
+  acc.connectors.forEach(conn=>{
+    const txt = JSON.stringify(conn.raw||{}).toLowerCase();
+    conn.linkedDcrIds = [];
+    dcrNamesLower.forEach((orig, low)=>{
+      if(txt.includes(low)) conn.linkedDcrIds.push(orig);
+    });
   });
 
-  // NEW: expose raw file list for architecture analyzer (path + raw json + optional pre-rendered lowercase text)
-  acc.files = files.map(f=>({
-    path: f.path,
-    name: f.path.split('/').pop(),
-    raw:  f.json,
-    text: (()=>{ try { return JSON.stringify(f.json).toLowerCase(); } catch { return ''; } })()
-  }));
+  // Aggregate service endpoints from connectors, dependency DCRs, and core DCR files
+  const seMap = new Map();
+  function addServiceEndpoints(list, sourceType, sourceId){
+    (list||[]).forEach(se=>{
+      const key = se.toLowerCase();
+      if(!seMap.has(key)){
+        seMap.set(key, { id: se, sources: [] });
+      }
+      seMap.get(key).sources.push({ type: sourceType, id: sourceId });
+    });
+  }
+  acc.connectors.forEach(c=> addServiceEndpoints(c.serviceEndpoints, 'connector', c.id));
+  acc.dcrs.forEach(d=> addServiceEndpoints(d.serviceEndpoints, 'dcr', d.id));
+  acc.coreFiles.filter(cf=>cf.coreKind==='dcr' && cf.serviceEndpoints?.length)
+               .forEach(cf=> addServiceEndpoints(cf.serviceEndpoints, 'core', cf.id));
+
+  acc.serviceEndpoints = [...seMap.values()];
+
+  // Enrich connectors with a synthetic flag if they have poller endpoints but no explicit event API
+  acc.connectors.forEach(c=>{
+    if(c.serviceEndpoints && c.serviceEndpoints.some(se=>/poller:\/\/event-api/i.test(se))){
+      c.hasEventApiPoller = true;
+    }
+  });
+
   return acc;
 }
 
@@ -969,770 +2063,6 @@ async function extractSolutionMeta(owner,repo,branch,solution,paths){
     rawSolutionMeta:sm
   };
 }
-
-/* === New Architecture Determination (Rule-based) ===
-   CCF vs Legacy vs Unknown following user-specified priority:
-   1) RestApiPoller kind in mainTemplate => CCF
-   2) pollerConfig.json + dcr.json => CCF
-   3) AzureFunction or DataCollector kind in mainTemplate => Legacy
-   4) host.json + functionApp.json => Legacy
-   Else => Unknown
-*/
-
-/*
-function analyzeSolutionArchitecture(art){
-  const strongCcf = new Set();
-  const weakCcf   = new Set();
-  const strongHttp= new Set();
-
-  // Core files + embedded resources
-  (art.coreFiles||[]).forEach(cf=>{
-    const raw = cf.raw || {};
-    const resources = [];
-    (function collect(r){
-      if(Array.isArray(r)) r.forEach(x=>{
-        resources.push(x);
-        if(Array.isArray(x.resources)) collect(x.resources);
-      });
-    })(raw.resources);
-
-    resources.forEach(r=>{
-      const t = (r.type||'').toLowerCase();
-      if(t === 'microsoft.insights/datacollectionrules'){ strongCcf.add('dcr-resource'); }
-      else if(t === 'microsoft.insights/datacollectionendpoints'){ strongCcf.add('dce-resource'); }
-      else if(t.endsWith('/datacollectionruleassociations')) strongCcf.add('dcr-assoc');
-      else if(t.endsWith('/dataconnectors')) weakCcf.add('dataconnectors-resource');
-    });
-
-    const paramsTxt = JSON.stringify(raw.parameters||{}).toLowerCase();
-    if(paramsTxt.includes('workspaceid') && paramsTxt.includes('sharedkey')){
-      strongHttp.add('params-workspace-sharedkey');
-    }
-  });
-
-  // Standalone DCR JSON files counted as strong CCF
-  if((art.dcrs||[]).length) strongCcf.add('dcr-file');
-
-  // Poller config presence
-  if((art.coreFiles||[]).some(f=>f.coreKind === 'pollerConfig')) strongCcf.add('poller-config');
-
-  // Connectors
-  (art.connectors||[]).forEach(c=>{
-    const raw = c.raw || {};
-    const txt = JSON.stringify(raw).toLowerCase();
-    const kindCat = ((c.kindCategory||'') + ' ' + (c.mechanism||'')).toLowerCase();
-
-    const hasDcrConfig    = !!raw?.properties?.dcrConfig;
-    const hasUiConfig     = !!(raw?.properties?.connectorUiConfig||raw?.properties?.connectorUIConfig);
-    const hasDataTypes    = Array.isArray(raw?.properties?.dataTypes) && raw.properties.dataTypes.length>0;
-    const hasGraphQueries = Array.isArray(raw?.properties?.graphQueries) && raw.properties.graphQueries.length>0;
-
-    if(hasDcrConfig) strongCcf.add('dcrConfig');
-    if(/restapipoller|apipolling/.test(kindCat)) strongCcf.add('restApiPoller');
-
-    // Codeless full package
-    if(hasDcrConfig && hasUiConfig && hasDataTypes && hasGraphQueries){
-      strongCcf.add('codeless-full');
-    } else if(!hasDcrConfig && (hasUiConfig || /codeless/.test(kindCat))){
-      weakCcf.add('ui-or-codeless-no-dcr');
-    }
-
-    // HTTP signals
-    if(!hasDcrConfig && /workspaceid/.test(txt) && /sharedkey/.test(txt)) strongHttp.add('workspace-sharedkey');
-    if(/\/api\/logs\?/.test(txt)) strongHttp.add('api-logs');
-    if(/x-ms-date/.test(txt) && /x-ms-signature/.test(txt)) strongHttp.add('sig-headers');
-    if(/http data collector|datacollector/.test(kindCat)) strongHttp.add('http-kind');
-    if(/azurefunction/.test(kindCat)) strongHttp.add('azure-function-kind');
-
-    (c.endpoints||[]).forEach(ep=>{
-      if(/ods\.opinsights|opinsights\.azure\.com|oms\./.test(ep)) strongHttp.add('opinsights-endpoint');
-    });
-  });
-
-  // Function infra: treat presence as strong HTTP signal (legacy ingestion infra)
-  if((art.infra||[]).length) strongHttp.add('function-infra');
-
-  // SCORING
-  const scStrong = strongCcf.size;
-  const scWeak   = weakCcf.size;
-  const shStrong = strongHttp.size;
-
-  let type = '';
-  if(scStrong >= 2){
-    type = 'CCF';
-  } else if(scStrong >= 1 && scWeak >= 2){
-    type = 'CCF';
-  } else if(scStrong === 0 && shStrong > 0){
-    type = 'HTTP Data Collector API';
-  } else if(scStrong === 1 && shStrong >= 2){
-    type = 'HTTP Data Collector API';
-  } else if(!type && shStrong >= 1){
-    type = 'HTTP Data Collector API';
-  } else {
-    type = 'Unknown';
-  }
-
-  return {
-    type,
-    ccfStrongSignals: [...strongCcf].sort(),
-    ccfWeakSignals:   [...weakCcf].sort(),
-    httpSignals:      [...strongHttp].sort(),
-    scoring: {
-      ccfStrong: scStrong,
-      ccfWeak: scWeak,
-      httpStrong: shStrong
-    }
-  };
-}
-
-*/
-
-/*
-function analyzeSolutionArchitecture(art){
-  if(!art) return { type:'Unknown', reasoning:'No artifacts loaded.', connectors:[], evidence:[] };
-
-  // ---------- helpers ----------
-  const toTxt = v => {
-    try { return (typeof v === 'string' ? v : JSON.stringify(v||{})).toLowerCase(); }
-    catch { return ''; }
-  };
-  const fileList = Array.isArray(art.files) ? art.files : [];
-  const coreList = Array.isArray(art.coreFiles) ? art.coreFiles : [];
-
-  const fileNameSet = new Set(
-    fileList
-      .map(f => (f.path || f.name || '').toLowerCase())
-      .filter(Boolean)
-  );
-
-  const hasAnyFileNamed = (...needles) => needles.some(n => {
-    n = n.toLowerCase();
-    for(const f of fileNameSet){
-      if(f.endsWith('/'+n) || f === n || f.includes('/'+n)) return true;
-    }
-    return false;
-  });
-
-  // Sovereign & public cloud ODS / Log Analytics hosts
-  const odsHostRe = /(\/\/|\.)(ods|opinsights)\.azure\.(com|cn|us|de|gov)(\/|:|$)/;
-  const apiLogsRe = /\/api\/logs(\?|$)/;
-  const sharedKeyHdrRe = /authorization:\s*sharedkey/;
-  const logTypeHdrRe = /log-type/;
-  const xmsDateHdrRe = /x-ms-date/;
-  const timeGenFieldRe = /time-generated-field/;
-
-  // CCF platform packaging artifacts
-  const hasConnectorDefinitionFile = hasAnyFileNamed('connectorDefinition.json');
-  const hasPollerConfigFile        = hasAnyFileNamed('pollerConfig.json');
-  const hasAnyDcrJson              = hasAnyFileNamed('dcr.json','dcr.config.json','dataCollectionRule.json');
-  const hasAnyTableSchema          = hasAnyFileNamed('tableSchema.json','tables.json');
-  const hasAnyCreateUIDef          = hasAnyFileNamed('createUiDefinition.json');
-  const hasAnyMainTemplate         = hasAnyFileNamed('mainTemplate.json','azuredeploy.json');
-
-  // ---------- per-connector analysis ----------
-  const connectors = (art.connectors||[]).map(c=>{
-    const raw = c.raw || {};
-    const txt = toTxt(raw);
-    const mech = (c.mechanism||'').toLowerCase();
-    const id = c.id || c.name || c.path || 'connector';
-
-    const strongCcf = new Set();
-    const weakCcf   = new Set();
-    const strongHttp= new Set();
-    const weakHttp  = new Set();
-
-    const props = raw?.properties || {};
-    const hasDcrConfig = !!props?.dcrConfig;
-    const uiCfg        = props?.connectorUiConfig || props?.connectorUIConfig;
-    const hasUiConfig  = !!uiCfg;
-    const dataTypes    = Array.isArray(props?.dataTypes) ? props.dataTypes : [];
-    const graphQueries = Array.isArray(props?.graphQueries) ? props.graphQueries : [];
-    const hasStreams   = Array.isArray(c.streams) && c.streams.length>0;
-
-    const nameTxt = (c.name||c.path||c.id||'').toLowerCase();
-
-    // CCF signals
-    const mentionsPoller = /restapipoller|api\s*polling|pollerconfig|poller-config/.test(txt) || /pollerconfig/.test(nameTxt);
-    const mentionsCodeless = /codeless/.test(txt);
-    const mentionsDCE = /microsoft\.insights\/datacollectionendpoints/.test(txt);
-    const mentionsDCR = /microsoft\.insights\/datacollectionrules/.test(txt) || hasDcrConfig;
-
-    const hasFullCodeless = hasDcrConfig && hasUiConfig && dataTypes.length && graphQueries.length;
-    if(hasFullCodeless)              strongCcf.add('codeless-full (dcrConfig+uiConfig+dataTypes+graphQueries)');
-    if(mentionsPoller)               strongCcf.add('apiPoller');
-    if(hasStreams)                   strongCcf.add('streams');
-    if(mentionsDCE)                  strongCcf.add('dataCollectionEndpoint');
-    if(mentionsDCR)                  strongCcf.add('dataCollectionRule');
-
-    if(hasUiConfig && !hasFullCodeless)        weakCcf.add('uiConfig');
-    if(mentionsCodeless && !hasFullCodeless)   weakCcf.add('codeless-keyword');
-    if(graphQueries.length && !hasDcrConfig)   weakCcf.add('graphQueries-only');
-
-    // HTTP signals (strengthened to need endpoint/signature for combined workspaceId/sharedKey strong)
-    const hasWorkspaceId = /workspaceid|la_workspace_id|customerid/.test(txt);
-    const hasSharedKey   = /sharedkey|workspacekey|primarykey/.test(txt);
-    const hasSignature   = /x-ms-signature/.test(txt) || sharedKeyHdrRe.test(txt);
-    const hasApiLogs     = apiLogsRe.test(txt);
-    const hasOpInsights  = odsHostRe.test(txt);
-    const hasLogAnalyticsUri = /loganalyticsuri/.test(txt) && (hasOpInsights || /azure\.(com|cn|us|de|gov)/.test(txt));
-    const mentionsCollector = /datacollector|http data collector|data collector api/i.test(txt) || mech.includes('http data collector');
-
-    if(hasWorkspaceId && hasSharedKey &&
-       (hasApiLogs || hasOpInsights || hasLogAnalyticsUri || hasSignature)){
-      strongHttp.add('workspaceId+sharedKey+endpoint/signature');
-    } else {
-      if(hasWorkspaceId) weakHttp.add('workspaceId');
-      if(hasSharedKey)   weakHttp.add('sharedKey');
-    }
-    if(hasSignature)       strongHttp.add('x-ms-signature/SharedKey');
-    if(hasApiLogs)         strongHttp.add('/api/logs endpoint');
-    if(hasLogAnalyticsUri) strongHttp.add('logAnalyticsUri');
-    else if(hasOpInsights) weakHttp.add('opinsights-host');
-    if(mentionsCollector)  strongHttp.add('data-collector-api-mention');
-
-    // Ancillary HTTP hints
-    if(logTypeHdrRe.test(txt))   weakHttp.add('Log-Type-header');
-    if(xmsDateHdrRe.test(txt))   weakHttp.add('x-ms-date-header');
-    if(timeGenFieldRe.test(txt)) weakHttp.add('time-generated-field');
-
-    // Scoring & classification
-    const scoreCcf  = strongCcf.size*3 + weakCcf.size;
-    const scoreHttp = strongHttp.size*3 + weakHttp.size;
-    let arch='Neutral';
-    if(scoreCcf===0 && scoreHttp===0){
-      arch='Neutral';
-    } else if(scoreCcf >= scoreHttp + 2){
-      arch='CCF';
-    } else if(scoreHttp >= scoreCcf + 2){
-      arch='HTTP';
-    } else {
-      if(strongCcf.size > strongHttp.size) arch='CCF';
-      else if(strongHttp.size > strongCcf.size) arch='HTTP';
-      else arch='Mixed';
-    }
-
-    return {
-      id,
-      arch,
-      strongCcf:[...strongCcf],
-      weakCcf:[...weakCcf],
-      strongHttp:[...strongHttp],
-      weakHttp:[...weakHttp],
-      score:{ ccf:scoreCcf, http:scoreHttp }
-    };
-  });
-
-  // ---------- aggregate counts ----------
-  const counts = connectors.reduce((acc,c)=>{
-    acc[c.arch]=(acc[c.arch]||0)+1;
-    acc.total++;
-    return acc;
-  },{total:0});
-
-  // ---------- core template reinforcement ----------
-  let coreHasDcrResource=false;
-  let coreHasDceResource=false;
-  let coreHasWorkspaceCreds=false;
-  let coreHasHttpFlow=false; // explicit /api/logs
-  let coreHasCCFArtifacts=false;
-
-  const scanTemplateResources = (tmplRaw) => {
-    const resources = [];
-    (function collect(arr){
-      if(Array.isArray(arr)) arr.forEach(r=>{
-        resources.push(r);
-        if(Array.isArray(r.resources)) collect(r.resources);
-      });
-    })(tmplRaw?.resources);
-    return resources;
-  };
-
-  coreList.forEach(cf=>{
-    const raw=cf.raw||{};
-    const txt=toTxt(raw);
-    const resources = scanTemplateResources(raw);
-
-    for(const r of resources){
-      const t=(r?.type||'').toLowerCase();
-      if(t==='microsoft.insights/datacollectionrules') coreHasDcrResource=true;
-      if(t==='microsoft.insights/datacollectionendpoints') coreHasDceResource=true;
-      if(t.endsWith('microsoft.insights/datacollectionrules/associations')) coreHasDcrResource=true;
-    }
-
-    if(apiLogsRe.test(txt)) coreHasHttpFlow = true;
-    // workspace creds only strong when paired; still track combined appearance
-    if(/workspaceid/.test(txt) && /sharedkey|workspacekey|primarykey/.test(txt)) coreHasWorkspaceCreds = true;
-  });
-
-  if(hasConnectorDefinitionFile || hasPollerConfigFile) coreHasCCFArtifacts = true;
-
-  // ---------- final decision ----------
-  const strongCcfConnectors = connectors.filter(c=>c.arch==='CCF');
-  const strongHttpConnectors= connectors.filter(c=>c.arch==='HTTP');
-  const mixedConnectors     = connectors.filter(c=>c.arch==='Mixed');
-  const neutralConnectors   = connectors.filter(c=>c.arch==='Neutral');
-
-  let type='Unknown';
-  const totalStrongSignals = (arr,side) =>
-    arr.reduce((sum,c)=> sum + (side==='ccf'?c.strongCcf.length : c.strongHttp.length),0);
-
-  if(connectors.length===0){
-    if(coreHasCCFArtifacts || coreHasDcrResource || coreHasDceResource) type='CCF';
-    else if(coreHasHttpFlow || coreHasWorkspaceCreds) type='HTTP Data Collector API';
-    else type='Unknown';
-  } else {
-    const pct = v => v / connectors.length;
-    if(strongCcfConnectors.length && !strongHttpConnectors.length && !mixedConnectors.length){
-      type='CCF';
-    } else if(strongHttpConnectors.length && !strongCcfConnectors.length && !mixedConnectors.length){
-      type='HTTP Data Collector API';
-    } else if(pct(strongCcfConnectors.length) >= 0.6){
-      type='CCF';
-    } else if(pct(strongHttpConnectors.length) >= 0.6){
-      type='HTTP Data Collector API';
-    } else if(strongCcfConnectors.length || strongHttpConnectors.length || mixedConnectors.length){
-      const ccfStrongTotal  = totalStrongSignals(connectors,'ccf');
-      const httpStrongTotal = totalStrongSignals(connectors,'http');
-      if(ccfStrongTotal > httpStrongTotal) type='CCF';
-      else if(httpStrongTotal > ccfStrongTotal) type='HTTP Data Collector API';
-      else {
-        // Tie-break: prefer real packaging artifacts before default
-        if(coreHasCCFArtifacts || coreHasDcrResource || coreHasDceResource) type='CCF';
-        else if(coreHasHttpFlow || coreHasWorkspaceCreds) type='HTTP Data Collector API';
-        else type='CCF'; // modern default
-      }
-    } else {
-      if(coreHasCCFArtifacts || coreHasDcrResource || coreHasDceResource) type='CCF';
-      else if(coreHasHttpFlow || coreHasWorkspaceCreds) type='HTTP Data Collector API';
-      else type='Unknown';
-    }
-  }
-
-  // ---------- reasoning & evidence ----------
-  function buildReasoning(){
-    if(type==='Unknown'){
-      return 'Unknown: no decisive per-connector strong signals and no core CCF (connectorDefinition/pollerConfig/DCR/DCE) or HTTP (/api/logs + shared key) patterns.';
-    }
-    const parts=[];
-    parts.push(`Connectors: CCF=${strongCcfConnectors.length}, HTTP=${strongHttpConnectors.length}, Mixed=${mixedConnectors.length}, Neutral=${neutralConnectors.length}`);
-    if(coreHasCCFArtifacts) parts.push('Packaging has connectorDefinition/pollerConfig');
-    if(coreHasDcrResource)  parts.push('Template includes dataCollectionRules');
-    if(coreHasDceResource)  parts.push('Template includes dataCollectionEndpoints');
-    if(coreHasHttpFlow)     parts.push('Template includes /api/logs flow');
-    if(coreHasWorkspaceCreds) parts.push('Template shows workspaceId+sharedKey parameters');
-    const sideSignals = type==='CCF'
-      ? strongCcfConnectors.flatMap(c=>c.strongCcf)
-      : strongHttpConnectors.flatMap(c=>c.strongHttp);
-    if(sideSignals.length){
-      parts.push(`Dominant strong signals: ${[...new Set(sideSignals)].join(', ')}`);
-    } else {
-      parts.push('Decision based on majority/core reinforcement');
-    }
-    return `${type} because: ` + parts.join('; ');
-  }
-
-  const evidence = [];
-  connectors.forEach(c=>{
-    if(c.strongCcf.length) evidence.push(`${c.id}: CCF [${c.strongCcf.join(', ')}]`);
-    if(c.strongHttp.length) evidence.push(`${c.id}: HTTP [${c.strongHttp.join(', ')}]`);
-  });
-  if(coreHasCCFArtifacts) evidence.push('Core: connectorDefinition.json/pollerConfig.json present');
-  if(coreHasDcrResource)  evidence.push('Core: dataCollectionRules resource');
-  if(coreHasDceResource)  evidence.push('Core: dataCollectionEndpoints resource');
-  if(coreHasHttpFlow)     evidence.push('Core: /api/logs flow present');
-  if(coreHasWorkspaceCreds) evidence.push('Core: workspaceId+sharedKey pattern');
-
-  return {
-    type,
-    connectors,
-    counts: {
-      ccf: strongCcfConnectors.length,
-      http: strongHttpConnectors.length,
-      mixed: mixedConnectors.length,
-      neutral: neutralConnectors.length,
-      total: connectors.length
-    },
-    core: {
-      ccfArtifacts: coreHasCCFArtifacts,
-      dcrResource: coreHasDcrResource,
-      dceResource: coreHasDceResource,
-      httpApiLogs: coreHasHttpFlow,
-      workspaceKeyPair: coreHasWorkspaceCreds
-    },
-    reasoning: buildReasoning(),
-    evidence
-  };
-}
-*/
-
-
-/*
-function analyzeSolutionArchitecture(art){
-  if(!art) return {
-    type:'Unknown',
-    reasoning:'No artifacts loaded.',
-    connectors:[],
-    evidence:[],
-    reasoningLines:['No artifacts loaded.'],
-    evidenceLines:[],
-    endpoints:{http:[],ccf:[]},
-    modes:{poll:false,push:false,summary:'None'}
-  };
-
-  // ---------- helpers ----------
-  const toTxt = v => {
-    try { return (typeof v === 'string' ? v : JSON.stringify(v||{})).toLowerCase(); }
-    catch { return ''; }
-  };
-  const fileList = Array.isArray(art.files) ? art.files : [];
-  const coreList = Array.isArray(art.coreFiles) ? art.coreFiles : [];
-
-  const fileNameSet = new Set(
-    fileList
-      .map(f => (f.path || f.name || '').toLowerCase())
-      .filter(Boolean)
-  );
-
-  const hasAnyFileNamed = (...needles) => needles.some(n => {
-    n = n.toLowerCase();
-    for(const f of fileNameSet){
-      if(f.endsWith('/'+n) || f === n || f.includes('/'+n)) return true;
-    }
-    return false;
-  });
-
-  // Sovereign & public cloud ingestion hosts
-  const odsHostRe = /(\/\/|\.)(ods|opinsights)\.azure\.(com|cn|us|de|gov)(\/|:|$)/;
-  const apiLogsRe = /\/api\/logs(\?|$)/;
-  const sharedKeyHdrRe = /authorization:\s*sharedkey/;
-  const logTypeHdrRe = /log-type/;
-  const xmsDateHdrRe = /x-ms-date/;
-  const timeGenFieldRe = /time-generated-field/;
-
-  // CCF packaging artifacts
-  const hasConnectorDefinitionFile = hasAnyFileNamed('connectorDefinition.json');
-  const hasPollerConfigFile        = hasAnyFileNamed('pollerConfig.json');
-  const hasAnyDcrJson              = hasAnyFileNamed('dcr.json','dcr.config.json','dataCollectionRule.json');
-  const hasAnyTableSchema          = hasAnyFileNamed('tableSchema.json','tables.json');
-  const hasAnyCreateUIDef          = hasAnyFileNamed('createUiDefinition.json');
-  const hasAnyMainTemplate         = hasAnyFileNamed('mainTemplate.json','azuredeploy.json');
-
-  // Endpoint collectors
-  const httpEndpointSet = new Set();
-  const ccfEndpointSet  = new Set(); // future: if you parse DCE URLs explicitly
-
-  // ---------- per-connector analysis ----------
-  const connectors = (art.connectors||[]).map(c=>{
-    const raw = c.raw || {};
-    const txt = toTxt(raw);
-    const mech = (c.mechanism||'').toLowerCase();
-    const id = c.id || c.name || c.path || 'connector';
-
-    const strongCcf = new Set();
-    const weakCcf   = new Set();
-    const strongHttp= new Set();
-    const weakHttp  = new Set();
-
-    const props = raw?.properties || {};
-    const hasDcrConfig = !!props?.dcrConfig;
-    const uiCfg        = props?.connectorUiConfig || props?.connectorUIConfig;
-    const hasUiConfig  = !!uiCfg;
-    const dataTypes    = Array.isArray(props?.dataTypes) ? props.dataTypes : [];
-    const graphQueries = Array.isArray(props?.graphQueries) ? props.graphQueries : [];
-    const hasStreams   = Array.isArray(c.streams) && c.streams.length>0;
-
-    const nameTxt = (c.name||c.path||c.id||'').toLowerCase();
-
-    // CCF signals
-    const mentionsPoller   = /restapipoller|api\s*polling|pollerconfig|poller-config/.test(txt) || /pollerconfig/.test(nameTxt);
-    const mentionsCodeless = /codeless/.test(txt);
-    const mentionsDCE      = /microsoft\.insights\/datacollectionendpoints/.test(txt);
-    const mentionsDCR      = /microsoft\.insights\/datacollectionrules/.test(txt) || hasDcrConfig;
-
-    const hasFullCodeless = hasDcrConfig && hasUiConfig && dataTypes.length && graphQueries.length;
-    if(hasFullCodeless)              strongCcf.add('codeless-full (dcrConfig+uiConfig+dataTypes+graphQueries)');
-    if(mentionsPoller)               strongCcf.add('apiPoller');
-    if(hasStreams)                   strongCcf.add('streams');
-    if(mentionsDCE)                  strongCcf.add('dataCollectionEndpoint');
-    if(mentionsDCR)                  strongCcf.add('dataCollectionRule');
-
-    if(hasUiConfig && !hasFullCodeless)        weakCcf.add('uiConfig');
-    if(mentionsCodeless && !hasFullCodeless)   weakCcf.add('codeless-keyword');
-    if(graphQueries.length && !hasDcrConfig)   weakCcf.add('graphQueries-only');
-
-    // HTTP signals
-    const hasWorkspaceId = /workspaceid|la_workspace_id|customerid/.test(txt);
-    const hasSharedKey   = /sharedkey|workspacekey|primarykey/.test(txt);
-    const hasSignature   = /x-ms-signature/.test(txt) || sharedKeyHdrRe.test(txt);
-    const hasApiLogs     = apiLogsRe.test(txt);
-    const hasOpInsights  = odsHostRe.test(txt);
-    const hasLogAnalyticsUri = /loganalyticsuri/.test(txt) && (hasOpInsights || /azure\.(com|cn|us|de|gov)/.test(txt));
-    const mentionsCollector = /datacollector|http data collector|data collector api/i.test(txt) || mech.includes('http data collector');
-
-    // HTTP endpoint harvesting (URI patterns)
-    const uriMatches = (txt.match(/https?:\/\/[a-z0-9.-]+[^\s"']* /gi) || []).slice(0,30);
-    uriMatches.forEach(u=>{
-      const ul=u.toLowerCase();
-      if(/api\/logs/.test(ul) || /loganalyticsuri/.test(ul) || /opinsights/.test(ul) || /ods\./.test(ul)){
-        httpEndpointSet.add(u.replace(/["',;]+$/,''));
-      }
-    });
-
-    if(hasWorkspaceId && hasSharedKey &&
-       (hasApiLogs || hasOpInsights || hasLogAnalyticsUri || hasSignature)){
-      strongHttp.add('workspaceId+sharedKey+endpoint/signature');
-    } else {
-      if(hasWorkspaceId) weakHttp.add('workspaceId');
-      if(hasSharedKey)   weakHttp.add('sharedKey');
-    }
-    if(hasSignature)       strongHttp.add('x-ms-signature/SharedKey');
-    if(hasApiLogs)         strongHttp.add('/api/logs endpoint');
-    if(hasLogAnalyticsUri) strongHttp.add('logAnalyticsUri');
-    else if(hasOpInsights) weakHttp.add('opinsights-host');
-    if(mentionsCollector)  strongHttp.add('data-collector-api-mention');
-
-    if(logTypeHdrRe.test(txt))   weakHttp.add('Log-Type-header');
-    if(xmsDateHdrRe.test(txt))   weakHttp.add('x-ms-date-header');
-    if(timeGenFieldRe.test(txt)) weakHttp.add('time-generated-field');
-
-    // Scoring & classification
-    const scoreCcf  = strongCcf.size*3 + weakCcf.size;
-    const scoreHttp = strongHttp.size*3 + weakHttp.size;
-    let arch='Neutral';
-    if(scoreCcf===0 && scoreHttp===0){
-      arch='Neutral';
-    } else if(scoreCcf >= scoreHttp + 2){
-      arch='CCF';
-    } else if(scoreHttp >= scoreCcf + 2){
-      arch='HTTP';
-    } else {
-      if(strongCcf.size > strongHttp.size) arch='CCF';
-      else if(strongHttp.size > strongCcf.size) arch='HTTP';
-      else arch='Mixed';
-    }
-
-    // Ingestion mode contribution
-    const modes = new Set();
-    if(strongCcf.has('apiPoller') || strongCcf.has('codeless-full (dcrConfig+uiConfig+dataTypes+graphQueries)')) modes.add('poll');
-    if(strongHttp.has('workspaceId+sharedKey+endpoint/signature') || strongHttp.has('/api/logs endpoint')) modes.add('push');
-
-    return {
-      id,
-      arch,
-      strongCcf:[...strongCcf],
-      weakCcf:[...weakCcf],
-      strongHttp:[...strongHttp],
-      weakHttp:[...weakHttp],
-      score:{ ccf:scoreCcf, http:scoreHttp },
-      modes:[...modes]
-    };
-  });
-
-  // ---------- aggregate counts ----------
-  const counts = connectors.reduce((acc,c)=>{
-    acc[c.arch]=(acc[c.arch]||0)+1;
-    acc.total++;
-    return acc;
-  },{total:0});
-
-  // ---------- core template reinforcement ----------
-  let coreHasDcrResource=false;
-  let coreHasDceResource=false;
-  let coreHasWorkspaceCreds=false;
-  let coreHasHttpFlow=false;
-  let coreHasCCFArtifacts=false;
-  let coreHasAssociations=false;
-  const coreHttpEndpoints = new Set();
-
-  const scanTemplateResources = (tmplRaw) => {
-    const resources = [];
-    (function collect(arr){
-      if(Array.isArray(arr)) arr.forEach(r=>{
-        resources.push(r);
-        if(Array.isArray(r.resources)) collect(r.resources);
-      });
-    })(tmplRaw?.resources);
-    return resources;
-  };
-
-  coreList.forEach(cf=>{
-    const raw=cf.raw||{};
-    const txt=toTxt(raw);
-    const resources = scanTemplateResources(raw);
-
-    for(const r of resources){
-      const t=(r?.type||'').toLowerCase();
-      if(t==='microsoft.insights/datacollectionrules') coreHasDcrResource=true;
-      if(t==='microsoft.insights/datacollectionendpoints') coreHasDceResource=true;
-      if(t.endsWith('datacollectionrules/associations')) {
-        coreHasAssociations=true;
-        coreHasDcrResource=true;
-      }
-    }
-
-    if(apiLogsRe.test(txt)){
-      coreHasHttpFlow = true;
-    }
-
-    if(/workspaceid/.test(txt) && /sharedkey|workspacekey|primarykey/.test(txt)){
-      coreHasWorkspaceCreds = true;
-    }
-
-    // Capture ingestion URIs in templates
-    const uriMatches = (txt.match(/https?:\/\/[a-z0-9.-]+[^\s"']* /gi) || []).slice(0,50);
-    uriMatches.forEach(u=>{
-      const ul=u.toLowerCase();
-      if(/api\/logs/.test(ul) || /opinsights/.test(ul) || /ods\./.test(ul)){
-        coreHttpEndpoints.add(u.replace(/["',;]+$/,''));
-      }
-    });
-  });
-
-  if(hasConnectorDefinitionFile || hasPollerConfigFile) coreHasCCFArtifacts = true;
-
-  // ---------- final decision ----------
-  const strongCcfConnectors = connectors.filter(c=>c.arch==='CCF');
-  const strongHttpConnectors= connectors.filter(c=>c.arch==='HTTP');
-  const mixedConnectors     = connectors.filter(c=>c.arch==='Mixed');
-  const neutralConnectors   = connectors.filter(c=>c.arch==='Neutral');
-
-  let type='Unknown';
-  const totalStrongSignals = (arr,side) =>
-    arr.reduce((sum,c)=> sum + (side==='ccf'?c.strongCcf.length : c.strongHttp.length),0);
-
-  if(connectors.length===0){
-    if(coreHasCCFArtifacts || coreHasDcrResource || coreHasDceResource) type='CCF';
-    else if(coreHasHttpFlow || coreHasWorkspaceCreds) type='HTTP Data Collector API';
-    else type='Unknown';
-  } else {
-    const pct = v => v / connectors.length;
-    if(strongCcfConnectors.length && !strongHttpConnectors.length && !mixedConnectors.length){
-      type='CCF';
-    } else if(strongHttpConnectors.length && !strongCcfConnectors.length && !mixedConnectors.length){
-      type='HTTP Data Collector API';
-    } else if(pct(strongCcfConnectors.length) >= 0.6){
-      type='CCF';
-    } else if(pct(strongHttpConnectors.length) >= 0.6){
-      type='HTTP Data Collector API';
-    } else if(strongCcfConnectors.length || strongHttpConnectors.length || mixedConnectors.length){
-      const ccfStrongTotal  = totalStrongSignals(connectors,'ccf');
-      const httpStrongTotal = totalStrongSignals(connectors,'http');
-      if(ccfStrongTotal > httpStrongTotal) type='CCF';
-      else if(httpStrongTotal > ccfStrongTotal) type='HTTP Data Collector API';
-      else {
-        if(coreHasCCFArtifacts || coreHasDcrResource || coreHasDceResource) type='CCF';
-        else if(coreHasHttpFlow || coreHasWorkspaceCreds) type='HTTP Data Collector API';
-        else type='CCF'; // modern default tie-break
-      }
-    } else {
-      if(coreHasCCFArtifacts || coreHasDcrResource || coreHasDceResource) type='CCF';
-      else if(coreHasHttpFlow || coreHasWorkspaceCreds) type='HTTP Data Collector API';
-      else type='Unknown';
-    }
-  }
-
-  // ---------- ingestion modes summary ----------
-  const modePoll = connectors.some(c=>c.modes.includes('poll'));
-  const modePush = connectors.some(c=>c.modes.includes('push')) || coreHasHttpFlow;
-  let modeSummary='None';
-  if(modePoll && modePush) modeSummary='Mixed (poll + push)';
-  else if(modePoll) modeSummary='Poll (CCF platform)';
-  else if(modePush) modeSummary='Push (HTTP Data Collector)';
-  else modeSummary='Undetermined';
-
-  // ---------- reasoning & evidence ----------
-  const reasoningLines = [];
-  reasoningLines.push(`Final Classification: ${type}`);
-  reasoningLines.push(`Connector Distribution: CCF=${strongCcfConnectors.length}, HTTP=${strongHttpConnectors.length}, Mixed=${mixedConnectors.length}, Neutral=${neutralConnectors.length}, Total=${connectors.length}`);
-  if(coreHasCCFArtifacts || coreHasDcrResource || coreHasDceResource || coreHasAssociations)
-    reasoningLines.push(
-      `Core CCF Signals: ${[
-        coreHasCCFArtifacts?'connectorDefinition/pollerConfig':'',
-        coreHasDcrResource?'dataCollectionRules':'',
-        coreHasDceResource?'dataCollectionEndpoints':'',
-        coreHasAssociations?'DCR associations':''
-      ].filter(Boolean).join(', ')}`
-    );
-  if(coreHasHttpFlow || coreHasWorkspaceCreds)
-    reasoningLines.push(
-      `Core HTTP Signals: ${[
-        coreHasHttpFlow?'/api/logs flows':'',
-        coreHasWorkspaceCreds?'workspaceId+sharedKey':''
-      ].filter(Boolean).join(', ')}`
-    );
-
-  const sideSignals = type==='CCF'
-    ? strongCcfConnectors.flatMap(c=>c.strongCcf)
-    : strongHttpConnectors.flatMap(c=>c.strongHttp);
-  const uniqSideSignals=[...new Set(sideSignals)];
-  if(uniqSideSignals.length){
-    reasoningLines.push(`Dominant Strong Signals (${type==='CCF'?'CCF':'HTTP'}): ${uniqSideSignals.join(', ')}`);
-  } else {
-    reasoningLines.push('Dominant Strong Signals: (none aggregated, decision via majority/core tie-break)');
-  }
-
-  reasoningLines.push(`Ingestion Modes: ${modeSummary}`);
-  if(httpEndpointSet.size || coreHttpEndpoints.size){
-    reasoningLines.push(`Observed HTTP Endpoints: ${[...httpEndpointSet,...coreHttpEndpoints].slice(0,12).join(', ')}`);
-  }
-  reasoningLines.push(`Tie-Break Logic: Prefers explicit packaging artifacts (connectorDefinition/pollerConfig/DCR/DCE) over generic workspace credentials; defaults to modern CCF when perfectly tied.`);
-
-  // Combined multiline reasoning string (legacy consumers)
-  const reasoning = `Architecture Reasoning:\n` + reasoningLines.map(l=>'• '+l).join('\n');
-
-  // Evidence lines
-  const evidenceLines = [];
-  connectors.forEach(c=>{
-    if(c.strongCcf.length) evidenceLines.push(`${c.id}: CCF strong [${c.strongCcf.join(', ')}]`);
-    if(c.strongHttp.length) evidenceLines.push(`${c.id}: HTTP strong [${c.strongHttp.join(', ')}]`);
-    if(!c.strongCcf.length && !c.strongHttp.length && c.arch!=='Neutral')
-      evidenceLines.push(`${c.id}: ${c.arch} (mixed via weak/tie signals)`);
-  });
-  if(coreHasCCFArtifacts)  evidenceLines.push('Core: connectorDefinition.json/pollerConfig.json');
-  if(coreHasDcrResource)   evidenceLines.push('Core: dataCollectionRules resource(s)');
-  if(coreHasDceResource)   evidenceLines.push('Core: dataCollectionEndpoints resource(s)');
-  if(coreHasAssociations)  evidenceLines.push('Core: DCR associations');
-  if(coreHasHttpFlow)      evidenceLines.push('Core: /api/logs flow');
-  if(coreHasWorkspaceCreds) evidenceLines.push('Core: workspaceId+sharedKey pattern');
-  if(httpEndpointSet.size || coreHttpEndpoints.size)
-    evidenceLines.push('HTTP Endpoints Observed: ' + [...httpEndpointSet,...coreHttpEndpoints].slice(0,20).join(', '));
-
-  const evidence = 'Ingestion Evidence:\n' + evidenceLines.map(l=>'• '+l).join('\n');
-
-  return {
-    type,
-    connectors,
-    counts: {
-      ccf: strongCcfConnectors.length,
-      http: strongHttpConnectors.length,
-      mixed: mixedConnectors.length,
-      neutral: neutralConnectors.length,
-      total: connectors.length
-    },
-    core: {
-      ccfArtifacts: coreHasCCFArtifacts,
-      dcrResource: coreHasDcrResource,
-      dceResource: coreHasDceResource,
-      associations: coreHasAssociations,
-      httpApiLogs: coreHasHttpFlow,
-      workspaceKeyPair: coreHasWorkspaceCreds
-    },
-    reasoning,
-    evidence,
-    reasoningLines,
-    evidenceLines,
-    endpoints: {
-      http:[...httpEndpointSet,...coreHttpEndpoints],
-      ccf:[...ccfEndpointSet] // placeholder for future DCE-specific URIs
-    },
-    modes:{
-      poll:modePoll,
-      push:modePush,
-      summary:modeSummary
-    }
-  };
-}
-*/ 
 
 
 /* ================================================
@@ -2365,6 +2695,7 @@ const TYPE_META={
   deployment:{label:'Deployment',color:'#64748b'},
   externalsystem:{label:'External System',color:'#0284c7'},
   endpoint:{label:'Endpoint',color:'#0891b2'},
+    serviceendpoint:{label:'Service Endpoint',color:'#dc8f00'},
   json:{label:'JSON',color:'#bdbdbd'}
 };
 const TYPE_ORDER=Object.keys(TYPE_META);
@@ -2394,135 +2725,331 @@ const EDGE_STYLE={
   'solution-watchlist':{stroke:'#0891b2'},
   'solution-function':{stroke:'#0f766e'},
   'function-table':{stroke:'#0d9488'},
+  'connector-serviceendpoint':{stroke:'#dc8f00'},
+  'dcr-serviceendpoint':{stroke:'#b7791f'},
+  'flow-serviceendpoint':{stroke:'#f59e0b'},
   'solution-notebook':{stroke:'#4f46e5'}
 };
 
-function buildDependencyGraph(art,solutionName){
-  const nodes=[],links=[],idx=new Map();
-  const add=(id,type,meta={})=>{
-    if(!id) return;
-    const key=type+'::'+id;
-    if(!idx.has(key)){ const o={id,type,meta}; idx.set(key,o); nodes.push(o); } else Object.assign(idx.get(key).meta,meta);
+function buildDependencyGraph(art, solutionName){
+  const nodes = [];
+  const links = [];
+  const index = new Map(); // key: type::id
+
+  const TYPE_PRIORITY = {
+    solution:100,
+    connector:90,
+    dependency:80,
+    filecore:75,
+    deployment:70,
+    analyticrule:65,
+    workbook:60,
+    huntingquery:55,
+    playbook:50,
+    functioninfra:45,
+    kqlfunction:45,
+    notebook:35,
+    watchlist:30,
+    json:10,
+    // low-level data nodes not collapsed by priority
+    table:0, stream:0, dataflow:0, serviceendpoint:0
   };
-  const link=(s,t,e)=>{ if(!s||!t)return; if(!links.some(l=>l.source===s&&l.target===t&&l.edgeType===e)) links.push({source:s,target:t,edgeType:e}); };
 
-  add(solutionName,'solution',{});
+  function add(id, type, meta = {}){
+    if(!id) return;
+    const key = type + '::' + id;
+    const path = meta?.path || meta?.raw?.path;
+    if(!index.has(key)){
+      const node = { id, type, meta:{...meta, paths: path?[path]:[], originalType:type} };
+      index.set(key, node);
+      nodes.push(node);
+    } else {
+      const existing = index.get(key);
+      if(path) {
+        const list = existing.meta.paths || [];
+        if(!list.includes(path)) list.push(path);
+        existing.meta.paths = list;
+      }
+      Object.assign(existing.meta, meta);
+    }
+  }
 
-  /* Core files */
-  art.coreFiles.forEach(cf=>{
+  function link(source, target, edgeType){
+    if(!source || !target) return;
+    if(!links.some(l=>l.source===source && l.target===target && l.edgeType===edgeType)){
+      links.push({source,target,edgeType});
+    }
+  }
+
+  const root = solutionName || 'Solution';
+  add(root,'solution',{});
+
+  // Core files
+  (art.coreFiles||[]).forEach(cf=>{
     add(cf.id,'filecore',cf);
-    link(solutionName,cf.id,'solution-corefile');
+    link(root,cf.id,'solution-corefile');
   });
 
-  /* DCR dependencies */
-  art.dcrs.forEach(d=>{
+  // DCR dependencies
+  (art.dcrs||[]).forEach(d=>{
     add(d.id,'dependency',d);
-    link(solutionName,d.id,'solution-dcr');
-    if(Array.isArray(d.flowsData)){
-      d.flowsData.forEach(fl=>{
-        const flowId=`${d.id}::${fl.id}`;
-        add(flowId,'dataflow',{parentDcr:d.id,...fl});
-        link(d.id,flowId,'dcr-flow');
-        (fl.outputTables||[]).forEach(tb=>{
-          add(tb,'table',{}); link(flowId,tb,'flow-table');
-        });
+    link(root,d.id,'solution-dcr');
+    (d.flowsData||[]).forEach(fl=>{
+      const flowId = `${d.id}::${fl.id}`;
+      add(flowId,'dataflow',{ parentDcr:d.id, ...fl });
+      link(d.id,flowId,'dcr-flow');
+      (fl.outputTables||[]).forEach(tb=>{
+        add(tb,'table',{}); link(flowId,tb,'flow-table');
       });
-    }
-    (d.tables||[]).forEach(tb=>{ add(tb,'table',{}); link(d.id,tb,'dcr-table'); });
+      (fl.streams||[]).forEach(st=>{
+        add('Stream:'+st,'stream',{ parentDcr:d.id, flow:fl.id });
+        link(flowId,'Stream:'+st,'dcr-flow');
+      });
+    });
+    (d.tables||[]).forEach(tb=>{
+      add(tb,'table',{}); link(d.id,tb,'dcr-table');
+    });
+    (d.streams||[]).forEach(st=>{
+      add('Stream:'+st,'stream',{ parentDcr:d.id });
+      link(d.id,'Stream:'+st,'dcr-flow');
+    });
   });
 
-  /* Core file direct dcr.json flows */
+  // Core dcr.json flows
   art.coreFiles.filter(cf=>cf.coreKind==='dcr').forEach(cf=>{
-    if(Array.isArray(cf.flowsData)){
-      cf.flowsData.forEach(fl=>{
-        const flowId=`${cf.id}::${fl.id}`;
-        add(flowId,'dataflow',{parentDcr:cf.id,...fl});
-        link(cf.id,flowId,'dcr-flow');
-        (fl.outputTables||[]).forEach(tb=>{
-          add(tb,'table',{}); link(flowId,tb,'flow-table');
-        });
+    (cf.flowsData||[]).forEach(fl=>{
+      const flowId=`${cf.id}::${fl.id}`;
+      add(flowId,'dataflow',{ parentDcr:cf.id, ...fl });
+      link(cf.id,flowId,'dcr-flow');
+      (fl.outputTables||[]).forEach(tb=>{
+        add(tb,'table',{}); link(flowId,tb,'flow-table');
       });
+      (fl.streams||[]).forEach(st=>{
+        add('Stream:'+st,'stream',{ parentDcr:cf.id, flow:fl.id });
+        link(flowId,'Stream:'+st,'dcr-flow');
+      });
+    });
+  });
+
+  // Connectors
+  (art.connectors||[]).forEach(c=>{
+    add(c.id,'connector',c);
+    link(root,c.id,'solution-connector');
+    (c.linkedDcrIds||[]).forEach(dcrId=>link(c.id,dcrId,'connector-dcr'));
+    (c.tables||[]).forEach(tb=>{ add(tb,'table',{}); link(c.id,tb,'connector-table'); });
+    (c.streams||[]).forEach(st=>{
+      add('Stream:'+st,'stream',{ connector:c.id });
+      link(c.id,'Stream:'+st,'connector-stream');
+    });
+  });
+
+  // Functions
+  (art.functions||[]).forEach(f=>{
+    add(f.id,'kqlfunction',f); link(root,f.id,'solution-function');
+    (f.tables||[]).forEach(tb=>{ add(tb,'table',{}); link(f.id,tb,'function-table'); });
+  });
+
+  // Workbooks
+  (art.workbooks||[]).forEach(w=>{
+    add(w.id,'workbook',w); link(root,w.id,'solution-workbook');
+    (w.tables||[]).forEach(tb=>{
+      if(nodes.some(n=>n.id===tb)) link(tb,w.id,'table-workbook');
+    });
+  });
+
+  // Analytics
+  (art.analytics||[]).forEach(a=>{
+    add(a.id,'analyticrule',a); link(root,a.id,'solution-analytic');
+    (a.tables||[]).forEach(tb=>{
+      if(nodes.some(n=>n.id===tb)) link(tb,a.id,'table-analytic');
+    });
+  });
+
+  // Hunting
+  (art.hunting||[]).forEach(h=>{
+    add(h.id,'huntingquery',h); link(root,h.id,'solution-hunting');
+    (h.tables||[]).forEach(tb=>{
+      if(nodes.some(n=>n.id===tb)) link(tb,h.id,'table-hunting');
+    });
+  });
+
+  // Playbooks
+  (art.playbooks||[]).forEach(p=>{
+    add(p.id,'playbook',p); link(root,p.id,'solution-playbook');
+  });
+
+  // Watchlists
+  (art.watchlists||[]).forEach(w=>{
+    add(w.id,'watchlist',w); link(root,w.id,'solution-watchlist');
+  });
+
+  // Notebooks
+  (art.notebooks||[]).forEach(n=>{
+    add(n.id,'notebook',n); link(root,n.id,'solution-notebook');
+  });
+
+  // Infra
+  (art.infra||[]).forEach(f=>{
+    add(f.id,'functioninfra',f); link(root,f.id,'solution-infra');
+  });
+
+  // Deployment
+  (art.deploy||[]).forEach(d=>{
+    add(d.id,'deployment',d); link(root,d.id,'solution-deployment');
+  });
+
+  // Others (limit)
+  (art.others||[]).slice(0,60).forEach(o=>{
+    add(o.id,'json',o); link(root,o.id,'solution-json');
+  });
+
+  // Service Endpoints
+  (art.serviceEndpoints||[]).forEach(se=>{
+    const seId='SE:'+se.id;
+    add(seId,'serviceendpoint',{ sources:se.sources });
+    se.sources.forEach(src=>{
+      const edgeType = src.type==='dcr' ? 'dcr-serviceendpoint'
+                     : src.type==='connector' ? 'connector-serviceendpoint'
+                     : 'solution-json';
+      link(src.id,seId,edgeType);
+    });
+  });
+
+  // Mark custom tables
+  const builtInsLower = new Set([
+    'commonsecuritylog','syslog','securityalert','securityincident','heartbeat','azureactivity',
+    'signinlogs','auditlogs','officeactivity','applicationgatewayfirewalllog',
+    'vmconnection','dnsevents','deviceevents','devicenetworkevents'
+  ]);
+  nodes.forEach(n=>{
+    if(n.type==='table'){
+      const idLower=n.id.toLowerCase();
+      if(/_cl$|_ce$|_cf$/.test(idLower) && !builtInsLower.has(idLower)){
+        n.meta.custom=true;
+      }
     }
   });
 
-  /* Connectors */
-  art.connectors.forEach(c=>{
-    add(c.id,'connector',c);
-    link(solutionName,c.id,'solution-connector');
-    (c.linkedDcrIds||[]).forEach(did=>link(c.id,did,'connector-dcr'));
-    (c.tables||[]).forEach(tb=>{ add(tb,'table',{}); link(c.id,tb,'connector-table');});
-    (c.streams||[]).forEach(st=>{ add(st,'stream',{}); link(c.id,st,'connector-stream');});
+  // Orphan protection
+  nodes.forEach(n=>{
+    if(n.type==='solution') return;
+    const hasEdge = links.some(l=>l.source===n.id||l.target===n.id);
+    if(!hasEdge) link(root,n.id,'solution-json');
   });
 
-  /* Functions */
-  art.functions.forEach(f=>{
-    add(f.id,'kqlfunction',f);
-    link(solutionName,f.id,'solution-function');
-    (f.tables||[]).forEach(tb=>{ add(tb,'table',{}); link(f.id,tb,'function-table');});
+  // ----- Duplicate Collapse by ID Across Types -----
+  const groupsById = nodes.reduce((m,n)=>{
+    if(!m[n.id]) m[n.id]=[];
+    m[n.id].push(n);
+    return m;
+  },{});
+  const removeSet = new Set();
+  Object.entries(groupsById).forEach(([id, group])=>{
+    if(group.length<=1) return;
+    // Preserve low-level data nodes as-is
+    if(group.every(g=>TYPE_PRIORITY[g.type]===0)) return;
+
+    // Choose representative
+    group.sort((a,b)=>TYPE_PRIORITY[b.type]-TYPE_PRIORITY[a.type]);
+    const rep = group[0];
+
+    for(let i=1;i<group.length;i++){
+      const dup = group[i];
+      // Merge meta
+      const repMeta = rep.meta||{};
+      const dupMeta = dup.meta||{};
+      // Merge paths
+      repMeta.paths = [...new Set([...(repMeta.paths||[]), ...(dupMeta.paths||[])])];
+      // Merge endpoints
+      repMeta.endpoints = [...new Set([...(repMeta.endpoints||[]), ...(dupMeta.endpoints||[])])];
+      // Merge tables/streams if present
+      if(dupMeta.tables) repMeta.tables = [...new Set([...(repMeta.tables||[]), ...dupMeta.tables])];
+      if(dupMeta.streams) repMeta.streams = [...new Set([...(repMeta.streams||[]), ...dupMeta.streams])];
+      // Mark consolidated
+      repMeta.consolidated = true;
+      removeSet.add(dup);
+    }
   });
 
-  /* Workbooks / Analytics / Hunting / Playbooks / Watchlists / Notebooks */
-  art.workbooks.forEach(w=>{
-    add(w.id,'workbook',w); link(solutionName,w.id,'solution-workbook');
-    (w.tables||[]).forEach(tb=>nodes.some(n=>n.id===tb)&&link(tb,w.id,'table-workbook'));
-  });
-  art.analytics.forEach(a=>{
-    add(a.id,'analyticrule',a); link(solutionName,a.id,'solution-analytic');
-    (a.tables||[]).forEach(tb=>nodes.some(n=>n.id===tb)&&link(tb,a.id,'table-analytic'));
-  });
-  art.hunting.forEach(h=>{
-    add(h.id,'huntingquery',h); link(solutionName,h.id,'solution-hunting');
-    (h.tables||[]).forEach(tb=>nodes.some(n=>n.id===tb)&&link(tb,h.id,'table-hunting'));
-  });
-  art.playbooks.forEach(p=>{ add(p.id,'playbook',p); link(solutionName,p.id,'solution-playbook'); });
-  art.watchlists.forEach(w=>{ add(w.id,'watchlist',w); link(solutionName,w.id,'solution-watchlist'); });
-  art.notebooks.forEach(n=>{ add(n.id,'notebook',n); link(solutionName,n.id,'solution-notebook'); });
+  // Rewrite links from removed nodes to representative
+  if(removeSet.size){
+    links.forEach(l=>{
+      const removedSource = [...removeSet].find(r=>r.id===l.source);
+      const removedTarget = [...removeSet].find(r=>r.id===l.target);
+      if(removedSource){
+        // find representative with same id
+        const rep = nodes.find(n=>n.id===removedSource.id && !removeSet.has(n));
+        if(rep) l.source = rep.id;
+      }
+      if(removedTarget){
+        const rep = nodes.find(n=>n.id===removedTarget.id && !removeSet.has(n));
+        if(rep) l.target = rep.id;
+      }
+    });
+    // Deduplicate links after rewrite
+    const unique = [];
+    links.forEach(l=>{
+      if(!unique.some(u=>u.source===l.source && u.target===l.target && u.edgeType===l.edgeType)){
+        unique.push(l);
+      }
+    });
+    links.length=0; links.push(...unique);
+    // Remove duplicate nodes
+    const filtered = nodes.filter(n=>!removeSet.has(n));
+    nodes.length=0; nodes.push(...filtered);
+  }
 
-  /* Infra / Deployment / Others */
-  art.infra.forEach(f=>{ add(f.id,'functioninfra',f); link(solutionName,f.id,'solution-infra'); });
-  art.deploy.forEach(d=>{ add(d.id,'deployment',d); link(solutionName,d.id,'solution-deployment'); });
-  art.others.slice(0,60).forEach(o=>{ add(o.id,'json',o); link(solutionName,o.id,'solution-json'); });
-
-  /* Solution counts meta */
-  const solNode=nodes.find(n=>n.type==='solution');
+  // Solution summary counts
+  const solNode = nodes.find(n=>n.type==='solution');
   if(solNode){
-    solNode.meta.counts={
-      connectors:art.connectors.length,
-      dcrs:art.dcrs.length,
-      workbooks:art.workbooks.length,
-      analytics:art.analytics.length,
-      playbooks:art.playbooks.length,
-      hunting:art.hunting.length,
-      watchlists:art.watchlists.length,
-      functions:art.functions.length,
-      notebooks:art.notebooks.length,
-      coreFiles:art.coreFiles.length
+    solNode.meta.counts = {
+      connectors:(art.connectors||[]).length,
+      dcrs:(art.dcrs||[]).length,
+      workbooks:(art.workbooks||[]).length,
+      analytics:(art.analytics||[]).length,
+      playbooks:(art.playbooks||[]).length,
+      hunting:(art.hunting||[]).length,
+      watchlists:(art.watchlists||[]).length,
+      functions:(art.functions||[]).length,
+      notebooks:(art.notebooks||[]).length,
+      coreFiles:(art.coreFiles||[]).length,
+      serviceEndpoints:(art.serviceEndpoints||[]).length
     };
   }
 
-  /* Orphan injection */
-  nodes.forEach(n=>{
-    if(n.type==='solution') return;
-    const hasEdge=links.some(l=>l.source===n.id||l.target===n.id);
-    if(!hasEdge) links.push({source:solutionName,target:n.id,edgeType:'solution-json'});
-  });
-  return {nodes,links};
+  return { nodes, links };
 }
 
-function buildArchitectureGraph(art,meta,analysis){
-  const g={nodes:[],links:[]};
-  const add=(id,type,metaObj={})=>{ if(!id) return; if(!g.nodes.some(n=>n.id===id)) g.nodes.push({id,type,meta:metaObj}); };
-  const link=(s,t,e)=>{ if(!s||!t)return; if(!g.links.some(l=>l.source===s&&l.target===t&&l.edgeType===e)) g.links.push({source:s,target:t,edgeType:e}); };
+function buildArchitectureGraph(art, meta, analysis){
+  const g = { nodes:[], links:[] };
+  const add = (id, type, metaObj={}) => {
+    if(!id) return;
+    if(!g.nodes.some(n=>n.id===id)) g.nodes.push({ id, type, meta: metaObj });
+  };
+  const link = (s,t,e) => {
+    if(!s||!t) return;
+    if(!g.links.some(l=>l.source===s && l.target===t && l.edgeType===e)){
+      g.links.push({ source:s, target:t, edgeType:e });
+    }
+  };
 
-  const root=meta?.solutionName||'Solution';
-  add(root,'solution',{archType:analysis?.type});
+  // Single root declaration (fix for duplicate 'root')
+  const root = meta?.solutionName || 'Solution';
+  add(root,'solution',{ archType: analysis?.type });
 
-  /* Endpoints & externals derived from connectors + DCR files */
-  const endpointHosts=new Map();
+  /* Endpoint hosts (group into externals + endpoint nodes) */
+  const endpointHosts = new Map();
   function collectEndpoints(list){
-    (list||[]).forEach(a=> (a.endpoints||[]).forEach(ep=>{
-      const h=ep.toLowerCase();
-      if(!endpointHosts.has(h)) endpointHosts.set(h,{id:h,host:h,connectors:new Set(),dcrs:new Set()});
+    (list||[]).forEach(a => (a.endpoints||[]).forEach(ep =>{
+      const h = ep.toLowerCase();
+      if(!endpointHosts.has(h)){
+        endpointHosts.set(h, {
+          id: h,
+            host: h,
+            connectors: new Set(),
+            dcrs: new Set()
+        });
+      }
     }));
   }
   collectEndpoints(art.connectors);
@@ -2530,77 +3057,153 @@ function buildArchitectureGraph(art,meta,analysis){
   collectEndpoints(art.dcrs);
 
   function rootDomain(host){
-    const parts=host.split('.'); if(parts.length<=2) return host;
+    const parts = host.split('.');
+    if(parts.length <= 2) return host;
     return parts.slice(-2).join('.');
   }
-  const externals=new Map();
-  endpointHosts.forEach((_,host)=>{
-    const rd=rootDomain(host);
-    if(!externals.has(rd)) externals.set(rd,{id:rd,hosts:new Set()});
+
+  const externals = new Map();
+  endpointHosts.forEach((_, host)=>{
+    const rd = rootDomain(host);
+    if(!externals.has(rd)) externals.set(rd,{ id: rd, hosts: new Set() });
     externals.get(rd).hosts.add(host);
   });
-  externals.forEach(sys=>add(sys.id,'externalsystem',{hostCount:sys.hosts.size}));
-  endpointHosts.forEach(ep=>add(ep.id,'endpoint'));
 
-  art.connectors.forEach(c=>{
-    add(c.id,'connector',c); link(root,c.id,'solution-connector');
+  externals.forEach(sys => add(sys.id,'externalsystem',{ hostCount: sys.hosts.size }));
+  endpointHosts.forEach(ep => add(ep.id,'endpoint'));
+
+  /* Connectors */
+  (art.connectors||[]).forEach(c=>{
+    add(c.id,'connector',c);
+    link(root,c.id,'solution-connector');
     (c.endpoints||[]).forEach(ep=>{
-      const h=ep.toLowerCase();
-      if(endpointHosts.has(h)){
-        endpointHosts.get(h).connectors.add(c.id);
-        link(h,c.id,'endpoint-connector');
-      }
+      const host = ep.toLowerCase();
+      link(c.id, host,'endpoint-connector');
     });
-    (c.tables||[]).forEach(tb=>{ add(tb,'table',{}); link(c.id,tb,'connector-table'); });
+    (c.tables||[]).forEach(tb=>{
+      add(tb,'table',{}); link(c.id,tb,'connector-table');
+    });
   });
 
-  art.dcrs.forEach(d=>{
-    add(d.id,'dependency',d); link(root,d.id,'solution-dcr');
-    if(Array.isArray(d.flowsData)){
-      d.flowsData.forEach(fl=>{
-        const flowId=`${d.id}::${fl.id}`;
-        add(flowId,'dataflow',{parentDcr:d.id,...fl});
-        link(d.id,flowId,'dcr-flow');
-        (fl.outputTables||[]).forEach(tb=>{ add(tb,'table',{}); link(flowId,tb,'flow-table'); });
+  /* DCR dependencies */
+  (art.dcrs||[]).forEach(d=>{
+    add(d.id,'dependency',d);
+    link(root,d.id,'solution-dcr');
+    (d.flowsData||[]).forEach(fl=>{
+      const flowId = `${d.id}::${fl.id}`;
+      add(flowId,'dataflow',{ parentDcr:d.id, ...fl });
+      link(d.id,flowId,'dcr-flow');
+      (fl.outputTables||[]).forEach(tb=>{
+        add(tb,'table',{}); link(flowId,tb,'flow-table');
       });
-    }
-    (d.tables||[]).forEach(tb=>{ add(tb,'table',{}); link(d.id,tb,'dcr-table'); });
+      (fl.streams||[]).forEach(st=>{
+        const stId='Stream:'+st;
+        add(stId,'stream',{ parentDcr:d.id, flow:fl.id });
+        link(flowId,stId,'dcr-flow');
+      });
+    });
+    (d.tables||[]).forEach(tb=>{
+      add(tb,'table',{}); link(d.id,tb,'dcr-table');
+    });
   });
 
+  /* Core DCR flows */
   art.coreFiles.filter(cf=>cf.coreKind==='dcr').forEach(cf=>{
-    add(cf.id,'filecore',cf); link(root,cf.id,'solution-corefile');
-    if(Array.isArray(cf.flowsData)){
-      cf.flowsData.forEach(fl=>{
-        const flowId=`${cf.id}::${fl.id}`;
-        add(flowId,'dataflow',{parentDcr:cf.id,...fl});
-        link(cf.id,flowId,'dcr-flow');
-        (fl.outputTables||[]).forEach(tb=>{ add(tb,'table',{}); link(flowId,tb,'flow-table'); });
+    add(cf.id,'filecore',cf);
+    link(root,cf.id,'solution-corefile');
+    (cf.flowsData||[]).forEach(fl=>{
+      const flowId = `${cf.id}::${fl.id}`;
+      add(flowId,'dataflow',{ parentDcr:cf.id, ...fl });
+      link(cf.id,flowId,'dcr-flow');
+      (fl.outputTables||[]).forEach(tb=>{
+        add(tb,'table',{}); link(flowId,tb,'flow-table');
       });
-    }
+      (fl.streams||[]).forEach(st=>{
+        const stId='Stream:'+st;
+        add(stId,'stream',{ parentDcr:cf.id, flow:fl.id });
+        link(flowId,stId,'dcr-flow');
+      });
+    });
   });
 
-  endpointHosts.forEach((ep,host)=>{
-    const rd=rootDomain(host);
-    link(rd,host,'system-endpoint');
+  /* Other core files (excluding dcr already added) */
+  art.coreFiles.forEach(cf=>{
+    if(cf.coreKind==='dcr') return;
+    add(cf.id,'filecore',cf);
+    link(root,cf.id,'solution-corefile');
   });
-  externals.forEach(sys=>link(root,sys.id,'solution-json'));
 
-  art.functions.forEach(f=>{
+  /* Service Endpoints (if aggregated) */
+  (art.serviceEndpoints||[]).forEach(se=>{
+    if(!se?.id || !se.sources?.length) return;
+    const seId = 'SE:'+se.id;
+    add(seId,'serviceendpoint',{ sources: se.sources, count: se.sources.length });
+    se.sources.forEach(src=>{
+      let edgeType = 'solution-json';
+      if(src.type === 'dcr') edgeType = 'dcr-serviceendpoint';
+      else if(src.type === 'connector') edgeType = 'connector-serviceendpoint';
+      link(src.id, seId, edgeType);
+    });
+    link(root,seId,'solution-json');
+  });
+
+  /* Functions */
+  (art.functions||[]).forEach(f=>{
     add(f.id,'kqlfunction',f); link(root,f.id,'solution-function');
-    (f.tables||[]).forEach(tb=>{ add(tb,'table',{}); link(f.id,tb,'function-table'); });
+    (f.tables||[]).forEach(tb=>{
+      add(tb,'table',{}); link(f.id,tb,'function-table');
+    });
   });
 
-  art.workbooks.forEach(w=>{ add(w.id,'workbook',w); link(root,w.id,'solution-workbook'); (w.tables||[]).forEach(tb=>g.nodes.some(n=>n.id===tb)&&link(tb,w.id,'table-workbook')); });
-  art.analytics.forEach(a=>{ add(a.id,'analyticrule',a); link(root,a.id,'solution-analytic'); (a.tables||[]).forEach(tb=>g.nodes.some(n=>n.id===tb)&&link(tb,a.id,'table-analytic')); });
-  art.hunting.forEach(h=>{ add(h.id,'huntingquery',h); link(root,h.id,'solution-hunting'); (h.tables||[]).forEach(tb=>g.nodes.some(n=>n.id===tb)&&link(tb,h.id,'table-hunting')); });
-  art.playbooks.forEach(p=>{ add(p.id,'playbook',p); link(root,p.id,'solution-playbook'); });
-  art.watchlists.forEach(w=>{ add(w.id,'watchlist',w); link(root,w.id,'solution-watchlist'); });
-  art.notebooks.forEach(n=>{ add(n.id,'notebook',n); link(root,n.id,'solution-notebook'); });
-  art.coreFiles.forEach(cf=>{ if(cf.coreKind!=='dcr') { add(cf.id,'filecore',cf); link(root,cf.id,'solution-corefile'); } });
+  /* Workbooks / Analytics / Hunting / Playbooks / Watchlists / Notebooks */
+  (art.workbooks||[]).forEach(w=>{
+    add(w.id,'workbook',w); link(root,w.id,'solution-workbook');
+    (w.tables||[]).forEach(tb=>{
+      if(g.nodes.some(n=>n.id===tb)) link(tb,w.id,'table-workbook');
+    });
+  });
+  (art.analytics||[]).forEach(a=>{
+    add(a.id,'analyticrule',a); link(root,a.id,'solution-analytic');
+    (a.tables||[]).forEach(tb=>{
+      if(g.nodes.some(n=>n.id===tb)) link(tb,a.id,'table-analytic');
+    });
+  });
+  (art.hunting||[]).forEach(h=>{
+    add(h.id,'huntingquery',h); link(root,h.id,'solution-hunting');
+    (h.tables||[]).forEach(tb=>{
+      if(g.nodes.some(n=>n.id===tb)) link(tb,h.id,'table-hunting');
+    });
+  });
+  (art.playbooks||[]).forEach(p=>{
+    add(p.id,'playbook',p); link(root,p.id,'solution-playbook');
+  });
+  (art.watchlists||[]).forEach(w=>{
+    add(w.id,'watchlist',w); link(root,w.id,'solution-watchlist');
+  });
+  (art.notebooks||[]).forEach(n=>{
+    add(n.id,'notebook',n); link(root,n.id,'solution-notebook');
+  });
+
+  /* Infra / Deploy / Others */
+  (art.infra||[]).forEach(f=>{
+    add(f.id,'functioninfra',f); link(root,f.id,'solution-infra');
+  });
+  (art.deploy||[]).forEach(d=>{
+    add(d.id,'deployment',d); link(root,d.id,'solution-deployment');
+  });
+  (art.others||[]).slice(0,60).forEach(o=>{
+    add(o.id,'json',o); link(root,o.id,'solution-json');
+  });
+
+  /* External system → endpoint host links */
+  endpointHosts.forEach((ep, host)=>{
+    const rd = rootDomain(host);
+    link(rd, host,'system-endpoint');
+  });
+  externals.forEach(sys=> link(root, sys.id,'solution-json'));
 
   return g;
 }
-
 /* ================= RENDERING ================= */
 let ZOOM_CTRL=null;
 function setupZoom(){
@@ -2678,71 +3281,193 @@ function buildTooltip(){
 
 const NODE_LABEL_CFG={maxLines:7,minWidth:120,maxWidth:280,lineChars:24};
 function nodeLines(d){
-  const m=d.meta||{};
-  const lines=[];
-  function trunc(s,max=40){ if(!s) return ''; return s.length<=max?s:s.slice(0,max-1)+'…'; }
-  if(d.type==='solution'){
-    lines.push(trunc(d.id,38));
-    if(m.counts){
-      const c=m.counts;
-      lines.push(`Conn:${c.connectors} DCR:${c.dcrs}`);
-      lines.push(`Fn:${c.functions} Wkb:${c.workbooks}`);
-      lines.push(`Anl:${c.analytics} Ply:${c.playbooks}`);
-      lines.push(`Hnt:${c.hunting} Wl:${c.watchlists}`);
-    }
-  } else if(d.type==='filecore'){
-    lines.push(m.coreKind==='mainTemplate'?'mainTemplate.json':trunc(d.id,48));
-    if(m.coreKind==='dcr') lines.push(`Flows:${m.dataFlows||0}`);
-    if(m.coreKind==='createUiDefinition') lines.push(`Steps:${m.stepsCount||0}`);
-  } else if(d.type==='connector'){
-    lines.push(trunc(d.id,42));
-    if(m.mechanism) lines.push(trunc(m.mechanism,34));
-    if(m.tables?.length) lines.push(`Tbl:${m.tables.slice(0,3).join(',')}${m.tables.length>3?'…':''}`);
-    if(m.endpoints?.length) lines.push(`EP:${m.endpoints.length}`);
-  } else if(d.type==='dependency'){
-    lines.push(trunc(d.id,42));
-    if(m.dataFlows!==undefined) lines.push(`Flows:${m.dataFlows}`);
-    if(m.tables?.length) lines.push(`Tbl:${m.tables.slice(0,3).join(',')}${m.tables.length>3?'…':''}`);
-  } else if(d.type==='dataflow'){
-    lines.push(trunc((m.parentDcr?m.parentDcr.split(/[/\\]/).pop()+':':'')+d.id,46));
-    if(m.streams?.length) lines.push(`Str:${m.streams.slice(0,3).join(',')}${m.streams.length>3?'…':''}`);
-    if(m.outputTables?.length) lines.push(`Out:${m.outputTables.slice(0,3).join(',')}${m.outputTables.length>3?'…':''}`);
-    lines.push(m.hasTransform?`Tx:${m.transformLines}L`:'Tx:none');
-  } else if(['workbook','analyticrule','huntingquery'].includes(d.type)){
-    lines.push(trunc(d.id,42));
-    if(m.severity) lines.push(`Sev:${m.severity}`);
-    if(m.tables?.length) lines.push(`Tbl:${m.tables.slice(0,3).join(',')}${m.tables.length>3?'…':''}`);
-  } else if(d.type==='playbook'){
-    lines.push(trunc(d.id,42));
-    lines.push(`T:${m.triggers||0} A:${m.actions||0}`);
-  } else if(d.type==='kqlfunction'){
-    lines.push(trunc(d.id,42));
-    if(m.tables?.length) lines.push(`Tbl:${m.tables.slice(0,3).join(',')}${m.tables.length>3?'…':''}`);
-  } else if(d.type==='notebook'){
-    lines.push(trunc(d.id,42));
-    if(m.cellCount!=null) lines.push(`Cells:${m.cellCount}`);
-  } else if(d.type==='externalsystem'){
-    lines.push(trunc(d.id,42));
-    lines.push(`Hosts:${m.hostCount||0}`);
-  } else {
-    lines.push(trunc(d.id,48));
+  const m = d.meta || {};
+  const lines = [];
+  const base = d.meta?.displayId || d.id;
+  const cfg = NODE_LABEL_CFG || { maxLines: 8, lineChars: 28 };
+  function trunc(s, max = cfg.lineChars){ 
+    if(s == null) return ''; 
+    s = String(s); 
+    return s.length <= max ? s : s.slice(0, max - 1) + '…'; 
   }
-  const maxChars=NODE_LABEL_CFG.lineChars;
-  const out=[];
-  lines.forEach(l=>{
-    if(l.length<=maxChars){ out.push(l); return; }
-    let cur='';
-    l.split(/\s+/).forEach(w=>{
-      if((cur+w).length>maxChars){
-        if(cur) out.push(cur.trim());
-        cur=w+' ';
-      }else cur+=w+' ';
-    });
-    if(cur.trim()) out.push(cur.trim());
-  });
-  return out.slice(0,NODE_LABEL_CFG.maxLines);
-}
+  function push(val){ if(val) lines.push(val); }
 
+  // ---------- Solution ----------
+  if(d.type === 'solution'){
+    push(trunc(d.id, 40));
+    if(m.archType) push(`Arch: ${m.archType}`);
+    if(m.counts){
+      const c = m.counts;
+      // Show primary artifact counts
+      push(`Conn:${c.connectors} DCR:${c.dcrs} SE:${c.serviceEndpoints}`);
+      // Secondary summary (only if space)
+      if(lines.length < cfg.maxLines - 1){
+        push(`Analytic:${c.analytics} Wkbk:${c.workbooks} Ply:${c.playbooks}`);
+      }
+    }
+    if(m.publisher) push(trunc(m.publisher, 32));
+  }
+
+  // ---------- Connector ----------
+  else if(d.type === 'connector'){
+    push(trunc(d.id, 40));
+    if(m.ingestionType) push(m.ingestionType);
+    const tables = Array.isArray(m.tables)?m.tables.length:0;
+    const streams = Array.isArray(m.streams)?m.streams.length:0;
+    if(tables || streams) push(`T:${tables} S:${streams}`);
+    if(m.hasEventApiPoller) push('Event API Poller');
+    if(m.linkedDcrIds && m.linkedDcrIds.length){
+      push(`DCRs:${m.linkedDcrIds.length}`);
+    }
+    if(m.publisher) push(trunc(m.publisher, 28));
+  }
+
+  // ---------- Dependency (DCR-likes) ----------
+  else if(d.type === 'dependency'){
+    push(trunc(d.id, 38));
+    const flows = Array.isArray(m.flowsData)?m.flowsData.length:0;
+    const tables = Array.isArray(m.tables)?m.tables.length:0;
+    const streams = Array.isArray(m.streams)?m.streams.length:0;
+    push(`Flows:${flows} T:${tables} S:${streams}`);
+  }
+
+  // ---------- Core File ----------
+  else if(d.type === 'filecore'){
+    push(trunc(d.id, 42));
+    if(m.coreKind) push(m.coreKind);
+    if(m.coreKind === 'dcr'){
+      push(`Flows:${m.dataFlows||0} Streams:${m.streamCount||0}`);
+    } else if(m.coreKind === 'mainTemplate' && m.resourceCounts){
+      const rc = m.resourceCounts;
+      push(`dc:${rc.dataConnectors} ar:${rc.analyticRules} wb:${rc.workbooks}`);
+    } else if(m.coreKind === 'pollerConfig' && m.schedule){
+      push(trunc(m.schedule, 28));
+    }
+  }
+
+  // ---------- Data Flow ----------
+  else if(d.type === 'dataflow'){
+    push(`Flow:${m.id||d.id}`);
+    const sl = m.transformLines || 0;
+    const ot = Array.isArray(m.outputTables)?m.outputTables.length:0;
+    push(`Lines:${sl} OutT:${ot}`);
+    if(Array.isArray(m.streams) && m.streams.length){
+      push(`Streams:${m.streams.length}`);
+    }
+    if(m.hasTransform) push('Transform');
+  }
+
+  // ---------- Stream ----------
+  else if(d.type === 'stream'){
+    push(trunc(d.id.replace(/^Stream:/,''), 34));
+    if(m.parentDcr) push(`DCR:${trunc(m.parentDcr, 20)}`);
+    if(m.flow) push(`Flow:${m.flow}`);
+  }
+
+  // ---------- Table ----------
+  else if(d.type === 'table'){
+    push(trunc(d.id, 34));
+    if(m.custom) push('Custom');
+  }
+
+  // ---------- Workbook ----------
+  else if(d.type === 'workbook'){
+    push(trunc(d.id, 40));
+    if(m.tables && m.tables.length) push(`Tables:${m.tables.length}`);
+    if(m.description) push(trunc(m.description, 30));
+  }
+
+  // ---------- Analytic Rule ----------
+  else if(d.type === 'analyticrule'){
+    push(trunc(d.id, 42));
+    if(m.severity) push(`Sev:${m.severity}`);
+    if(m.tables && m.tables.length) push(`Tables:${m.tables.length}`);
+    if(m.tactics) push(trunc(m.tactics, 30));
+  }
+
+  // ---------- Hunting Query ----------
+  else if(d.type === 'huntingquery'){
+    push(trunc(d.id, 42));
+    if(m.tables && m.tables.length) push(`Tables:${m.tables.length}`);
+    if(m.queryMetrics) push(`Lines:${m.queryMetrics.lines}`);
+  }
+
+  // ---------- Playbook ----------
+  else if(d.type === 'playbook'){
+    push(trunc(d.id, 42));
+    if(m.triggers != null) push(`Trig:${m.triggers}`);
+    if(m.actions != null) push(`Act:${m.actions}`);
+  }
+
+  // ---------- Watchlist ----------
+  else if(d.type === 'watchlist'){
+    push(trunc(d.id, 42));
+    if(m.description) push(trunc(m.description, 32));
+  }
+
+  // ---------- KQL Function ----------
+  else if(d.type === 'kqlfunction'){
+    push(trunc(d.id, 42));
+    if(m.tables && m.tables.length) push(`Tables:${m.tables.length}`);
+    if(m.queryMetrics) push(`Lines:${m.queryMetrics.lines}`);
+  }
+
+  // ---------- Notebook ----------
+  else if(d.type === 'notebook'){
+    push(trunc(d.id, 42));
+    if(m.cellCount != null) push(`Cells:${m.cellCount}`);
+  }
+
+  // ---------- Function Infra ----------
+  else if(d.type === 'functioninfra'){
+    push(trunc(d.id, 42));
+    if(m.bindingsCount) push(`Bindings:${m.bindingsCount}`);
+  }
+
+  // ---------- Deployment ----------
+  else if(d.type === 'deployment'){
+    push(trunc(d.id, 42));
+    if(m.resourceCount != null) push(`Resources:${m.resourceCount}`);
+  }
+
+  // ---------- Service Endpoint ----------
+  else if(d.type === 'serviceendpoint'){
+    const name = d.id.replace(/^SE:/,'');
+    push(trunc(name, 44));
+    if(m.sources && m.sources.length){
+      // Distill counts by type
+      const counts = m.sources.reduce((acc,s)=>{
+        acc[s.type] = (acc[s.type]||0)+1; return acc;
+      },{});
+      const parts = Object.entries(counts).map(([k,v])=>`${k}:${v}`).slice(0,3).join(' ');
+      push(parts);
+    }
+  }
+
+  // ---------- Endpoint (host) ----------
+  else if(d.type === 'endpoint'){
+    push(trunc(d.id, 46));
+  }
+
+  // ---------- External System ----------
+  else if(d.type === 'externalsystem'){
+    push(trunc(d.id, 46));
+    if(m.hostCount != null) push(`Hosts:${m.hostCount}`);
+  }
+
+  // ---------- Generic JSON ----------
+  else if(d.type === 'json'){
+    push(trunc(d.id, 46));
+  }
+
+  // Safety: limit lines
+  if(lines.length > (cfg.maxLines || 8)){
+    const keep = lines.slice(0, (cfg.maxLines || 8) - 1);
+    keep.push('…');
+    return keep;
+  }
+  return lines;
+}
 function renderGraph(preserve=false){
   if(!ensureD3())return;
   const nodes=STATE.graph.nodes, links=STATE.graph.links;
@@ -3117,913 +3842,233 @@ function buildArchitectureReasoning(arch, artifacts){
   return appendUris('Unknown: no decisive CCF or HTTP ingestion signals');
 }
 
-/*
-function updateSolutionMeta(){
-  const el=document.getElementById('solutionMeta');
-  const m=STATE.meta;
-  const art=STATE.artifacts;
-  const arch=STATE.solutionAnalysis;
-  if(!el) return;
-  if(!m||!art){ el.textContent='No metadata.'; return; }
 
-  // Color chips (simple deterministic palette)
-  const PALETTE=['#2563eb','#0d9488','#9333ea','#dc2626','#d97706','#059669','#6366f1','#0891b2','#7c3aed','#b45309','#047857','#4b5563','#be185d'];
-  function hashColor(str){
-    let h=0; for(let i=0;i<str.length;i++) h=(h*33+str.charCodeAt(i))>>>0;
-    return PALETTE[h % PALETTE.length];
-  }
-
-  const chips=[];
-  // Architecture badge
-  if(arch?.type){
-    const t=arch.type;
-    const c = t==='CCF' ? '#059669' : (t.startsWith('HTTP') ? '#b45309' : '#64748b');
-    chips.push(`<span class="badge arch-${t==='CCF'?'ccf':(t.startsWith('HTTP')?'http':'unknown')}" style="background:${c};color:#fff;">${escapeHtml(t)}</span>`);
-  }
-  // Categories
-  (m.categories||[]).forEach(cat=>{
-    chips.push(`<span class="badge" style="background:${hashColor(cat)};color:#fff;">${escapeHtml(cat)}</span>`);
-  });
-
-  // Build reasoning & evidence
-  const reasoning = buildArchitectureReasoning(arch, art);
-  const signalsObj = rebuildArchitectureSignals(art);
-  const evidenceList = signalsObj.evidence.length
-    ? '<ul style="margin:4px 0 0 12px;padding:0;font-size:.63rem;">' +
-        signalsObj.evidence.slice(0,12).map(e=>`<li style="margin:2px 0;">${escapeHtml(e)}</li>`).join('') +
-        (signalsObj.evidence.length>12 ? `<li>… +${signalsObj.evidence.length-12} more</li>` : '') +
-      '</ul>'
-    : '<span style="color:var(--text-dim);font-size:.63rem;">(No evidence strings captured)</span>';
-
-  el.innerHTML = `
-    <div style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:6px;">${chips.join('')}</div>
-    <div><b>Name:</b> ${escapeHtml(m.solutionName||'(unknown)')}</div>
-    <div><b>ID:</b> ${escapeHtml(m.solutionId||'—')}</div>
-    <div><b>Publisher:</b> ${escapeHtml(m.publisher||'—')}</div>
-    ${m.offerId?`<div><b>Offer:</b> ${escapeHtml(m.offerId)}</div>`:''}
-    <div><b>Layout:</b> ${escapeHtml(STATE.layoutMode)}</div>
-    <hr style="border:none;border-top:1px solid var(--panel-border);margin:6px 0;">
-    <div style="font-size:.68rem;"><b>Architecture Reasoning:</b> ${escapeHtml(reasoning)}</div>
-    <div style="font-size:.68rem;margin-top:4px;"><b>Ingestion Evidence:</b> ${evidenceList}</div>
-    
-
-  `;
-
-if(arch){
-  el.innerHTML += `<div style="margin-top:6px;font-size:.68rem;"><b>Architecture Reasoning:</b> ${escapeHtml(arch.reasoning)}</div>`;
-  const ev = arch.evidence.length
-    ? '<ul style="margin:4px 0 0 14px;padding:0;font-size:.63rem;">' +
-        arch.evidence.slice(0,12).map(e=>`<li>${escapeHtml(e)}</li>`).join('') +
-        (arch.evidence.length>12?`<li>… +${arch.evidence.length-12} more</li>`:'') +
-      '</ul>'
-    : '<span style="font-size:.63rem;color:var(--text-dim)">(No evidence)</span>';
-  el.innerHTML += `<div style="margin-top:4px;font-size:.65rem;"><b>Ingestion Evidence:</b> ${ev}</div>`;
-}
-}
-*/
-/*
-function updateSolutionMeta(){
-  const box = document.getElementById('solutionMeta');
-  if(!box) return;
-  const analysis = STATE.solutionAnalysis;
-  const meta      = STATE.meta;
-  box.innerHTML = '';
-
-  // ---------- helpers ----------
-  const esc = s => escapeHtml(s||'');
-  const makeSection = (title, innerHTML) => {
-    const wrap = document.createElement('div');
-    wrap.style.marginTop='10px';
-    wrap.style.fontSize='.63rem';
-    wrap.style.lineHeight='1.05rem';
-    wrap.innerHTML = `<strong style="display:block;margin-bottom:3px;">${esc(title)}</strong>${innerHTML}`;
-    return wrap;
-  };
-  const makeBadge = (txt, cls='') => `<span class="badge" style="display:inline-block;margin:2px 4px 2px 0;${cls?cls:''}">${esc(txt)}</span>`;
-  const bulletList = (items, max=40) => {
-    if(!items || !items.length) return '<em style="color:var(--text-dim)">None</em>';
-    const trimmed = items.slice(0,max);
-    const more = items.length - trimmed.length;
-    return trimmed.map(i=>'&bull; '+esc(i)).join('<br>') + (more>0? `<br><span style="color:var(--muted)">… +${more} more</span>`:'');
-  };
-  function toggleable(id,title,bullets){
-    const container = document.createElement('div');
-    container.className='meta-toggle-block';
-    container.style.marginTop='10px';
-    container.style.fontSize='.63rem';
-
-    const header = document.createElement('div');
-    header.style.cursor='pointer';
-    header.style.userSelect='none';
-    header.style.fontWeight='600';
-    header.style.display='flex';
-    header.style.alignItems='center';
-    header.style.gap='6px';
-
-    const caret = document.createElement('span');
-    caret.textContent='▸';
-    caret.style.transition='transform .18s';
-    const titleSpan = document.createElement('span');
-    titleSpan.textContent=title;
-
-    header.appendChild(caret);
-    header.appendChild(titleSpan);
-
-    const body = document.createElement('div');
-    body.style.marginTop='4px';
-    body.style.display='none';
-    body.innerHTML = bullets;
-
-    header.addEventListener('click',()=>{
-      const open = body.style.display==='none';
-      body.style.display=open?'block':'none';
-      caret.style.transform=open?'rotate(90deg)':'rotate(0deg)';
-    });
-
-    container.appendChild(header);
-    container.appendChild(body);
-    return container;
-  }
-
-  // ---------- architecture badge ----------
-  let archType = (analysis?.type)||'Unknown';
-  // Hybrid label refine: both have strong connectors
-  const strongCcfCount  = analysis?.counts?.ccf||0;
-  const strongHttpCount = analysis?.counts?.http||0;
-  if(/ccf/i.test(archType) && strongHttpCount>0) archType='Mixed (CCF dominant)';
-  if(/http/i.test(archType) && strongCcfCount>0) archType='Mixed (HTTP dominant)';
-  if(archType==='CCF' && strongHttpCount>0 && strongCcfCount>0) archType='Mixed (tie lean CCF)';
-  if(archType==='HTTP Data Collector API' && strongCcfCount>0 && strongHttpCount>0) archType='Mixed (tie lean HTTP)';
-
-  const archDiv = document.createElement('div');
-  archDiv.className='arch-highlight ' + archType.toLowerCase().split(/\s+/)[0];
-  archDiv.textContent = archType;
-  box.appendChild(archDiv);
-
-  // ---------- basic meta ----------
-  const nameLine = document.createElement('div');
-  nameLine.style.marginTop='6px';
-  nameLine.style.fontSize='.7rem';
-  nameLine.style.fontWeight='600';
-  nameLine.textContent = meta?.solutionName || 'Solution';
-  box.appendChild(nameLine);
-
-  if(meta?.publisher){
-    const pub = document.createElement('div');
-    pub.style.fontSize='.6rem';
-    pub.style.color='var(--text-dim)';
-    pub.textContent = `Publisher: ${meta.publisher}`;
-    box.appendChild(pub);
-  }
-
-  // Categories / Domains
-  if(meta?.categories?.length){
-    const cats = document.createElement('div');
-    cats.style.marginTop='6px';
-    cats.innerHTML = meta.categories.map(c=>makeBadge(c)).join('');
-    box.appendChild(cats);
-  }
-  if(meta?.domains?.length){
-    const doms = document.createElement('div');
-    doms.style.marginTop='4px';
-    doms.innerHTML = meta.domains.map(d=>makeBadge(d,'background:var(--panel-muted);')).join('');
-    box.appendChild(doms);
-  }
-
-  // ---------- artifact counts summary ----------
-  if(analysis?.counts){
-    const counts = analysis.counts;
-    const sumWrap = document.createElement('div');
-    sumWrap.style.marginTop='8px';
-    sumWrap.style.fontSize='.6rem';
-    sumWrap.style.display='flex';
-    sumWrap.style.flexWrap='wrap';
-    sumWrap.style.gap='4px';
-    function chip(label,val){
-      return `<span class="badge" style="background:var(--panel-muted);color:var(--text-dim);">${esc(label)}: ${val}</span>`;
-    }
-    sumWrap.innerHTML = [
-      chip('Connectors', counts.total),
-      chip('CCF', counts.ccf),
-      chip('HTTP', counts.http),
-      chip('Mixed', counts.mixed),
-      chip('Neutral', counts.neutral)
-    ].join('');
-    box.appendChild(sumWrap);
-  }
-
-  // ---------- core signals ----------
-  if(analysis?.core){
-    const c = analysis.core;
-    const coreWrap = document.createElement('div');
-    coreWrap.style.marginTop='8px';
-    coreWrap.style.fontSize='.6rem';
-    coreWrap.innerHTML = `<strong>Core Signals:</strong><br>` + [
-      c.ccfArtifacts?makeBadge('connectorDefinition/pollerConfig'):'',
-      c.dcrResource?makeBadge('DCR resource'):'',
-      c.dceResource?makeBadge('DCE resource'):'',
-      c.associations?makeBadge('DCR associations'):'',
-      c.httpApiLogs?makeBadge('/api/logs'):'',
-      c.workspaceKeyPair?makeBadge('workspaceId+sharedKey'):''
-    ].filter(Boolean).join('');
-    box.appendChild(coreWrap);
-  }
-
-  // ---------- ingestion mode ----------
-  if(analysis?.modes){
-    const modeWrap = document.createElement('div');
-    modeWrap.style.marginTop='6px';
-    modeWrap.style.fontSize='.6rem';
-    modeWrap.innerHTML = `<strong>Ingestion Mode:</strong> ${esc(analysis.modes.summary)}`;
-    box.appendChild(modeWrap);
-  }
-
-  // ---------- reasoning ----------
-  if(analysis?.reasoningLines?.length){
-    const reasoningBullets = bulletList(analysis.reasoningLines, 60);
-    box.appendChild(toggleable('reasoning','Architecture Reasoning', reasoningBullets));
-  } else if(analysis?.reasoning){
-    // Fallback legacy string
-    box.appendChild(makeSection('Architecture Reasoning', `<pre style="white-space:pre-wrap;font-size:.58rem;margin:0;">${esc(analysis.reasoning)}</pre>`));
-  }
-
-  // ---------- evidence ----------
-  if(analysis?.evidenceLines?.length){
-    const evidenceBullets = bulletList(analysis.evidenceLines, 120);
-    box.appendChild(toggleable('evidence','Ingestion Evidence', evidenceBullets));
-  } else if(analysis?.evidence){
-    box.appendChild(makeSection('Ingestion Evidence', `<pre style="white-space:pre-wrap;font-size:.58rem;margin:0;">${esc(analysis.evidence)}</pre>`));
-  }
-
-  // ---------- endpoints (HTTP) ----------
-  const httpEndpoints = (analysis?.endpoints?.http||[]).filter(Boolean);
-  if(httpEndpoints.length){
-    const endList = bulletList(httpEndpoints.map(e=>e), 30);
-    box.appendChild(toggleable('endpoints','Observed HTTP Endpoints', endList));
-  }
-
-  // ---------- hybrid hint ----------
-  if(/mixed/i.test(archType)){
-    const hybridNote = document.createElement('div');
-    hybridNote.style.marginTop='8px';
-    hybridNote.style.fontSize='.58rem';
-    hybridNote.style.color='var(--danger)';
-    hybridNote.textContent = 'Hybrid/Mixed: both ingestion paths show strong indicators. Review connector-specific evidence for transition or dual-mode design.';
-    box.appendChild(hybridNote);
-  }
-
-  // ---------- empty fallback ----------
-  if(!analysis){
-    const empty = document.createElement('div');
-    empty.style.marginTop='10px';
-    empty.style.fontSize='.6rem';
-    empty.style.color='var(--text-dim)';
-    empty.textContent='No analysis available.';
-    box.appendChild(empty);
-  }
-}
-*/
-/*
-function updateSolutionMeta(){
-  const box = document.getElementById('solutionMeta');
-  if(!box) return;
-  const meta = STATE.meta;
-  const analysis = STATE.solutionAnalysis;
-  box.innerHTML='';
-
-  const esc = s => escapeHtml(s||'');
-
-  // Architecture badge
-  let arch = analysis?.type || 'Unknown';
-  const strongCcf = analysis?.counts?.ccf||0;
-  const strongHttp = analysis?.counts?.http||0;
-  if(/ccf/i.test(arch) && strongHttp>0) arch='Mixed (CCF dominant)';
-  if(/http/i.test(arch) && strongCcf>0) arch='Mixed (HTTP dominant)';
-
-  const archDiv=document.createElement('div');
-  archDiv.className='arch-highlight ' + arch.toLowerCase().split(/\s+/)[0];
-  archDiv.textContent=arch;
-  box.appendChild(archDiv);
-
-  // Confidence badge
-  if(typeof analysis?.confidence==='number'){
-    const conf=document.createElement('div');
-    conf.style.marginTop='4px';
-    conf.style.fontSize='.6rem';
-    conf.innerHTML=`<strong>Confidence:</strong> ${(analysis.confidence*100).toFixed(0)}%`;
-    box.appendChild(conf);
-  }
-
-  // Name / publisher
-  const name=document.createElement('div');
-  name.style.marginTop='6px';
-  name.style.fontSize='.7rem';
-  name.style.fontWeight='600';
-  name.textContent=meta?.solutionName||'Solution';
-  box.appendChild(name);
-
-  if(meta?.publisher){
-    const pub=document.createElement('div');
-    pub.style.fontSize='.6rem';
-    pub.style.color='var(--text-dim)';
-    pub.textContent='Publisher: '+meta.publisher;
-    box.appendChild(pub);
-  }
-
-  // Categories / Domains
-  function badges(arr){
-    return arr.map(x=>`<span class="badge" style="margin:2px 4px 2px 0;">${esc(x)}</span>`).join('');
-  }
-  if(meta?.categories?.length){
-    const cats=document.createElement('div');
-    cats.style.marginTop='6px';
-    cats.innerHTML=badges(meta.categories);
-    box.appendChild(cats);
-  }
-  if(meta?.domains?.length){
-    const doms=document.createElement('div');
-    doms.style.marginTop='4px';
-    doms.innerHTML=badges(meta.domains);
-    box.appendChild(doms);
-  }
-
-  // Counts
-  if(analysis?.counts){
-    const c=analysis.counts;
-    const counts=document.createElement('div');
-    counts.style.marginTop='8px';
-    counts.style.fontSize='.6rem';
-    counts.style.display='flex';
-    counts.style.flexWrap='wrap';
-    counts.style.gap='4px';
-    const chip=(label,val)=>`<span class="badge" style="background:var(--panel-muted);color:var(--text-dim);">${esc(label)}:${val}</span>`;
-    counts.innerHTML=[
-      chip('Connectors',c.total),
-      chip('CCF',c.ccf),
-      chip('HTTP',c.http),
-      chip('Mixed',c.mixed),
-      chip('Neutral',c.neutral)
-    ].join('');
-    box.appendChild(counts);
-  }
-
-  // Core signals
-  if(analysis?.core){
-    const core=analysis.core;
-    const coreDiv=document.createElement('div');
-    coreDiv.style.marginTop='8px';
-    coreDiv.style.fontSize='.6rem';
-    coreDiv.innerHTML='<strong>Core Signals:</strong><br>'+
-      [
-        core.ccfArtifacts?'connectorDefinition/pollerConfig/DCR/tableSchema':'',
-        core.dcrResource?'DCR resource':'',
-        core.dceResource?'DCE resource':'',
-        core.httpApiLogs?'/api/logs':'',
-        core.workspaceKeyPair?'workspaceId+sharedKey':''
-      ].filter(Boolean).map(x=>`<span class="badge" style="margin:2px 4px 2px 0;">${esc(x)}</span>`).join('');
-    box.appendChild(coreDiv);
-  }
-
-  // Reasoning
-  if(analysis?.reasoningLines?.length){
-    const r=document.createElement('div');
-    r.style.marginTop='10px';
-    r.style.fontSize='.63rem';
-    r.style.lineHeight='1.05rem';
-    r.innerHTML='<strong>Architecture Reasoning</strong><br>'+
-      analysis.reasoningLines.map(l=>'&bull; '+esc(l)).join('<br>');
-    box.appendChild(r);
-  }
-
-  // Evidence
-  if(analysis?.evidenceLines?.length){
-    const e=document.createElement('div');
-    e.style.marginTop='10px';
-    e.style.fontSize='.63rem';
-    e.style.lineHeight='1.05rem';
-    e.innerHTML='<strong>Ingestion Evidence</strong><br>'+
-      analysis.evidenceLines.map(l=>'&bull; '+esc(l)).join('<br>');
-    box.appendChild(e);
-  }
-
-  // Optional signals catalog (per connector)
-  if(STATE.showSignalsCatalog && analysis?.signalsCatalog?.connectors?.length){
-    const sc=document.createElement('div');
-    sc.style.marginTop='12px';
-    sc.style.fontSize='.6rem';
-    sc.innerHTML='<strong>Signals Catalog (Connectors)</strong>';
-    analysis.signalsCatalog.connectors.forEach(cs=>{
-      const block=document.createElement('div');
-      block.style.marginTop='6px';
-      block.style.padding='4px 6px';
-      block.style.background='var(--panel-muted)';
-      block.style.borderRadius='6px';
-      const strongCcf=cs.ccf.strong.length?`<div style="color:#059669">CCF strong: ${esc(cs.ccf.strong.join(', '))}</div>`:'';
-      const weakCcf=cs.ccf.weak.length?`<div style="color:#10b981">CCF weak: ${esc(cs.ccf.weak.join(', '))}</div>`:'';
-      const strongHttp=cs.http.strong.length?`<div style="color:#b45309">HTTP strong: ${esc(cs.http.strong.join(', '))}</div>`:'';
-      const weakHttp=cs.http.weak.length?`<div style="color:#f59e0b">HTTP weak: ${esc(cs.http.weak.join(', '))}</div>`:'';
-      block.innerHTML=`<div style="font-weight:600">${esc(cs.id)}</div>${strongCcf}${weakCcf}${strongHttp}${weakHttp}`;
-      sc.appendChild(block);
-    });
-    box.appendChild(sc);
-  }
-
-  // Mixed/hybrid advisory
-  if(/mixed/i.test(arch)){
-    const hybrid=document.createElement('div');
-    hybrid.style.marginTop='8px';
-    hybrid.style.fontSize='.58rem';
-    hybrid.style.color='var(--danger)';
-    hybrid.textContent='Hybrid/Mixed: review connector signal sets for transition or dual-mode ingestion.';
-    box.appendChild(hybrid);
-  }
-}
-*/
-
-/*
-function updateSolutionMeta(){
-  const box = document.getElementById('solutionMeta');
-  if(!box) return;
-  const meta = STATE.meta;
-  const analysis = STATE.solutionAnalysis;
-  box.innerHTML='';
-
-  const esc = s => escapeHtml(s||'');
-
-  if(!analysis){
-    box.textContent='No analysis.';
-    return;
-  }
-
-  // -------- Architecture Badge (binary: CCF or HTTP) --------
-  let arch = analysis.type || 'CCF';
-  const archClass = arch.toLowerCase().startsWith('http') ? 'http' : 'ccf';
-  const archDiv = document.createElement('div');
-  archDiv.className = 'arch-highlight ' + archClass;
-  archDiv.textContent = arch;
-  box.appendChild(archDiv);
-
-  // -------- Solution Name / Publisher --------
-  const nameEl = document.createElement('div');
-  nameEl.style.marginTop='6px';
-  nameEl.style.fontSize='.7rem';
-  nameEl.style.fontWeight='600';
-  nameEl.textContent = meta?.solutionName || 'Solution';
-  box.appendChild(nameEl);
-
-  if(meta?.publisher){
-    const pub = document.createElement('div');
-    pub.style.fontSize='.6rem';
-    pub.style.color='var(--text-dim)';
-    pub.textContent = 'Publisher: ' + meta.publisher;
-    box.appendChild(pub);
-  }
-
-  // -------- Categories / Domains --------
-  function badges(arr, extraStyle=''){
-    return arr.map(x=>`<span class="badge" style="margin:2px 4px 2px 0;${extraStyle}">${esc(x)}</span>`).join('');
-  }
-  if(meta?.categories?.length){
-    const cats = document.createElement('div');
-    cats.style.marginTop='6px';
-    cats.innerHTML = badges(meta.categories);
-    box.appendChild(cats);
-  }
-  if(meta?.domains?.length){
-    const doms = document.createElement('div');
-    doms.style.marginTop='4px';
-    doms.innerHTML = badges(meta.domains,'background:var(--panel-muted);');
-    box.appendChild(doms);
-  }
-
-  // -------- Counts (binary) --------
-  if(analysis?.counts){
-    const c = analysis.counts;
-    const countsWrap = document.createElement('div');
-    countsWrap.style.marginTop='8px';
-    countsWrap.style.fontSize='.6rem';
-    countsWrap.style.display='flex';
-    countsWrap.style.flexWrap='wrap';
-    countsWrap.style.gap='4px';
-    const chip = (label,val)=>`<span class="badge" style="background:var(--panel-muted);color:var(--text-dim);">${esc(label)}:${val}</span>`;
-    countsWrap.innerHTML = [
-      chip('Connectors', c.total),
-      chip('CCF', c.ccf),
-      chip('HTTP', c.http)
-    ].join('');
-    box.appendChild(countsWrap);
-  }
-
-  // -------- Core / Packaging Signals --------
-  if(analysis?.core){
-    const core = analysis.core;
-    const coreDiv = document.createElement('div');
-    coreDiv.style.marginTop='8px';
-    coreDiv.style.fontSize='.6rem';
-    const pk = core.packaging || {};
-    const coreBadges = [
-      pk.connectorDefinition ? 'connectorDefinition.json' : '',
-      pk.pollerConfig ? 'pollerConfig.json' : '',
-      pk.dcrJson ? 'DCR JSON' : '',
-      pk.tableSchema ? 'tableSchema.json' : '',
-      core.dcrResource ? 'dataCollectionRules resource' : '',
-      core.dceResource ? 'dataCollectionEndpoints resource' : '',
-      core.httpApiLogs ? '/api/logs flow' : '',
-      core.workspaceKeyPair ? 'workspaceId+sharedKey params' : ''
-    ].filter(Boolean);
-    coreDiv.innerHTML = '<strong>Core & Packaging Signals:</strong><br>' +
-      (coreBadges.length ? coreBadges.map(b=>`<span class="badge" style="margin:2px 4px 2px 0;">${esc(b)}</span>`).join('') :
-        '<em style="color:var(--text-dim)">None</em>');
-    box.appendChild(coreDiv);
-  }
-
-  // -------- Reasoning --------
-  if(Array.isArray(analysis.reasoningLines) && analysis.reasoningLines.length){
-    const rDiv = document.createElement('div');
-    rDiv.style.marginTop='10px';
-    rDiv.style.fontSize='.63rem';
-    rDiv.style.lineHeight='1.05rem';
-    rDiv.innerHTML = '<strong>Architecture Reasoning</strong><br>' +
-      analysis.reasoningLines.map(l=>'&bull; '+esc(l)).join('<br>');
-    box.appendChild(rDiv);
-  } else if(analysis.reasoning){
-    const rPre = document.createElement('pre');
-    rPre.style.whiteSpace='pre-wrap';
-    rPre.style.fontSize='.6rem';
-    rPre.style.marginTop='10px';
-    rPre.innerHTML = esc(analysis.reasoning);
-    box.appendChild(rPre);
-  }
-
-  // -------- Evidence --------
-  if(Array.isArray(analysis.evidenceLines) && analysis.evidenceLines.length){
-    const eDiv = document.createElement('div');
-    eDiv.style.marginTop='10px';
-    eDiv.style.fontSize='.63rem';
-    eDiv.style.lineHeight='1.05rem';
-    eDiv.innerHTML = '<strong>Ingestion Evidence</strong><br>' +
-      analysis.evidenceLines.map(l=>'&bull; '+esc(l)).join('<br>');
-    box.appendChild(eDiv);
-  } else if(analysis.evidence){
-    const ePre = document.createElement('pre');
-    ePre.style.whiteSpace='pre-wrap';
-    ePre.style.fontSize='.6rem';
-    ePre.style.marginTop='10px';
-    ePre.innerHTML = esc(analysis.evidence);
-    box.appendChild(ePre);
-  }
-
-  // -------- Optional Signals Catalog (toggle with STATE.showSignalsCatalog) --------
-  if(STATE.showSignalsCatalog && analysis?.signalsCatalog?.connectors?.length){
-    const scDiv = document.createElement('div');
-    scDiv.style.marginTop='12px';
-    scDiv.style.fontSize='.6rem';
-    scDiv.innerHTML = '<strong>Connector Signals Catalog</strong>';
-    analysis.signalsCatalog.connectors.forEach(cs=>{
-      const block = document.createElement('div');
-      block.style.marginTop='6px';
-      block.style.padding='4px 6px';
-      block.style.background='var(--panel-muted)';
-      block.style.borderRadius='6px';
-      const lines = [];
-      if(cs.ccf.strong.length) lines.push(`<div style="color:#059669">CCF strong: ${esc(cs.ccf.strong.join(', '))}</div>`);
-      if(cs.ccf.weak.length)   lines.push(`<div style="color:#10b981">CCF weak: ${esc(cs.ccf.weak.join(', '))}</div>`);
-      if(cs.http.strong.length)lines.push(`<div style="color:#b45309">HTTP strong: ${esc(cs.http.strong.join(', '))}</div>`);
-      if(cs.http.weak.length)  lines.push(`<div style="color:#f59e0b">HTTP weak: ${esc(cs.http.weak.join(', '))}</div>`);
-      block.innerHTML = `<div style="font-weight:600">${esc(cs.id)}</div>` + lines.join('');
-      scDiv.appendChild(block);
-    });
-    box.appendChild(scDiv);
-  }
-
-  // -------- Advisory when strong signals from both sides exist --------
-  const dualStrong = connectorsHaveDualStrong(analysis.connectors);
-  if(dualStrong){
-    const adv = document.createElement('div');
-    adv.style.marginTop='8px';
-    adv.style.fontSize='.58rem';
-    adv.style.color='var(--danger)';
-    adv.textContent='Both CCF and HTTP strong signals detected in different connectors; binary classification forced. Review per-connector evidence.';
-    box.appendChild(adv);
-  }
-
-  function connectorsHaveDualStrong(list){
-    if(!Array.isArray(list)) return false;
-    let anyCcf=false, anyHttp=false;
-    for(const c of list){
-      if(c.strongCcf?.length) anyCcf=true;
-      if(c.strongHttp?.length) anyHttp=true;
-      if(anyCcf && anyHttp) return true;
-    }
-    return false;
-  }
-}
-*/
-
-// --- Enhanced analyzer with per-line findings ---
+/* ===== REPLACEMENT: analyzeSolutionArchitecture (adds Legacy & Unknown) ===== */
 function analyzeSolutionArchitecture(art){
   if(!art) return {
-    type:'CCF',
+    type:'Unknown',
     connectors:[],
-    counts:{ccf:0,http:0,total:0},
+    counts:{ccf:0,http:0,legacy:0,total:0},
     core:{},
-    reasoning:'Defaulted to CCF (no artifacts).',
-    evidence:[],
-    reasoningLines:['Default: no artifacts.'],
+    reasoning:'No artifacts loaded.',
+    evidence:'',
+    reasoningLines:['No artifacts.'],
     evidenceLines:[],
     findings:[],
-    signalsCatalog:{connectors:[],core:[]}
+    signalsCatalog:{ccf:[],http:[],legacy:[],core:[]}
   };
 
-  const toPretty = obj => {
-    try { return JSON.stringify(obj, null, 2); } catch { return ''; }
-  };
-  const lower = s => s.toLowerCase();
-
-  // Build a quick index: file path -> { text, lines[] }
-  const fileObjs = Array.isArray(art.files) ? art.files : [];
-  const fileTextMap = new Map();
-  fileObjs.forEach(f=>{
-    const pretty = toPretty(f.raw);
-    fileTextMap.set(f.path, { text: pretty, lines: pretty.split(/\r?\n/) });
+  const prettyJson = v => { try{return JSON.stringify(v,null,2);}catch{return'';} };
+  const files = Array.isArray(art.files)?art.files:[];
+  const fileMap = new Map();
+  files.forEach(f=>{
+    const txt = prettyJson(f.raw);
+    fileMap.set(f.path,{text:txt,lines:txt.split(/\r?\n/)});
   });
 
-  // Packaging artifact presence
-  const fileNameSet = new Set(fileObjs.map(f=>f.path.toLowerCase()));
-  const hasFile = (...names) => names.some(n => {
-    n = n.toLowerCase();
-    for(const fn of fileNameSet){
-      if(fn.endsWith('/'+n) || fn.endsWith(n)) return true;
+  // File presence helpers
+  const fileNameSet = new Set(files.map(f=>f.path.toLowerCase()));
+  const hasFile = (...names)=>names.some(n=>{
+    const needle=n.toLowerCase();
+    for(const fp of fileNameSet){
+      if(fp.endsWith('/'+needle)||fp.endsWith(needle)) return true;
     }
     return false;
   });
 
-  const patterns = {
+  // Pattern catalogs
+  const PAT = {
     ccf: [
-      { key:'dcrConfig',              re:/\"dcrConfig\"\s*:/i },
-      { key:'connectorUiConfig',      re:/\"connectorUiConfig\"\s*:/i },
-      { key:'connectorUIConfig',      re:/\"connectorUIConfig\"\s*:/i },
-      { key:'restApiPoller',          re:/restapipoller|api\s*polling|poller[-_]config/i },
-      { key:'dataCollectionRulesRes', re:/microsoft\.insights\/datacollectionrules/i },
-      { key:'dataCollectionEndpointsRes', re:/microsoft\.insights\/datacollectionendpoints/i },
-      { key:'streamsKey',             re:/\"streams\"\s*:/i },
-      { key:'graphQueries',           re:/\"graphQueries\"\s*:/i }
+      {key:'dcrConfig', re:/\"dcrConfig\"\s*:/i},
+      {key:'connectorUiConfig', re:/\"connectorUiConfig\"\s*:/i},
+      {key:'connectorUIConfig', re:/\"connectorUIConfig\"\s*:/i},
+      {key:'restApiPoller', re:/restapipoller|api\s*polling|poller[-_]config/i},
+      {key:'dcrResource', re:/microsoft\.insights\/datacollectionrules/i},
+      {key:'dceResource', re:/microsoft\.insights\/datacollectionendpoints/i},
+      {key:'graphQueries', re:/\"graphQueries\"\s*:/i},
+      {key:'streamsKey', re:/\"streams\"\s*:/i}
     ],
     http: [
-      { key:'workspaceId',       re:/workspaceid|customerid|la_workspace_id/i },
-      { key:'sharedKey',         re:/sharedkey|workspacekey|primarykey/i },
-      { key:'apiLogsPath',       re:/\/api\/logs(\?|")/i },
-      { key:'xMsSignature',      re:/x-ms-signature/i },
-      { key:'authorizationSharedKey', re:/authorization:\s*sharedkey/i },
-      { key:'logAnalyticsUri',   re:/loganalyticsuri/i },
-      { key:'odsHost',           re:/(ods|opinsights)\.azure\.(com|cn|us|de|gov)/i },
-      { key:'logTypeHeader',     re:/log-type/i },
-      { key:'xMsDateHeader',     re:/x-ms-date/i },
-      { key:'timeGeneratedField',re:/time-generated-field/i }
+      {key:'workspaceId', re:/workspaceid|customerid|la_workspace_id/i},
+      {key:'sharedKey', re:/sharedkey|workspacekey|primarykey/i},
+      {key:'apiLogs', re:/\/api\/logs(\?|")/i},
+      {key:'xMsSignature', re:/x-ms-signature|authorization:\s*sharedkey/i},
+      {key:'logAnalyticsUri', re:/loganalyticsuri/i},
+      {key:'odsHost', re:/(ods|opinsights)\.azure\.(com|cn|us|de|gov)/i},
+      {key:'logTypeHeader', re:/log-type/i},
+      {key:'xMsDateHeader', re:/x-ms-date/i}
+    ],
+    legacy: [
+      {key:'cefKeyword', re:/\bCEF\b/i},
+      {key:'syslogTable', re:/\bSyslog\b/i},
+      {key:'commonSecurityLog', re:/\bCommonSecurityLog\b/i},
+      {key:'amaKeyword', re:/Azure\s+Monitor\s+Agent|AMA\b/i},
+      {key:'agentInstall', re:/install.*(cef|agent)/i}
     ]
   };
 
-  // Helper: record matches with line numbers
-  const findings = [];
+  // Findings with line numbers
+  const findings=[];
   function scanFile(path){
-    const ft = fileTextMap.get(path);
-    if(!ft) return;
-    const { text, lines } = ft;
-    function capture(side, patt){
+    const fo=fileMap.get(path); if(!fo) return;
+    function collect(side, patt){
+      const {text,lines}=fo;
+      const re=new RegExp(patt.re.source,patt.re.flags.includes('g')?patt.re.flags:patt.re.flags+'g');
       let m;
-      const re = new RegExp(patt.re.source, patt.re.flags.includes('g') ? patt.re.flags : patt.re.flags+'g');
-      while((m = re.exec(text)) !== null){
-        // compute line by counting newlines before match.index
-        const prefix = text.slice(0, m.index);
-        const lineNumber = prefix.split(/\r?\n/).length;
-        const lineText = lines[lineNumber-1]?.trim() || '';
-        findings.push({
-          side,
-          pattern: patt.key,
-          file: path,
-          line: lineNumber,
-          lineText: lineText.slice(0,180)
-        });
-        // safety to avoid infinite loop on zero-width
-        if(m.index === re.lastIndex) re.lastIndex++;
+      while((m=re.exec(text))!==null){
+        const lineNum = text.slice(0,m.index).split(/\r?\n/).length;
+        const lineTxt = lines[lineNum-1]?.trim().slice(0,180)||'';
+        findings.push({side,pattern:patt.key,file:path,line:lineNum,lineText:lineTxt});
+        if(m.index===re.lastIndex) re.lastIndex++;
       }
     }
-    patterns.ccf.forEach(p=>capture('CCF',p));
-    patterns.http.forEach(p=>capture('HTTP',p));
+    PAT.ccf.forEach(p=>collect('CCF',p));
+    PAT.http.forEach(p=>collect('HTTP',p));
+    PAT.legacy.forEach(p=>collect('LEGACY',p));
   }
+  files.forEach(f=>scanFile(f.path));
 
-  fileObjs.forEach(f=>scanFile(f.path));
-
-  // Per-connector scoring (binary)
-  const connectorSignals = [];
+  // Per-connector evaluation
+  const connectorAnalyses=[];
   const connectors = (art.connectors||[]).map(c=>{
-    const raw = c.raw||{};
-    const txt = lower(JSON.stringify(raw||{}));
-    const id = c.id || c.name || c.path || 'connector';
+    const raw=c.raw||{};
+    const txt=JSON.stringify(raw).toLowerCase();
+    const hasDcrConfig=!!raw?.properties?.dcrConfig;
+    const hasUiConfig=!!(raw?.properties?.connectorUiConfig||raw?.properties?.connectorUIConfig);
+    const dataTypes=Array.isArray(raw?.properties?.dataTypes)?raw.properties.dataTypes:[];
+    const graphQueries=Array.isArray(raw?.properties?.graphQueries)?raw.properties.graphQueries:[];
+    const poller=/restapipoller|api\s*polling|poller[-_]config/.test(txt);
+    const wsId=/workspaceid|customerid|la_workspace_id/.test(txt);
+    const shared=/sharedkey|workspacekey|primarykey/.test(txt);
+    const sig=/x-ms-signature|authorization:\s*sharedkey/.test(txt);
+    const apiLogs=/\/api\/logs(\?|")/.test(txt);
+    const opi=/(ods|opinsights)\.azure\.(com|cn|us|de|gov)/.test(txt)||/loganalyticsuri/.test(txt);
 
-    const strongCcf = new Set();
-    const strongHttp= new Set();
+    const ccfStrong = [];
+    if(hasDcrConfig) ccfStrong.push('dcrConfig');
+    if(hasUiConfig) ccfStrong.push('uiConfig');
+    if(poller) ccfStrong.push('apiPoller');
+    if(graphQueries.length && hasUiConfig && hasDcrConfig && dataTypes.length) ccfStrong.push('codeless-full');
 
-    const hasDcrConfig = !!raw?.properties?.dcrConfig;
-    const hasUiConfig  = !!(raw?.properties?.connectorUiConfig || raw?.properties?.connectorUIConfig);
-    const dataTypes    = Array.isArray(raw?.properties?.dataTypes)?raw.properties.dataTypes:[];
-    const graphQueries = Array.isArray(raw?.properties?.graphQueries)?raw.properties.graphQueries:[];
-    const fullCodeless = hasDcrConfig && hasUiConfig && dataTypes.length && graphQueries.length;
+    const httpStrong=[];
+    if(wsId && shared && (sig||apiLogs||opi)) httpStrong.push('workspaceId+sharedKey+endpoint/signature');
+    if(sig) httpStrong.push('signature');
+    if(apiLogs) httpStrong.push('/api/logs');
+    if(opi && !httpStrong.includes('/api/logs')) httpStrong.push('opinsights');
 
-    if(fullCodeless) strongCcf.add('codeless-full');
-    else if(hasDcrConfig) strongCcf.add('dcrConfig');
-    if(/restapipoller|api\s*polling|poller[-_]config/.test(txt)) strongCcf.add('apiPoller');
-    if(graphQueries.length && !fullCodeless) strongCcf.add('graphQueries');
-
-    const hasWorkspaceId = /workspaceid|customerid|la_workspace_id/.test(txt);
-    const hasSharedKey   = /sharedkey|workspacekey|primarykey/.test(txt);
-    const hasSignature   = /x-ms-signature|authorization:\s*sharedkey/.test(txt);
-    const hasApiLogs     = /\/api\/logs(\?|")/.test(txt);
-    const hasLogAnalytics = /loganalyticsuri/.test(txt);
-    const hasOdsHost     = /(ods|opinsights)\.azure\.(com|cn|us|de|gov)/.test(txt);
-
-    if(hasWorkspaceId && hasSharedKey && (hasSignature || hasApiLogs || hasOdsHost || hasLogAnalytics))
-      strongHttp.add('workspaceId+sharedKey+endpoint/signature');
-    if(hasSignature) strongHttp.add('x-ms-signature');
-    if(hasApiLogs)   strongHttp.add('/api/logs');
-    if(hasOdsHost)   strongHttp.add('ods/opinsights host');
-    if(hasLogAnalytics) strongHttp.add('logAnalyticsUri');
-
-    const scoreCcf = strongCcf.size;
-    const scoreHttp= strongHttp.size;
-    const arch = scoreCcf >= scoreHttp ? 'CCF' : 'HTTP';
-
-    connectorSignals.push({
-      id,
-      ccf:{strong:[...strongCcf],weak:[]},
-      http:{strong:[...strongHttp],weak:[]}
+    connectorAnalyses.push({
+      id:c.id,
+      ccfStrong,
+      httpStrong
     });
 
     return {
-      id,
-      arch,
-      strongCcf:[...strongCcf],
-      strongHttp:[...strongHttp],
-      score:{ccf:scoreCcf,http:scoreHttp}
+      id:c.id,
+      ccfScore:ccfStrong.length,
+      httpScore:httpStrong.length
     };
   });
 
-  // Core resource hints
+  // Core resource scanning
   const coreFiles = Array.isArray(art.coreFiles)?art.coreFiles:[];
-  let coreHasDcr=false, coreHasDce=false, coreHasApiLogs=false, coreHasWorkspaceCreds=false;
-
-  function collectResources(raw){
-    const out=[];
-    (function walk(arr){
-      if(Array.isArray(arr)) arr.forEach(r=>{
-        out.push(r);
-        if(Array.isArray(r.resources)) walk(r.resources);
-      });
-    })(raw?.resources);
-    return out;
-  }
-
+  let coreHasDcr=false,coreHasDce=false,coreHasApiLogs=false,coreHasWorkspaceCreds=false;
   coreFiles.forEach(cf=>{
-    const raw=cf.raw||{};
-    const pretty=toPretty(raw);
-    const lines=pretty.split(/\r?\n/);
-    collectResources(raw).forEach(r=>{
-      const t=(r?.type||'').toLowerCase();
-      if(t==='microsoft.insights/datacollectionrules'){
-        coreHasDcr=true;
-        // find line in pretty text containing the type string
-        const idx = lines.findIndex(l=>l.toLowerCase().includes('microsoft.insights/datacollectionrules'));
-        findings.push({
-          side:'CCF', pattern:'dataCollectionRules resource',
-          file: cf.path, line: idx+1,
-          lineText: (lines[idx]||'').trim().slice(0,180)
-        });
-      }
-      if(t==='microsoft.insights/datacollectionendpoints'){
-        coreHasDce=true;
-        const idx = lines.findIndex(l=>l.toLowerCase().includes('microsoft.insights/datacollectionendpoints'));
-        findings.push({
-          side:'CCF', pattern:'dataCollectionEndpoints resource',
-          file: cf.path, line: idx+1,
-          lineText: (lines[idx]||'').trim().slice(0,180)
-        });
-      }
-    });
-    if(/\/api\/logs(\?|")/i.test(pretty)){
-      coreHasApiLogs=true;
-      const lnIndex=lines.findIndex(l=>/\/api\/logs(\?|")/i.test(l));
-      findings.push({
-        side:'HTTP', pattern:'/api/logs flow', file:cf.path, line:lnIndex+1,
-        lineText:(lines[lnIndex]||'').trim().slice(0,180)
-      });
-    }
-    if(/workspaceid/i.test(pretty) && /(sharedkey|workspacekey|primarykey)/i.test(pretty)){
-      coreHasWorkspaceCreds=true;
-      const lnIndex=lines.findIndex(l=>/workspaceid/i.test(l));
-      findings.push({
-        side:'HTTP', pattern:'workspaceId param', file:cf.path, line:lnIndex+1,
-        lineText:(lines[lnIndex]||'').trim().slice(0,180)
-      });
-      const lnIndex2=lines.findIndex(l=>/(sharedkey|workspacekey|primarykey)/i.test(l));
-      if(lnIndex2>=0){
-        findings.push({
-          side:'HTTP', pattern:'sharedKey param', file:cf.path, line:lnIndex2+1,
-          lineText:(lines[lnIndex2]||'').trim().slice(0,180)
-        });
-      }
-    }
+    const txt=prettyJson(cf.raw);
+    if(/microsoft\.insights\/datacollectionrules/i.test(txt)) coreHasDcr=true;
+    if(/microsoft\.insights\/datacollectionendpoints/i.test(txt)) coreHasDce=true;
+    if(/\/api\/logs(\?|")/i.test(txt)) coreHasApiLogs=true;
+    if(/workspaceid/i.test(txt)&&/(sharedkey|workspacekey|primarykey)/i.test(txt)) coreHasWorkspaceCreds=true;
   });
 
-  // Packaging artifact synthetic findings
-  if(hasFile('connectorDefinition.json')){
-    findings.push({side:'CCF',pattern:'connectorDefinition.json',file:'(packaging)',line:1,lineText:'connectorDefinition.json present'});
-  }
-  if(hasFile('pollerConfig.json')){
-    findings.push({side:'CCF',pattern:'pollerConfig.json',file:'(packaging)',line:1,lineText:'pollerConfig.json present'});
-  }
-  if(hasFile('dcr.json','dcr.config.json','dataCollectionRule.json')){
-    findings.push({side:'CCF',pattern:'DCR JSON packaging',file:'(packaging)',line:1,lineText:'DCR JSON file present'});
+  // Derived counts
+  const totalCcf = connectors.reduce((s,c)=>s+c.ccfScore,0);
+  const totalHttp= connectors.reduce((s,c)=>s+c.httpScore,0);
+
+  // Legacy signal presence (global)
+  const legacyMatches = findings.filter(f=>f.side==='LEGACY').map(f=>f.pattern);
+  const legacyUnique = [...new Set(legacyMatches)];
+
+  const hasStrongCcfAnchor = coreHasDcr || hasFile('dcr.json','connectorDefinition.json','pollerConfig.json') ||
+    connectors.some(c=>c.ccfScore>0);
+  const hasStrongHttpAnchor = coreHasApiLogs || coreHasWorkspaceCreds ||
+    connectors.some(c=>c.httpScore>0);
+
+  // Legacy criteria: legacy signals present AND no strong CCF anchors AND no strong HTTP anchors
+  const qualifiesLegacy = legacyUnique.length>0 && !hasStrongCcfAnchor && !hasStrongHttpAnchor;
+
+  let type='Unknown';
+  if(hasStrongCcfAnchor) type='CCF';
+  else if(hasStrongHttpAnchor) type='HTTP Data Collector API';
+  else if(qualifiesLegacy) type='Legacy (CEF/AMA)';
+  else type='Unknown';
+
+  // Fallback tie-breaker (avoid forcing CCF when neither side strong)
+  if(type==='Unknown' && (totalCcf>0 || totalHttp>0)){
+    if(totalCcf>totalHttp) type='CCF';
+    else if(totalHttp>totalCcf) type='HTTP Data Collector API';
   }
 
-  // Classification (binary)
-  const anyConnectorDcr = connectors.some(c=>c.strongCcf.includes('dcrConfig')||c.strongCcf.includes('codeless-full'));
-  const packagingDcr = hasFile('dcr.json','dcr.config.json','dataCollectionRule.json');
-  const totalCcfScore = connectors.reduce((s,c)=>s+c.score.ccf,0);
-  const totalHttpScore= connectors.reduce((s,c)=>s+c.score.http,0);
+  // Reasoning lines
+  const reasoningLines=[];
+  reasoningLines.push(`Final: ${type}`);
+  if(coreHasDcr) reasoningLines.push('Core template resource: dataCollectionRules');
+  if(coreHasDce) reasoningLines.push('Core template resource: dataCollectionEndpoints');
+  if(hasFile('dcr.json')) reasoningLines.push('Packaging: dcr.json present');
+  if(hasFile('connectorDefinition.json')) reasoningLines.push('Packaging: connectorDefinition.json');
+  if(hasFile('pollerConfig.json')) reasoningLines.push('Packaging: pollerConfig.json');
+  if(coreHasApiLogs) reasoningLines.push('Core: /api/logs flow');
+  if(coreHasWorkspaceCreds) reasoningLines.push('Core: workspaceId + sharedKey pattern');
+  if(legacyUnique.length) reasoningLines.push(`Legacy signals: ${legacyUnique.join(', ')}`);
+  if(type==='Unknown') reasoningLines.push('No decisive CCF, HTTP, or Legacy anchors.');
+  if(type==='CCF' && !coreHasDcr && !hasFile('dcr.json','connectorDefinition.json','pollerConfig.json'))
+    reasoningLines.push('CCF inferred from connector patterns (no packaging artifacts).');
+  if(type.startsWith('HTTP') && !coreHasApiLogs && !coreHasWorkspaceCreds)
+    reasoningLines.push('HTTP inferred from connector endpoint/signature patterns (no core flow).');
+  if(type.startsWith('Legacy') && legacyUnique.length)
+    reasoningLines.push('Classified Legacy due to CEF/Syslog/AMA indicators without CCF or HTTP anchors.');
 
-  let type;
-  if(coreHasDcr || anyConnectorDcr || packagingDcr) type='CCF';
-  else if(!coreHasDcr && !anyConnectorDcr && !packagingDcr &&
-          (coreHasApiLogs || coreHasWorkspaceCreds || totalHttpScore>totalCcfScore)) type='HTTP Data Collector API';
-  else type = totalCcfScore >= totalHttpScore ? 'CCF' : 'HTTP Data Collector API';
+  // Evidence lines
+  const evidenceLines=[];
+  findings.forEach(f=>{
+    if(f.side==='CCF') evidenceLines.push(`CCF: ${f.pattern} @ ${f.file}:${f.line}`);
+    if(f.side==='HTTP') evidenceLines.push(`HTTP: ${f.pattern} @ ${f.file}:${f.line}`);
+    if(f.side==='LEGACY') evidenceLines.push(`Legacy: ${f.pattern} @ ${f.file}:${f.line}`);
+  });
 
   const counts = {
-    ccf: connectors.filter(c=>c.arch==='CCF').length,
-    http: connectors.filter(c=>c.arch==='HTTP').length,
+    ccf: connectors.filter(c=>c.ccfScore>0).length,
+    http: connectors.filter(c=>c.httpScore>0).length,
+    legacy: legacyUnique.length,
     total: connectors.length
   };
-
-  const core = {
-    dcrResource: coreHasDcr,
-    dceResource: coreHasDce,
-    httpApiLogs: coreHasApiLogs,
-    workspaceKeyPair: coreHasWorkspaceCreds,
-    packaging:{
-      connectorDefinition: hasFile('connectorDefinition.json'),
-      pollerConfig: hasFile('pollerConfig.json'),
-      dcrJson: hasFile('dcr.json','dcr.config.json','dataCollectionRule.json')
-    }
-  };
-
-  // Reasoning: focus on cause, not counts
-  const reasoningLines = [];
-  reasoningLines.push(`Final: ${type}`);
-  if(core.packaging.connectorDefinition) reasoningLines.push('Detected connectorDefinition.json');
-  if(core.packaging.pollerConfig) reasoningLines.push('Detected pollerConfig.json');
-  if(core.packaging.dcrJson) reasoningLines.push('Detected DCR packaging JSON');
-  if(core.dcrResource) reasoningLines.push('Core template resource: dataCollectionRules');
-  if(core.dceResource) reasoningLines.push('Core template resource: dataCollectionEndpoints');
-  if(anyConnectorDcr) reasoningLines.push('Connector property: dcrConfig');
-  if(core.httpApiLogs) reasoningLines.push('Core flow: /api/logs');
-  if(core.workspaceKeyPair) reasoningLines.push('Core parameters: workspaceId + sharedKey');
-  if(!reasoningLines.some(l=>/CCF|dcr|connectorDefinition|pollerConfig/i.test(l)) && type==='CCF')
-    reasoningLines.push('Fallback to CCF (no decisive HTTP endpoint/signature).');
-  if(type==='HTTP Data Collector API' && !reasoningLines.some(l=>/api\/logs|workspaceId|sharedKey|signature/i.test(l)))
-    reasoningLines.push('Fallback to HTTP (higher HTTP score).');
-
-  const reasoning = 'Architecture Reasoning:\n' + reasoningLines.map(l=>'• '+l).join('\n');
-
-  // Evidence lines (summaries)
-  const evidenceLines = [];
-  if(type==='CCF'){
-    ['dcrConfig','codeless-full','apiPoller','connectorDefinition.json','pollerConfig.json','DCR JSON packaging','dataCollectionRules resource','dataCollectionEndpoints resource']
-      .forEach(sig=>{
-        if(findings.some(f=>f.side==='CCF' && f.pattern.toLowerCase().includes(sig.split(' ')[0].toLowerCase())))
-          evidenceLines.push(`CCF signal: ${sig}`);
-      });
-  }else{
-    ['/api/logs','workspaceId','sharedKey','x-ms-signature','logAnalyticsUri','ods/opinsights host']
-      .forEach(sig=>{
-        if(findings.some(f=>f.side==='HTTP' && f.pattern.toLowerCase().includes(sig.replace(/[^a-z]/gi,'').toLowerCase().slice(0,4))))
-          evidenceLines.push(`HTTP signal: ${sig}`);
-      });
-  }
-  const evidence = 'Ingestion Evidence:\n' + evidenceLines.map(l=>'• '+l).join('\n');
 
   return {
     type,
     connectors,
     counts,
-    core,
-    reasoning,
-    evidence,
+    core:{
+      dcrResource:coreHasDcr,
+      dceResource:coreHasDce,
+      httpApiLogs:coreHasApiLogs,
+      workspaceKeyPair:coreHasWorkspaceCreds,
+      packaging:{
+        dcrJson:hasFile('dcr.json'),
+        connectorDefinition:hasFile('connectorDefinition.json'),
+        pollerConfig:hasFile('pollerConfig.json')
+      }
+    },
+    reasoning:'Architecture Reasoning:\n'+reasoningLines.map(l=>'• '+l).join('\n'),
+    evidence:'Signals:\n'+evidenceLines.map(l=>'• '+l).join('\n'),
     reasoningLines,
     evidenceLines,
-    findings, // detailed line-by-line matches
+    findings,
     signalsCatalog:{
-      connectors: connectorSignals,
-      core: reasoningLines.filter(l=>/Detected|resource|flow|parameters|Fallback/i.test(l))
-    }
+      ccf: connectorAnalyses.map(c=>({id:c.id,strong:c.ccfStrong||[]})),
+      http: connectorAnalyses.map(c=>({id:c.id,strong:c.httpStrong||[]})),
+      legacy: legacyUnique,
+      core: reasoningLines.filter(l=>/Packaging|Core|Legacy|inferred/i.test(l))
+    },
+    legacySignals: legacyUnique
   };
 }
 
@@ -4031,98 +4076,174 @@ function analyzeSolutionArchitecture(art){
 function updateSolutionMeta(){
   const box = document.getElementById('solutionMeta');
   if(!box) return;
+
   const meta = STATE.meta;
   const analysis = STATE.solutionAnalysis;
-  box.innerHTML='';
+  box.innerHTML = '';
 
   const esc = s => escapeHtml(s||'');
 
   if(!analysis){
-    box.textContent='No analysis.';
+    box.textContent = 'No analysis.';
     return;
   }
 
-  // Architecture badge
-  const archClass = analysis.type.toLowerCase().startsWith('http')?'http':'ccf';
+  // Determine architecture badge class
+  const lowerType = analysis.type.toLowerCase();
+  let archClass = 'unknown';
+  if(lowerType.startsWith('ccf')) archClass = 'ccf';
+  else if(lowerType.startsWith('http')) archClass = 'http';
+  else if(lowerType.startsWith('legacy')) archClass = 'legacy';
+  else archClass = 'unknown';
+
+  // Badge
   const archDiv = document.createElement('div');
-  archDiv.className='arch-highlight '+archClass;
-  archDiv.textContent=analysis.type;
+  archDiv.className = 'arch-highlight ' + archClass;
+  archDiv.textContent = analysis.type;
   box.appendChild(archDiv);
 
-  // Name / publisher
-  const nameEl=document.createElement('div');
-  nameEl.style.marginTop='6px';
-  nameEl.style.fontSize='.7rem';
-  nameEl.style.fontWeight='600';
-  nameEl.textContent=meta?.solutionName||'Solution';
-  box.appendChild(nameEl);
-  if(meta?.publisher){
-    const pub=document.createElement('div');
-    pub.style.fontSize='.6rem';
-    pub.style.color='var(--text-dim)';
-    pub.textContent='Publisher: '+meta.publisher;
-    box.appendChild(pub);
+  // Solution name & publisher (if meta available)
+  if(meta){
+    const nameLine = document.createElement('div');
+    nameLine.style.margin = '6px 0 4px';
+    nameLine.innerHTML = `<b>Solution:</b> ${esc(meta.solutionName || '(unknown)')}`;
+    box.appendChild(nameLine);
+
+    if(meta.publisher){
+      const pub = document.createElement('div');
+      pub.innerHTML = `<b>Publisher:</b> ${esc(meta.publisher)}`;
+      box.appendChild(pub);
+    }
+
+    if(Array.isArray(meta.categories) && meta.categories.length){
+      const cat = document.createElement('div');
+      cat.innerHTML = `<b>Categories:</b> ${esc(meta.categories.slice(0,6).join(', '))}${meta.categories.length>6?'…':''}`;
+      box.appendChild(cat);
+    }
+    if(Array.isArray(meta.domains) && meta.domains.length){
+      const dom = document.createElement('div');
+      dom.innerHTML = `<b>Domains:</b> ${esc(meta.domains.slice(0,6).join(', '))}${meta.domains.length>6?'…':''}`;
+      box.appendChild(dom);
+    }
   }
 
-  // Categories
-  if(meta?.categories?.length){
-    const cats=document.createElement('div');
-    cats.style.marginTop='4px';
-    cats.innerHTML=meta.categories.map(c=>`<span class="badge" style="margin:2px 4px 2px 0;">${esc(c)}</span>`).join('');
-    box.appendChild(cats);
+  // Counts summary line
+  const counts = analysis.counts || {};
+  const countsDiv = document.createElement('div');
+  countsDiv.style.margin = '8px 0 4px';
+  countsDiv.style.fontSize = '.63rem';
+  countsDiv.style.color = 'var(--text-dim)';
+  countsDiv.innerHTML =
+    `<b>Connector Signals:</b> CCF:${counts.ccf||0} | HTTP:${counts.http||0} | Legacy:${counts.legacy||0} | Total:${counts.total||0}`;
+  box.appendChild(countsDiv);
+
+  // Core / packaging summary
+  const core = analysis.core || {};
+  const pack = core.packaging || {};
+  const coreLines = [];
+  if(pack.dcrJson) coreLines.push('dcr.json');
+  if(pack.connectorDefinition) coreLines.push('connectorDefinition.json');
+  if(pack.pollerConfig) coreLines.push('pollerConfig.json');
+  if(core.dcrResource) coreLines.push('dataCollectionRules resource');
+  if(core.dceResource) coreLines.push('dataCollectionEndpoints resource');
+  if(core.httpApiLogs) coreLines.push('/api/logs flow');
+  if(core.workspaceKeyPair) coreLines.push('workspaceId + sharedKey');
+
+  if(coreLines.length){
+    const coreDiv = document.createElement('div');
+    coreDiv.style.margin = '4px 0 4px';
+    coreDiv.innerHTML = `<b>Core Signals:</b> ${esc(coreLines.join(', '))}`;
+    box.appendChild(coreDiv);
   }
 
-  // Cause summary
-  if(analysis.reasoningLines?.length){
-    const cause=document.createElement('div');
-    cause.style.marginTop='10px';
-    cause.style.fontSize='.63rem';
-    cause.style.lineHeight='1.05rem';
-    cause.innerHTML='<strong>Classification Cause</strong><br>'+
-      analysis.reasoningLines.map(l=>'&bull; '+esc(l)).join('<br>');
-    box.appendChild(cause);
+  // Legacy signals
+  if(Array.isArray(analysis.legacySignals) && analysis.legacySignals.length){
+    const legDiv = document.createElement('div');
+    legDiv.style.margin = '4px 0 4px';
+    legDiv.innerHTML = `<b>Legacy Indicators:</b> ${esc(analysis.legacySignals.join(', '))}`;
+    box.appendChild(legDiv);
   }
 
-  // Evidence summary (high-level only)
-  if(analysis.evidenceLines?.length){
-    const ev=document.createElement('div');
-    ev.style.marginTop='10px';
-    ev.style.fontSize='.63rem';
-    ev.style.lineHeight='1.05rem';
-    ev.innerHTML='<strong>Signals Summary</strong><br>'+
-      analysis.evidenceLines.map(l=>'&bull; '+esc(l)).join('<br>');
-    box.appendChild(ev);
+  // Reasoning lines (short list)
+  const reasoningWrap = document.createElement('div');
+  reasoningWrap.style.margin = '6px 0 4px';
+  const reasoningList = (analysis.reasoningLines||[]).slice(0,8);
+  reasoningWrap.innerHTML =
+    `<b>Reasoning:</b><br>` +
+    reasoningList.map(l=>`<span style="display:block;">${esc(l)}</span>`).join('');
+  box.appendChild(reasoningWrap);
+  if((analysis.reasoningLines||[]).length > reasoningList.length){
+    const more = document.createElement('div');
+    more.style.fontSize = '.55rem';
+    more.style.color = 'var(--text-dim)';
+    more.textContent = `(+${analysis.reasoningLines.length - reasoningList.length} more)`;
+    box.appendChild(more);
   }
 
-  // Launch button for detailed line-level findings
-  if(analysis.findings?.length){
-    const btn=document.createElement('button');
-    btn.className='btn-muted';
-    btn.style.marginTop='10px';
-    btn.textContent=`View Detection Evidence (${analysis.findings.length})`;
-    btn.addEventListener('click',openDetectionEvidence);
+  // Evidence summary (just counts)
+  const evidCount = (analysis.findings||[]).length;
+  const evidDiv = document.createElement('div');
+  evidDiv.style.margin = '6px 0 4px';
+  evidDiv.innerHTML = `<b>Evidence Lines:</b> ${evidCount}`;
+  box.appendChild(evidDiv);
+
+  // Button to open modal (if there is evidence)
+  if(evidCount){
+    const btn = document.createElement('button');
+    btn.className = 'btn-muted';
+    btn.style.fontSize = '.55rem';
+    btn.style.padding = '4px 10px';
+    btn.textContent = 'View Line-Level Evidence';
+    btn.addEventListener('click', ()=>{
+      if(typeof openDetectionEvidence === 'function'){
+        openDetectionEvidence(analysis);
+      } else {
+        alert('Evidence modal not available.');
+      }
+    });
     box.appendChild(btn);
   }
 
-  // Optional connector signal summary (toggle)
-  if(STATE.showSignalsCatalog && analysis.signalsCatalog?.connectors?.length){
-    const sc=document.createElement('div');
-    sc.style.marginTop='12px';
-    sc.style.fontSize='.6rem';
-    sc.innerHTML='<strong>Connector Signal Summary</strong>';
-    analysis.signalsCatalog.connectors.forEach(cs=>{
-      const b=document.createElement('div');
-      b.style.marginTop='6px';
-      b.style.padding='4px 6px';
-      b.style.background='var(--panel-muted)';
-      b.style.borderRadius='6px';
-      b.innerHTML=`<div style="font-weight:600">${esc(cs.id)}</div>`+
-        (cs.ccf.strong.length?`<div style="color:#059669">CCF strong: ${esc(cs.ccf.strong.join(', '))}</div>`:'')+
-        (cs.http.strong.length?`<div style="color:#b45309">HTTP strong: ${esc(cs.http.strong.join(', '))}</div>`:'');
-      sc.appendChild(b);
+  // Optional quick connector summary table (top 6)
+  if(Array.isArray(analysis.connectors) && analysis.connectors.length){
+    const tbl = document.createElement('table');
+    tbl.style.marginTop = '8px';
+    tbl.style.width = '100%';
+    tbl.style.borderCollapse = 'collapse';
+    tbl.style.fontSize = '.55rem';
+
+    const head = document.createElement('thead');
+    head.innerHTML = `<tr style="background:var(--panel-muted);">
+      <th style="text-align:left;padding:3px 6px;">Connector</th>
+      <th style="text-align:left;padding:3px 6px;">CCF</th>
+      <th style="text-align:left;padding:3px 6px;">HTTP</th>
+    </tr>`;
+    tbl.appendChild(head);
+
+    const body = document.createElement('tbody');
+    analysis.connectors.slice(0,6).forEach(c=>{
+      const tr = document.createElement('tr');
+      tr.innerHTML = `<td style="padding:3px 6px;border:1px solid var(--panel-border);">${esc(c.id)}</td>
+        <td style="padding:3px 6px;border:1px solid var(--panel-border);">${c.ccfScore||0}</td>
+        <td style="padding:3px 6px;border:1px solid var(--panel-border);">${c.httpScore||0}</td>`;
+      body.appendChild(tr);
     });
-    box.appendChild(sc);
+    if(analysis.connectors.length > 6){
+      const tr = document.createElement('tr');
+      tr.innerHTML = `<td colspan="3" style="padding:3px 6px;border:1px solid var(--panel-border);color:var(--text-dim);text-align:center;">(+${analysis.connectors.length - 6} more)</td>`;
+      body.appendChild(tr);
+    }
+    tbl.appendChild(body);
+    box.appendChild(tbl);
   }
+
+  // Footer help hint
+  const hint = document.createElement('div');
+  hint.style.marginTop = '8px';
+  hint.style.fontSize = '.52rem';
+  hint.style.color = 'var(--text-dim)';
+  hint.innerHTML = 'Classification heuristic: CCF / HTTP / Legacy (CEF/AMA) / Unknown. Validate with official Sentinel docs.';
+  box.appendChild(hint);
 }
 
 function openDetectionEvidence(){
@@ -4296,6 +4417,16 @@ function showArtifactDetails(node){
   if(m.endpoints?.length){
     out.push(`<div><b>Endpoints:</b> ${escapeHtml(m.endpoints.slice(0,12).join(', '))}${m.endpoints.length>12?'…':''}</div>`);
   }
+  if(node.meta?.paths?.length){
+    out.push(
+      `<div style="margin-top:4px;"><b>Source Files:</b><br>` +
+      node.meta.paths
+        .map(p=>`<span style="display:block;">${escapeHtml(p)}</span>`)
+        .join('') +
+      `</div>`
+    );
+  }
+
   div.innerHTML=out.join('');
 }
 
