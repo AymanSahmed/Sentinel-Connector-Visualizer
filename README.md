@@ -184,7 +184,9 @@ Decision:
 5. Legacy CEF/Syslog/AMA signals without modern anchors → `Legacy (CEF/AMA)`
 6. No decisive anchor → `Unknown`
 
-Scoring uses the same logical connectors and package files as the insights report, so the **Connector Signals** summary equals the sum of the per-connector table columns (with a Total row). Any verdict below **60% confidence** is shown with a "⚠ Low confidence — manual review recommended" warning in the Solution Meta panel, the Design Overview and the reasoning lines.
+Scoring uses the same logical connectors and package files as the insights report. Overlapping matches are collapsed: one legacy Data Collector API usage is **one** HTTP signal per connector (the matched patterns `/api/logs`, `opinsights`, `x-ms-signature` are listed as evidence, not counted again), and the derived `codeless-full` flag is not counted on top of its parts.
+
+The headline architecture is the **set of collection methods** actually present, for example `CCF + Logs Ingestion API` or `CCF + HTTP Data Collector API`. Every connector falls in exactly one category — CCF, Logs Ingestion API, Azure Function, HTTP Data Collector API, Legacy (CEF/AMA), Native, Unclassified — so *Connectors by method* always adds up to the connector total. Azure Function connectors are counted as Logs Ingestion API when they write through DCR/DCE, as HTTP Data Collector API when they use the workspace key, and as Azure Function when the function code is not visible in the repo. Confidence is raised (never lowered) by the strength of the per-connector evidence. Any verdict below **60% confidence** is shown with a "⚠ Low confidence — manual review recommended" warning in the Solution Meta panel, the Design Overview and the reasoning lines.
 
 The **Logic & Wizard** panel reports the real parsed artifact counts (same source as Design Overview) and the wizard's actual step names. The **inventory** indicator beside the layout controls shows `fetched/listed` files and turns into a warning when any file failed to download or GitHub truncated the tree listing.
 

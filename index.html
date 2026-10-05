@@ -4581,17 +4581,20 @@ function analyzeSolutionArchitecture(art, options={}){
     const apiLogs=/\/api\/logs(\?|")/.test(txt);
     const opi=/(ods|opinsights)\.azure\.(com|cn|us|de|gov)/.test(txt)||/loganalyticsuri/.test(txt);
 
+    // Distinct evidence only: 'codeless-full' is derived from the signals below, so it is not counted again.
     const ccfStrong = [];
     if(hasDcrConfig) ccfStrong.push('dcrConfig');
     if(hasUiConfig) ccfStrong.push('uiConfig');
     if(poller) ccfStrong.push('apiPoller');
-    if(hasGraphQueries && hasUiConfig && hasDcrConfig && hasDataTypes) ccfStrong.push('codeless-full');
 
-    const httpStrong=[];
-    if(wsId && shared && (sig||apiLogs||opi)) httpStrong.push('workspaceId+sharedKey+endpoint/signature');
-    if(sig) httpStrong.push('signature');
-    if(apiLogs) httpStrong.push('/api/logs');
-    if(opi && !httpStrong.includes('/api/logs')) httpStrong.push('opinsights');
+    // One Data Collector API usage = one signal; /api/logs, the opinsights host and x-ms-signature
+    // are different views of the same call, so they are kept as matched patterns, not extra counts.
+    const httpMatched=[];
+    if(sig) httpMatched.push('x-ms-signature');
+    if(apiLogs) httpMatched.push('/api/logs');
+    if(opi) httpMatched.push('opinsights endpoint');
+    if(wsId && shared) httpMatched.push('workspaceId+sharedKey');
+    const httpStrong=(sig||apiLogs||opi) ? ['Data Collector API'] : [];
 
     connectorAnalyses.push({
       id:c.id,
@@ -4604,7 +4607,8 @@ function analyzeSolutionArchitecture(art, options={}){
       ccfScore:ccfStrong.length,
       httpScore:httpStrong.length,
       ccfSignals:ccfStrong,
-      httpSignals:httpStrong
+      httpSignals:httpStrong,
+      httpMatched:httpStrong.length?httpMatched:[]
     };
   });
 
@@ -4755,19 +4759,21 @@ function updateSolutionMeta(){
   }
 
   // Determine architecture badge class
-  const lowerType = analysis.type.toLowerCase();
+  const lowerType = (analysis.label||analysis.type).toLowerCase();
   let archClass = 'unknown';
-  if(lowerType.startsWith('ccf')) archClass = 'ccf';
+  if(analysis.primaryClass) archClass = analysis.primaryClass;
+  else if(lowerType.startsWith('ccf')) archClass = 'ccf';
   else if(lowerType.startsWith('http')) archClass = 'http';
   else if(lowerType.startsWith('legacy')) archClass = 'legacy';
   else if(lowerType.startsWith('no ingestion')) archClass = 'none';
   else if(lowerType.startsWith('mixed')) archClass = 'legacy';
   else archClass = 'unknown';
 
-  // Badge
+  // Badge (the set of collection methods when a solution ships more than one)
   const archDiv = document.createElement('div');
   archDiv.className = 'arch-highlight ' + archClass;
-  archDiv.textContent = analysis.type;
+  archDiv.textContent = analysis.label || analysis.type;
+  archDiv.title = analysis.label && analysis.label!==analysis.type ? `Verdict: ${analysis.type}. Per-connector methods: ${analysis.label}` : analysis.type;
   box.appendChild(archDiv);
 
   // Confidence qualifier: low-confidence verdicts must never look definitive
@@ -4813,16 +4819,22 @@ function updateSolutionMeta(){
     }
   }
 
-  // Signal summary: totals are the sums of the per-connector columns in the table below
+  // Rollup by category: every connector is counted exactly once, so the parts always add up to the total
   const counts = analysis.counts || {};
   const sum = k => (analysis.connectors||[]).reduce((s,c)=>s+(c[k]||0),0);
   const ccfSignalTotal = sum('ccfScore'), httpSignalTotal = sum('httpScore');
+  const cats = analysis.categoryCounts || null;
   const countsDiv = document.createElement('div');
   countsDiv.style.margin = '8px 0 4px';
   countsDiv.style.fontSize = '.63rem';
   countsDiv.style.color = 'var(--text-dim)';
-  countsDiv.innerHTML =
-    `<b>Connector Signals:</b> CCF:${ccfSignalTotal} (${counts.ccf||0} connector${(counts.ccf||0)===1?'':'s'}) | HTTP:${httpSignalTotal} (${counts.http||0} connector${(counts.http||0)===1?'':'s'}) | Legacy indicators:${counts.legacy||0} | Connectors:${counts.total||0}`;
+  if(cats){
+    const parts=(analysis.architectureSet||[]).map(k=>`${INS_ARCH_CATEGORIES[k].label}: ${cats[k]}`);
+    const total=Object.values(cats).reduce((s,v)=>s+v,0);
+    countsDiv.innerHTML = `<b>Connectors by method:</b> ${esc(parts.join(' | ')||'none')} | <b>Total: ${total}</b>`;
+  }else{
+    countsDiv.innerHTML = `<b>Connector Signals:</b> CCF:${ccfSignalTotal} | HTTP:${httpSignalTotal} | Legacy indicators:${counts.legacy||0} | Connectors:${counts.total||0}`;
+  }
   box.appendChild(countsDiv);
 
   // Core / packaging summary
@@ -4903,29 +4915,34 @@ function updateSolutionMeta(){
     const head = document.createElement('thead');
     head.innerHTML = `<tr style="background:var(--panel-muted);">
       <th style="text-align:left;padding:3px 6px;">Connector</th>
-      <th style="text-align:left;padding:3px 6px;">CCF</th>
-      <th style="text-align:left;padding:3px 6px;">HTTP</th>
+      <th style="text-align:left;padding:3px 6px;">Method</th>
+      <th style="text-align:left;padding:3px 6px;" title="Distinct CCF artifacts found (definition UI, DCR config, poller)">CCF sig.</th>
+      <th style="text-align:left;padding:3px 6px;" title="Legacy Data Collector API usage (counted once per connector)">HTTP sig.</th>
     </tr>`;
     tbl.appendChild(head);
 
+    const cell = 'padding:3px 6px;border:1px solid var(--panel-border);';
     const body = document.createElement('tbody');
     analysis.connectors.slice(0,6).forEach(c=>{
       const tr = document.createElement('tr');
-      tr.innerHTML = `<td style="padding:3px 6px;border:1px solid var(--panel-border);">${esc(c.id)}</td>
-        <td style="padding:3px 6px;border:1px solid var(--panel-border);">${c.ccfScore||0}</td>
-        <td style="padding:3px 6px;border:1px solid var(--panel-border);">${c.httpScore||0}</td>`;
+      const catLabel = c.category ? INS_ARCH_CATEGORIES[c.category].label : '–';
+      tr.innerHTML = `<td style="${cell}">${esc(c.id)}</td>
+        <td style="${cell}">${esc(catLabel)}</td>
+        <td style="${cell}">${c.ccfScore||0}</td>
+        <td style="${cell}" title="${esc((c.httpMatched||[]).join(', '))}">${c.httpScore||0}</td>`;
       body.appendChild(tr);
     });
     if(analysis.connectors.length > 6){
       const tr = document.createElement('tr');
-      tr.innerHTML = `<td colspan="3" style="padding:3px 6px;border:1px solid var(--panel-border);color:var(--text-dim);text-align:center;">(+${analysis.connectors.length - 6} more)</td>`;
+      tr.innerHTML = `<td colspan="4" style="${cell}color:var(--text-dim);text-align:center;">(+${analysis.connectors.length - 6} more)</td>`;
       body.appendChild(tr);
     }
     const totalRow = document.createElement('tr');
     totalRow.style.fontWeight = '700';
-    totalRow.innerHTML = `<td style="padding:3px 6px;border:1px solid var(--panel-border);">Total (${analysis.connectors.length})</td>
-      <td style="padding:3px 6px;border:1px solid var(--panel-border);">${ccfSignalTotal}</td>
-      <td style="padding:3px 6px;border:1px solid var(--panel-border);">${httpSignalTotal}</td>`;
+    totalRow.innerHTML = `<td style="${cell}">Total (${analysis.connectors.length})</td>
+      <td style="${cell}">${analysis.connectors.length}</td>
+      <td style="${cell}">${ccfSignalTotal}</td>
+      <td style="${cell}">${httpSignalTotal}</td>`;
     body.appendChild(totalRow);
     tbl.appendChild(body);
     box.appendChild(tbl);
@@ -5058,9 +5075,9 @@ function buildDesignOverview(){
   entry('Watchlists',a.watchlists.length,'Enrichment lists');
   entry('Notebooks',a.notebooks.length,'Advanced notebooks');
   lines.push('<hr style="border:none;border-top:1px solid var(--panel-border);margin:.4rem 0;">');
-  const archType = STATE.solutionAnalysis?.type || 'Unknown';
+  const archType = STATE.solutionAnalysis?.label || STATE.solutionAnalysis?.type || 'Unknown';
   const lowerArch = archType.toLowerCase();
-  const archClass = lowerArch.startsWith('ccf') ? 'ccf' : lowerArch.startsWith('http') ? 'http' : lowerArch.startsWith('legacy')||lowerArch.startsWith('mixed') ? 'legacy' : lowerArch.startsWith('no ingestion') ? 'none' : 'unknown';
+  const archClass = STATE.solutionAnalysis?.primaryClass || (lowerArch.startsWith('ccf') ? 'ccf' : lowerArch.startsWith('http') ? 'http' : lowerArch.startsWith('legacy')||lowerArch.startsWith('mixed') ? 'legacy' : lowerArch.startsWith('no ingestion') ? 'none' : 'unknown');
   const lowConf = STATE.solutionAnalysis?.lowConfidence;
   lines.push(`
   <div style="margin-top:8px;">
@@ -5397,6 +5414,7 @@ updateSolutionMeta();
       STATE.solutionAnalysis
     );
     STATE.insights=buildSolutionInsights(STATE.artifacts,STATE.meta);
+    insReconcileArchitecture(STATE.solutionAnalysis,STATE.insights);
     renderInsights();
     STATE.virtualView=buildVirtualSolutionView(STATE.artifacts,STATE.meta);
     STATE.graph=JSON.parse(JSON.stringify(STATE.fullGraph));
@@ -5938,6 +5956,72 @@ function insApplyTitleHints(method,name){
   else if(says(/codeless|\bccf\b|\bccp\b/i)&&method.keys.some(k=>ccf.includes(k))&&method.keys.some(k=>['function','agent','http-collector'].includes(k)))
     rebuild(method.keys.filter(k=>ccf.includes(k)),'Connector title states it is a Codeless Connector Framework connector');
   return method;
+}
+const INS_ARCH_CATEGORIES={
+  ccf:{label:'CCF',cls:'ccf'},
+  logs:{label:'Logs Ingestion API',cls:'ccf'},
+  function:{label:'Azure Function',cls:'http'},
+  http:{label:'HTTP Data Collector API',cls:'http'},
+  legacy:{label:'Legacy (CEF/AMA)',cls:'legacy'},
+  native:{label:'Native',cls:'none'},
+  unclassified:{label:'Unclassified',cls:'unknown'}
+};
+/* Exactly one category per connector, so the rollup always adds up to the connector total. */
+function insArchCategory(c){
+  const p=c.method.primary;
+  if(['ccf-pull','ccf-push','ccf-cloud'].includes(p)) return 'ccf';
+  if(p==='function'){
+    const via=String(c.method.functionIngestion||'');
+    if(/Data Collector/i.test(via)) return 'http';
+    if(/Logs Ingestion/i.test(via)) return 'logs';
+    return 'function';
+  }
+  if(p==='logs-ingestion') return 'logs';
+  if(p==='http-collector') return 'http';
+  if(p==='agent') return 'legacy';
+  if(p==='native') return 'native';
+  return 'unclassified';
+}
+function insReconcileArchitecture(analysis,ins){
+  if(!analysis||!ins) return analysis;
+  const counts={};
+  const aligned=Array.isArray(analysis.connectors)&&analysis.connectors.length===ins.connectors.length;
+  ins.connectors.forEach((c,i)=>{
+    const k=insArchCategory(c);
+    c.archCategory=k;
+    counts[k]=(counts[k]||0)+1;
+    if(aligned) analysis.connectors[i].category=k;
+  });
+  const present=Object.keys(INS_ARCH_CATEGORIES).filter(k=>counts[k]);
+  analysis.categoryCounts=counts;
+  analysis.architectureSet=present;
+  analysis.label=present.length?present.map(k=>INS_ARCH_CATEGORIES[k].label).join(' + '):analysis.type;
+  analysis.primaryClass=present.length?INS_ARCH_CATEGORIES[present[0]].cls:null;
+
+  /* Confidence also reflects the per-connector evidence strength; it can be raised, never lowered. */
+  if(ins.connectors.length){
+    const perConnector=ins.connectors.map(c=>{
+      if(c.archCategory==='unclassified') return .1;
+      const hit=(c.method.found||[]).find(f=>f.key===c.method.primary);
+      return hit?.strength==='strong'?.9:.6;
+    });
+    const evidenceConfidence=perConnector.reduce((s,v)=>s+v,0)/perConnector.length;
+    if(evidenceConfidence>analysis.confidence){
+      analysis.confidence=evidenceConfidence;
+      analysis.lowConfidence=analysis.confidence<.6;
+    }
+  }
+  const breakdown=present.map(k=>`${INS_ARCH_CATEGORIES[k].label} ×${counts[k]}`).join(', ');
+  if(Array.isArray(analysis.reasoningLines)){
+    const identified=present.some(k=>k!=='unclassified');
+    analysis.reasoningLines=analysis.reasoningLines.filter(l=>!/^(Confidence:|⚠ Low confidence)/.test(l)&&!(identified&&/^No decisive CCF, HTTP, or Legacy anchors/.test(l)));
+    analysis.reasoningLines[0]=`Final: ${analysis.label}${analysis.lowConfidence?` ⚠ low confidence (${Math.round(analysis.confidence*100)}%)`:''}`;
+    analysis.reasoningLines.splice(1,0,`Confidence: ${Math.round(analysis.confidence*100)}%`);
+    if(analysis.lowConfidence) analysis.reasoningLines.splice(2,0,'⚠ Low confidence — manual review recommended.');
+    if(breakdown) analysis.reasoningLines.splice(analysis.lowConfidence?3:2,0,`Collection methods (${ins.connectors.length} connectors): ${breakdown}`);
+    analysis.reasoning='Architecture Reasoning:\n'+analysis.reasoningLines.map(l=>'• '+l).join('\n');
+  }
+  return analysis;
 }
 function buildSolutionInsights(art,meta){
   const files=art.files||[];
