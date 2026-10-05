@@ -39,6 +39,8 @@ Every connector card has a collapsible *"Why was it classified as …?"* panel l
 
 In addition to JSON, the tool now fetches **YAML** analytics rules, hunting queries and parsers (via `js-yaml`), de-duplicates rules that exist as both YAML and ARM templates, and uses `requiredDataConnectors` as a declared rule→connector link. `Package/mainTemplate.json` build artifacts are ignored when deciding what a connector is.
 
+Logic App **playbooks** are recognised by content (`Microsoft.Logic/workflows`) and location (`Playbooks/`), even when the file is called `azuredeploy.json`. Variants such as `alert-trigger`, `incident-trigger` and `*-logingestionapi` are listed separately with their trigger, API connections and the external services they call. Solutions that ship only playbooks are reported as **automation-only**; if the playbooks write results back to Log Analytics (Logs Ingestion API / Data Collector API), the report says so.
+
 ### Stage map
 
 The technical map is a left-to-right flow — **Data sources → Collection method → Ingestion & transform → Log Analytics tables → Detection & response** — with container-to-container arrows labelled with counts (`18 rules`, `1 table`). Click `+N more…` to expand a group. In this layout **Export JSON** produces the presentation model (`title`, `zones`, `connections`, `legend`); **Export insights JSON** and **Copy summary (Markdown)** are available in the report header.

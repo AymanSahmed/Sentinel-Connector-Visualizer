@@ -1620,7 +1620,9 @@ function classifyArtifact(json, path) {
   if(lowerFile==='host.json'||lowerFile==='functionapp.json'){
     return { type:'functioninfra', id:fileName, path, raw:json, bindingsCount:rawStr.length, endpoints:extractEndpointsGeneric(json) };
   }
-  if(lowerFile==='azuredeploy.json'){
+  // azuredeploy.json is the standard filename of Logic App playbooks too: classify by content/location first.
+  const looksPlaybook=/"microsoft\.logic\/workflows"/.test(ltext)||/\/playbooks?\//i.test(lowerPath);
+  if(lowerFile==='azuredeploy.json' && !(looksPlaybook && !/\/data connectors?\//i.test(lowerPath))){
     return { type:'deployment', id:'azuredeploy.json', path, raw:json,
       resourceCount:Array.isArray(json?.resources)?json.resources.length:0,
       endpoints:extractEndpointsGeneric(json)
@@ -5551,7 +5553,7 @@ document.addEventListener('keydown',e=>{ if(e.key==='Escape') highlightNode(null
    (CCF pull / CCF push / Azure Function / log ingestion ...), what it
    deploys and what content ships with it.
    ===================================================================== */
-const INS_DOC_HOST_RE=/(^|\.)(docs\.microsoft\.com|learn\.microsoft\.com|github\.com|aka\.ms|portal\.azure\.com|schema\.management\.azure\.com|azure\.microsoft\.com|raw\.githubusercontent\.com|go\.microsoft\.com|microsoft\.com|w3\.org|youtube\.com|linkedin\.com|twitter\.com|x\.com|opensource\.org|creativecommons\.org|azurecomcdn\.net|management\.azure\.com|login\.microsoftonline\.com)$/i;
+const INS_DOC_HOST_RE=/(^|\.)(docs\.microsoft\.com|learn\.microsoft\.com|github\.com|aka\.ms|portal\.azure\.com|schema\.management\.azure\.com|azure\.microsoft\.com|raw\.githubusercontent\.com|go\.microsoft\.com|microsoft\.com|w3\.org|youtube\.com|linkedin\.com|twitter\.com|x\.com|opensource\.org|creativecommons\.org|azurecomcdn\.net|management\.azure\.com|login\.microsoftonline\.com|schemastore\.org|adaptivecards\.io|azureedge\.net|docs\.[a-z0-9.-]+)$/i;
 const INS_NATIVE_KINDS=new Set(['azureactivedirectory','azuresecuritycenter','microsoftcloudappsecurity','office365','officeatp','microsoftthreatprotection','threatintelligence','azureactivitylog','dynamics365','officeirm','microsoftpurviewinformationprotection','microsoftdefenderforcloudtenantbased','office365project','officepowerbi','azureadidentityprotection','teams','mdatp','excel','amazonwebservicescloudtrail']);
 const INS_CLOUD_KINDS={amazonwebservicess3:'AWS S3 bucket + SQS queue',gcp:'Google Cloud Pub/Sub',storageaccountblobcontainer:'Azure Blob Storage container',amazonwebservicescloudtrail:'AWS CloudTrail'};
 const INS_AGENT_TABLES=new Set(['commonsecuritylog','syslog','securityevent','windowsevent','event','linux_syslog_cl']);
@@ -5576,7 +5578,8 @@ const INS_METHODS={
     how:'The repository files for this connector do not expose enough information to tell how data is collected.'}
 };
 const INS_TACTICS=['Reconnaissance','ResourceDevelopment','InitialAccess','Execution','Persistence','PrivilegeEscalation','DefenseEvasion','CredentialAccess','Discovery','LateralMovement','Collection','CommandAndControl','Exfiltration','Impact'];
-const INS_API_NAMES={azuresentinel:'Microsoft Sentinel',teams:'Microsoft Teams',office365:'Outlook / Office 365',outlook:'Outlook',servicenow:'ServiceNow',jira:'Jira',slack:'Slack',azuread:'Entra ID',keyvault:'Key Vault',azureloganalyticsdatacollector:'Log Analytics Data Collector',azuremonitorlogs:'Azure Monitor Logs',arm:'Azure Resource Manager',http:'HTTP',sendgrid:'SendGrid',salesforce:'Salesforce',webcontents:'Web contents',azureautomation:'Azure Automation',microsoftgraphsecurity:'Graph Security',wdatp:'Defender for Endpoint'};
+const INS_API_NAMES={azuresentinel:'Microsoft Sentinel',microsoftsentinel:'Microsoft Sentinel',teams:'Microsoft Teams',office365:'Outlook / Office 365',outlook:'Outlook',servicenow:'ServiceNow',jira:'Jira',slack:'Slack',azuread:'Entra ID',keyvault:'Key Vault',azureloganalyticsdatacollector:'Log Analytics Data Collector',azuremonitorlogs:'Azure Monitor Logs',arm:'Azure Resource Manager',http:'HTTP',sendgrid:'SendGrid',salesforce:'Salesforce',webcontents:'Web contents',azureautomation:'Azure Automation',microsoftgraphsecurity:'Graph Security',wdatp:'Defender for Endpoint'};
+const INS_WORKSPACE_HOST_RE=/(^|\.)(monitor\.azure\.com|ods\.opinsights\.azure\.(com|cn|us)|opinsights\.azure\.(com|cn|us))$/i;
 
 function insWalk(node,cb,key='',parent=null,path='$',depth=0){
   if(node==null||depth>40) return;
@@ -5891,11 +5894,21 @@ function insPlaybookSummary(pb){
   else if(String(t.type).toLowerCase()==='recurrence') trigger='Schedule';
   const text=JSON.stringify(raw);
   const apis=insUniq([...text.matchAll(/managedApis\/([a-z0-9_]+)/gi)].map(m=>m[1].toLowerCase()).concat([...text.matchAll(/\['([a-z0-9_]+)'\]\['connectionId'\]/gi)].map(m=>m[1].toLowerCase())))
-    .filter(a=>a!=='$connections').map(a=>INS_API_NAMES[a]||insPretty(a));
-  const folder=pb.path&&!pb.path.startsWith('(')?pb.path.split('/').slice(-2,-1)[0]:'';
+    .filter(a=>a!=='$connections').map(a=>a.replace(/[\s_-]*\d+$/,'')).map(a=>INS_API_NAMES[a]||insPretty(a));
+  const apiList=insUniq(apis);
+  const parts=String(pb.path||'').split('/');
+  const pi=parts.findIndex(p=>/^playbooks?$/i.test(p));
+  const rest=pi>=0?parts.slice(pi+1,-1):[];
+  const variant=rest.length>=2&&/(trigger|incident|alert|entity|manual|logingestion)/i.test(rest[rest.length-1])?rest[rest.length-1]:'';
+  const folder=pb.path&&!pb.path.startsWith('(')?(variant?rest[rest.length-2]:parts.slice(-2,-1)[0]):'';
   const base=insBase(pb.path||'').replace(/\.json$/i,'');
-  const name=/^(azuredeploy|maintemplate)/i.test(base)?(folder||pb.id):(pb.id&&!/^(azuredeploy)/i.test(pb.id)?pb.id:base);
-  return {name:insPretty(name),trigger,connectors:apis,actions:Object.keys(def.actions||{}).length,
+  const baseName=/^(azuredeploy|maintemplate)/i.test(base)?(folder||pb.id):(pb.id&&!/^(azuredeploy)/i.test(pb.id)?pb.id:base);
+  const name=insPretty(baseName)+(variant?` (${insPretty(variant)})`:'');
+  const allHosts=insUniq((pb.connections?.endpoints||pb.endpoints||[]).filter(h=>!INS_DOC_HOST_RE.test(h)));
+  const endpoints=allHosts.filter(h=>!INS_WORKSPACE_HOST_RE.test(h));
+  const writesToWorkspace=/logingestion|logs ingestion/i.test(pb.path||'')||allHosts.some(h=>INS_WORKSPACE_HOST_RE.test(h))||apiList.includes('Log Analytics Data Collector');
+  return {name,trigger,connectors:apiList,endpoints,actions:Object.keys(def.actions||{}).length,
+    writesToWorkspace,
     description:raw.metadata?.description||raw.metadata?.comments||def.description||'',path:pb.path};
 }
 
@@ -5997,6 +6010,16 @@ function insReconcileArchitecture(analysis,ins){
   analysis.architectureSet=present;
   analysis.label=present.length?present.map(k=>INS_ARCH_CATEGORIES[k].label).join(' + '):analysis.type;
   analysis.primaryClass=present.length?INS_ARCH_CATEGORIES[present[0]].cls:null;
+
+  /* No connector but playbooks: this is an automation pack, whatever keywords the packaging files contain. */
+  const pbs=ins.content.playbooks;
+  if(!ins.connectors.length&&pbs.length&&!ins.counts.analytics&&!ins.counts.hunting){
+    const writing=pbs.filter(p=>p.writesToWorkspace).length;
+    analysis.label=writing?'Automation-only · playbooks write to Log Analytics':'No ingestion / Automation-only';
+    analysis.primaryClass='none';
+    analysis.automationOnly=true;
+    if(analysis.confidence<.85){ analysis.confidence=.85; analysis.lowConfidence=false; }
+  }
 
   /* Confidence also reflects the per-connector evidence strength; it can be raised, never lowered. */
   if(ins.connectors.length){
@@ -6224,6 +6247,14 @@ window.buildSolutionInsights=buildSolutionInsights;
     if(k.parsers) ships.push(plural(k.parsers,'parser'));
     const shipText=ships.length?`It ships <b>${ships.join(', ')}</b>.`:'No detection or response content was found in the repository files.';
     if(!c.length){
+      const pbs=ins.content.playbooks;
+      const onlyAutomation=pbs.length&&!k.analytics&&!k.hunting&&!k.workbooks;
+      if(onlyAutomation){
+        const hosts=insUniq(pbs.flatMap(p=>p.endpoints)).slice(0,3).map(h=>`<b>${e(h)}</b>`).join(', ');
+        const apis=insUniq(pbs.flatMap(p=>p.connectors)).slice(0,4).map(a=>`<b>${e(a)}</b>`).join(', ');
+        const writing=pbs.filter(p=>p.writesToWorkspace).length;
+        return `<b>${e(s.name)}</b> is an <b>automation-only</b> solution: ${plural(k.playbooks,'Logic App playbook')} that enrich or respond to incidents${hosts?`, calling ${hosts}`:''}${apis?` through ${apis}`:''}. ${writing?`${writing===pbs.length?'All of them':`${writing} of them`} write their results back to Log Analytics (Logs Ingestion API / Data Collector API), but there is `:'It <b>ingests no data</b>, so there is '}no connector or Azure Function to set up.`;
+      }
       const queried=ins.queriedOnly.slice(0,4).map(t=>`<b>${e(t.name)}</b>`).join(', ');
       return `<b>${e(s.name)}</b> is a <b>content-only</b> solution — it has no data connector and analyses data already in your workspace${queried?` (${queried}${ins.queriedOnly.length>4?', …':''})`:''}. ${shipText}`;
     }
@@ -6273,7 +6304,12 @@ window.buildSolutionInsights=buildSolutionInsights;
     const c=ins.connectors;
     const where=c.length
       ?`<ul>${groupBy(c,x=>x.source.title).map(([title,items])=>`<li><b>${e(title)}</b>${items.length>1?` <span class="ins-muted">×${items.length}</span>`:''}<div class="ins-muted" style="font-size:12.5px">${nameList(items)}</div></li>`).join('')}</ul>`
-      :`<div>No connector shipped.${ins.queriedOnly.length?' Queries existing tables:':''}</div>${chips(ins.queriedOnly.map(t=>t.name),8)}`;
+      :(()=>{
+        const pbs=ins.content.playbooks;
+        const hosts=insUniq(pbs.flatMap(p=>p.endpoints)).slice(0,6), apis=insUniq(pbs.flatMap(p=>p.connectors)).slice(0,6);
+        if(pbs.length&&!ins.queriedOnly.length) return `<div>Nothing is ingested — the playbooks call external services:</div>${hosts.length||apis.length?chips([...hosts,...apis],8):'<div class="ins-muted">(endpoints are set when the Logic App is deployed)</div>'}`;
+        return `<div>No connector shipped.${ins.queriedOnly.length?' Queries existing tables:':''}</div>${chips(ins.queriedOnly.map(t=>t.name),8)}`;
+      })();
     const how=c.length
       ?`<ul>${groupBy(c,x=>x.method.primary).map(([key,items])=>`<li>${badge(INS_METHODS[key])}${items.length>1?` <b>×${items.length}</b>`:''}<div class="ins-muted" style="margin-top:2px">${e(INS_METHODS[key].hosting)}${items[0].method.functionIngestion?` · writes via ${e(items[0].method.functionIngestion)}`:''}</div><div class="ins-muted" style="font-size:12.5px">${nameList(items)}</div></li>`).join('')}</ul>`
       :'<div>Not applicable.</div>';
@@ -6289,6 +6325,10 @@ window.buildSolutionInsights=buildSolutionInsights;
     if(c.some(x=>x.method.primary==='ccf-push')) prereq.push('Rights to register a Microsoft Entra app and assign the Monitoring Metrics Publisher role');
     if(c.some(x=>x.usesFunction)) prereq.push('An Azure subscription to host the Function App (compute + storage cost)');
     if(c.some(x=>x.method.primary==='agent')) prereq.push('A Linux log forwarder / host with Azure Monitor Agent');
+    if(ins.content.playbooks.length){
+      const apiNames=insUniq(ins.content.playbooks.flatMap(p=>p.connectors)).slice(0,5);
+      prereq.push(`Each playbook deploys a Logic App${apiNames.length?` with API connections to ${apiNames.join(', ')}`:''} — you authorise those connections after deployment`);
+    }
     const perms=insUniq(c.flatMap(x=>x.prerequisites.permissions)).slice(0,3);
     perms.forEach(p=>prereq.push(p));
     const prereqUnique=insDedupeSimilar(insUniq(prereq.map(p=>p.replace(/\s+/g,' ').trim()).filter(Boolean)));
