@@ -3,6 +3,7 @@
 <head>
 <meta charset="UTF-8"/>
 <title>Sentinel Solution Visualizer</title>
+<link rel="icon" type="image/svg+xml" href="favicon.svg" />
 <meta name="viewport" content="width=device-width,initial-scale=1" />
 <meta name="description" content="Visualize Microsoft Sentinel solution artifacts, architecture, and dependencies." />
 <style>
@@ -645,6 +646,9 @@ details.ins-fold > .ins-conn { border:0; box-shadow:none; border-top:1px solid v
 .arch-highlight.legacy {
   background:linear-gradient(90deg,#6d28d9,#9333ea);
 }
+.arch-highlight.none {
+  background:linear-gradient(90deg,#0f766e,#0891b2);
+}
 .arch-highlight.unknown {
   background:linear-gradient(90deg,#64748b,#475569);
 }
@@ -938,7 +942,7 @@ details.ins-fold > .ins-conn { border:0; box-shadow:none; border-top:1px solid v
     <button id="btnDark" class="btn-muted">Dark</button>
   </div>
   <div style="grid-column:1/-1;display:flex;flex-wrap:wrap;gap:.8rem;font-size:.63rem;align-items:center;">
-    <label class="toggle" title="Complete inventory is required for accurate lineage detection."><input id="includeNonCore" type="checkbox" checked disabled />Full Solution Inventory</label>
+    <label class="toggle" id="inventoryToggle" title="Run Visualize to load the solution inventory."><input id="includeNonCore" type="checkbox" disabled /><span id="inventoryLabel">Solution inventory: not loaded</span></label>
     <label class="toggle"><input id="showEdgeLabels" type="checkbox" />Edge Labels</label>
     <label class="toggle"><input id="degreeScaled" type="checkbox" />Scale by Degree</label>
     <div style="display:flex;align-items:center;gap:4px;">
@@ -1224,6 +1228,7 @@ async function listSolutionJsonPaths(owner,repo,branch,solution){
     const t=await fetch(tUrl,{headers:ghHeaders()});
     updateRateLimit(t); if(!t.ok) throw new Error(`Tree fetch failed ${t.status}`);
     const tj=await t.json();
+    STATE.inventoryTruncated=!!tj.truncated;
     const prefix=`Solutions/${solution}/`;
     const paths=(tj.tree||[])
       .filter(n=>n.type==='blob' && n.path.startsWith(prefix) && isSolutionContentFile(n.path))
@@ -3112,21 +3117,15 @@ function analyzeSolutionArchitectureLegacyWeighted(art, options={}){
 
 function analyzeCreateUiDefinition(json){
   if(!json||typeof json!=='object') return null;
-  const ser=JSON.stringify(json);
-  const steps=(ser.match(/"steps"/gi)||[]).length;
-  const connectors=(ser.match(/dataconnector/gi)||[]).length;
-  const workbooks=(ser.match(/workbook/gi)||[]).length;
-  const analytics=(ser.match(/analytic/i)||[]).length;
-  const hunting=(ser.match(/hunting/i)||[]).length;
-  const playbooks=(ser.match(/playbook|logic app/i)||[]).length;
   const basic=json?.parameters?.basics||json?.parameters?.config?.basics||{};
+  const stepList=Array.isArray(json?.parameters?.steps)?json.parameters.steps:[];
   const name=basic?.label||basic?.displayName||json?.name||json?.label||'';
   const desc=basic?.description||json?.description||'';
   return {
     solutionName:name,
     description:desc,
-    implied:{dataConnectors:connectors,workbooks,analyticRules:analytics,huntingQueries:hunting,playbooks},
-    steps,
+    steps:stepList.length,
+    stepNames:stepList.map(s=>s?.label||s?.name).filter(Boolean),
     raw:json
   };
 }
@@ -4563,15 +4562,18 @@ function analyzeSolutionArchitecture(art, options={}){
   }
   files.forEach(f=>scanFile(f.path));
 
-  // Per-connector evaluation
+  // Per-connector evaluation (same logical connectors + package files as the insights report)
   const connectorAnalyses=[];
-  const connectors = (art.connectors||[]).map(c=>{
-    const raw=c.raw||{};
-    const txt=JSON.stringify(raw).toLowerCase();
-    const hasDcrConfig=!!raw?.properties?.dcrConfig;
-    const hasUiConfig=!!(raw?.properties?.connectorUiConfig||raw?.properties?.connectorUIConfig);
-    const dataTypes=Array.isArray(raw?.properties?.dataTypes)?raw.properties.dataTypes:[];
-    const graphQueries=Array.isArray(raw?.properties?.graphQueries)?raw.properties.graphQueries:[];
+  const useIns = typeof insLogicalConnectors==='function';
+  const scoringConnectors = useIns ? insLogicalConnectors(art) : (art.connectors||[]);
+  const instanceIdx = useIns ? insIndexInstances(art.files||[]) : new Map();
+  const connectors = scoringConnectors.map(c=>{
+    const pkg = useIns ? insConnectorFiles(art,c,scoringConnectors,instanceIdx) : [{raw:c.raw}];
+    const txt = pkg.map(f=>{ try{ return JSON.stringify(f.raw||{}); }catch{ return ''; } }).join(' ').toLowerCase();
+    const hasDcrConfig=/"dcrconfig"\s*:/.test(txt);
+    const hasUiConfig=/"connectoruiconfig"\s*:/.test(txt);
+    const hasDataTypes=/"datatypes"\s*:\s*\[\s*\{/.test(txt);
+    const hasGraphQueries=/"graphqueries"\s*:\s*\[\s*\{/.test(txt);
     const poller=/restapipoller|api\s*polling|poller[-_]config/.test(txt);
     const wsId=/workspaceid|customerid|la_workspace_id/.test(txt);
     const shared=/sharedkey|workspacekey|primarykey/.test(txt);
@@ -4583,7 +4585,7 @@ function analyzeSolutionArchitecture(art, options={}){
     if(hasDcrConfig) ccfStrong.push('dcrConfig');
     if(hasUiConfig) ccfStrong.push('uiConfig');
     if(poller) ccfStrong.push('apiPoller');
-    if(graphQueries.length && hasUiConfig && hasDcrConfig && dataTypes.length) ccfStrong.push('codeless-full');
+    if(hasGraphQueries && hasUiConfig && hasDcrConfig && hasDataTypes) ccfStrong.push('codeless-full');
 
     const httpStrong=[];
     if(wsId && shared && (sig||apiLogs||opi)) httpStrong.push('workspaceId+sharedKey+endpoint/signature');
@@ -4600,7 +4602,9 @@ function analyzeSolutionArchitecture(art, options={}){
     return {
       id:c.id,
       ccfScore:ccfStrong.length,
-      httpScore:httpStrong.length
+      httpScore:httpStrong.length,
+      ccfSignals:ccfStrong,
+      httpSignals:httpStrong
     };
   });
 
@@ -4631,8 +4635,18 @@ function analyzeSolutionArchitecture(art, options={}){
   // Legacy criteria: legacy signals present AND no strong CCF anchors AND no strong HTTP anchors
   const qualifiesLegacy = legacyUnique.length>0 && !hasStrongCcfAnchor && !hasStrongHttpAnchor;
 
+  // Solutions with no connector, no DCR and no ingested table are content / automation packs: never classify them by ingestion keywords.
+  const logicalConnectors = (typeof insLogicalConnectors==='function') ? insLogicalConnectors(art) : (art.connectors||[]);
+  const ingestedTables = new Set([
+    ...logicalConnectors.flatMap(c=>c.tables||[]),
+    ...(art.dcrs||[]).flatMap(d=>d.tables||[])
+  ]);
+  const noIngestion = logicalConnectors.length===0 && (art.dcrs||[]).length===0 && ingestedTables.size===0 && !coreHasDcr && !coreHasDce;
+  const NO_INGESTION='No ingestion / Automation-only';
+
   let type='Unknown';
-  if(hasStrongCcfAnchor && hasStrongHttpAnchor) type='Mixed';
+  if(noIngestion) type=NO_INGESTION;
+  else if(hasStrongCcfAnchor && hasStrongHttpAnchor) type='Mixed';
   else if(hasStrongCcfAnchor) type='CCF';
   else if(hasStrongHttpAnchor) type='HTTP Data Collector API';
   else if(qualifiesLegacy) type='Legacy (CEF/AMA)';
@@ -4648,11 +4662,17 @@ function analyzeSolutionArchitecture(art, options={}){
   let confidence=decisiveSignals?dominantSignals/decisiveSignals:.1;
   if(type==='Mixed') confidence=Math.min(.9,Math.max(.55,decisiveSignals/10));
   if(type==='Unknown') confidence=.1;
+  if(type===NO_INGESTION) confidence=.9;
+  else if(type.startsWith('Legacy')) confidence=Math.min(.85,.45+.12*legacyUnique.length);
+  const LOW_CONFIDENCE_THRESHOLD=.6;
+  const lowConfidence = confidence<LOW_CONFIDENCE_THRESHOLD;
 
   // Reasoning lines
   const reasoningLines=[];
-  reasoningLines.push(`Final: ${type}`);
+  reasoningLines.push(`Final: ${type}${lowConfidence?` ⚠ low confidence (${Math.round(confidence*100)}%)`:''}`);
   reasoningLines.push(`Confidence: ${Math.round(confidence*100)}%`);
+  if(lowConfidence) reasoningLines.push('⚠ Low confidence — manual review recommended.');
+  if(type===NO_INGESTION) reasoningLines.push('No data connector, no DCR and no ingested table: this solution ships content or automation only.');
   if(coreHasDcr) reasoningLines.push('Core template resource: dataCollectionRules');
   if(coreHasDce) reasoningLines.push('Core template resource: dataCollectionEndpoints');
   if(hasFile('dcr.json')) reasoningLines.push('Packaging: dcr.json present');
@@ -4681,12 +4701,15 @@ function analyzeSolutionArchitecture(art, options={}){
     ccf: connectors.filter(c=>c.ccfScore>0).length,
     http: connectors.filter(c=>c.httpScore>0).length,
     legacy: legacyUnique.length,
-    total: connectors.length
+    total: connectors.length,
+    ccfSignals: totalCcf,
+    httpSignals: totalHttp
   };
 
   return {
     type,
     confidence,
+    lowConfidence,
     connectors,
     counts,
     core:{
@@ -4737,6 +4760,8 @@ function updateSolutionMeta(){
   if(lowerType.startsWith('ccf')) archClass = 'ccf';
   else if(lowerType.startsWith('http')) archClass = 'http';
   else if(lowerType.startsWith('legacy')) archClass = 'legacy';
+  else if(lowerType.startsWith('no ingestion')) archClass = 'none';
+  else if(lowerType.startsWith('mixed')) archClass = 'legacy';
   else archClass = 'unknown';
 
   // Badge
@@ -4745,11 +4770,29 @@ function updateSolutionMeta(){
   archDiv.textContent = analysis.type;
   box.appendChild(archDiv);
 
+  // Confidence qualifier: low-confidence verdicts must never look definitive
+  if(typeof analysis.confidence==='number'){
+    const pct=Math.round(analysis.confidence*100);
+    const conf=document.createElement('div');
+    conf.style.margin='6px 0 2px';
+    conf.innerHTML=analysis.lowConfidence
+      ? `<span class="ins-pill" style="--c:#d97706">⚠ Low confidence (${pct}%) — manual review recommended</span>`
+      : `<span class="ins-pill" style="--c:#059669">Confidence ${pct}%</span>`;
+    box.appendChild(conf);
+  }
+  if(STATE.insights && STATE.insights.connectors.length){
+    const mix=Object.entries(STATE.insights.connectors.reduce((m,c)=>(m[c.methodInfo.label]=(m[c.methodInfo.label]||0)+1,m),{})).map(([k,v])=>`${k}${v>1?' ×'+v:''}`).join(', ');
+    const col=document.createElement('div');
+    col.style.margin='4px 0';
+    col.innerHTML=`<b>Collection (per connector):</b> ${esc(mix)}`;
+    box.appendChild(col);
+  }
+
   // Solution name & publisher (if meta available)
   if(meta){
     const nameLine = document.createElement('div');
     nameLine.style.margin = '6px 0 4px';
-    nameLine.innerHTML = `<b>Solution:</b> ${esc(meta.solutionName || '(unknown)')}`;
+    nameLine.innerHTML = `<b>Solution:</b> ${esc(meta.solutionName || $('#solutionSelect')?.value || '(unknown)')}`;
     box.appendChild(nameLine);
 
     if(meta.publisher){
@@ -4770,14 +4813,16 @@ function updateSolutionMeta(){
     }
   }
 
-  // Counts summary line
+  // Signal summary: totals are the sums of the per-connector columns in the table below
   const counts = analysis.counts || {};
+  const sum = k => (analysis.connectors||[]).reduce((s,c)=>s+(c[k]||0),0);
+  const ccfSignalTotal = sum('ccfScore'), httpSignalTotal = sum('httpScore');
   const countsDiv = document.createElement('div');
   countsDiv.style.margin = '8px 0 4px';
   countsDiv.style.fontSize = '.63rem';
   countsDiv.style.color = 'var(--text-dim)';
   countsDiv.innerHTML =
-    `<b>Connector Signals:</b> CCF:${counts.ccf||0} | HTTP:${counts.http||0} | Legacy:${counts.legacy||0} | Total:${counts.total||0}`;
+    `<b>Connector Signals:</b> CCF:${ccfSignalTotal} (${counts.ccf||0} connector${(counts.ccf||0)===1?'':'s'}) | HTTP:${httpSignalTotal} (${counts.http||0} connector${(counts.http||0)===1?'':'s'}) | Legacy indicators:${counts.legacy||0} | Connectors:${counts.total||0}`;
   box.appendChild(countsDiv);
 
   // Core / packaging summary
@@ -4876,6 +4921,12 @@ function updateSolutionMeta(){
       tr.innerHTML = `<td colspan="3" style="padding:3px 6px;border:1px solid var(--panel-border);color:var(--text-dim);text-align:center;">(+${analysis.connectors.length - 6} more)</td>`;
       body.appendChild(tr);
     }
+    const totalRow = document.createElement('tr');
+    totalRow.style.fontWeight = '700';
+    totalRow.innerHTML = `<td style="padding:3px 6px;border:1px solid var(--panel-border);">Total (${analysis.connectors.length})</td>
+      <td style="padding:3px 6px;border:1px solid var(--panel-border);">${ccfSignalTotal}</td>
+      <td style="padding:3px 6px;border:1px solid var(--panel-border);">${httpSignalTotal}</td>`;
+    body.appendChild(totalRow);
     tbl.appendChild(body);
     box.appendChild(tbl);
   }
@@ -4885,7 +4936,7 @@ function updateSolutionMeta(){
   hint.style.marginTop = '8px';
   hint.style.fontSize = '.52rem';
   hint.style.color = 'var(--text-dim)';
-  hint.innerHTML = 'Classification heuristic: CCF / HTTP / Legacy (CEF/AMA) / Unknown. Validate with official Sentinel docs.';
+  hint.innerHTML = 'Classification heuristic: CCF / HTTP / Legacy (CEF/AMA) / No ingestion / Unknown. Validate with official Sentinel docs.';
   box.appendChild(hint);
 }
 
@@ -4992,13 +5043,14 @@ function buildDesignOverview(){
     ...a.functions.flatMap(f=>f.tables||[])
   ]);
   const lines=[];
-  function entry(label,count,desc){ lines.push(`<div><b>${label}</b> (${count}) – ${desc}</div>`); }
-  entry('Data Connectors',a.connectors.length,'Ingestion integration points');
+  const ins=STATE.insights;
+  const entry=(label,count,desc)=>lines.push(`<div><b>${label}</b> (${count}) – ${desc}</div>`);
+  entry('Data Connectors',ins?ins.counts.connectors:a.connectors.length,'Ingestion integration points');
   entry('DCRs',a.dcrs.length,'Data Collection Rules');
   entry('Data Flows', a.dcrs.reduce((sum,d)=>sum+(d.flowsData?d.flowsData.length:0),0)
     + a.coreFiles.filter(c=>c.coreKind==='dcr').reduce((s,c)=>s+(c.flowsData?c.flowsData.length:0),0),'Per DCR flow nodes');
   entry('KQL Functions',a.functions.length,'Reusable logic');
-  entry('Tables',tableSet.size,'Target schemas');
+  entry('Tables',ins?ins.counts.tables:tableSet.size,'Ingested target schemas');
   entry('Analytics Rules',a.analytics.length,'Detections');
   entry('Hunting Queries',a.hunting.length,'Investigation queries');
   entry('Workbooks',a.workbooks.length,'Dashboards');
@@ -5007,14 +5059,15 @@ function buildDesignOverview(){
   entry('Notebooks',a.notebooks.length,'Advanced notebooks');
   lines.push('<hr style="border:none;border-top:1px solid var(--panel-border);margin:.4rem 0;">');
   const archType = STATE.solutionAnalysis?.type || 'Unknown';
-const archClass = archType === 'CCF'
-  ? 'ccf'
-  : (archType.startsWith('HTTP') ? 'http' : 'unknown');
-lines.push(`
+  const lowerArch = archType.toLowerCase();
+  const archClass = lowerArch.startsWith('ccf') ? 'ccf' : lowerArch.startsWith('http') ? 'http' : lowerArch.startsWith('legacy')||lowerArch.startsWith('mixed') ? 'legacy' : lowerArch.startsWith('no ingestion') ? 'none' : 'unknown';
+  const lowConf = STATE.solutionAnalysis?.lowConfidence;
+  lines.push(`
   <div style="margin-top:8px;">
     <span class="arch-highlight ${archClass}">
       Architecture: ${escapeHtml(archType)}
     </span>
+    ${lowConf?`<div style="margin-top:4px;"><span class="ins-pill" style="--c:#d97706">⚠ Low confidence (${Math.round((STATE.solutionAnalysis.confidence||0)*100)}%) — manual review recommended</span></div>`:''}
   </div>
 `);
   el.innerHTML=lines.join('');
@@ -5095,14 +5148,20 @@ function showArtifactDetails(node){
 function updateLogicPanel(){
   const el=$('#logicPanel');
   const ui=STATE.createUiAnalysis;
-  if(!ui){ el.textContent='No createUiDefinition.json'; return; }
-  const imp=ui.implied||{};
+  const c=STATE.insights?.counts;
+  const a=STATE.artifacts;
+  const name=STATE.meta?.solutionName||$('#solutionSelect')?.value||ui?.solutionName||'(unknown)';
+  const counts=c
+    ? `Connectors:${c.connectors} Workbooks:${c.workbooks} Analytics:${c.analytics} Hunting:${c.hunting} Playbooks:${c.playbooks}`
+    : a ? `Connectors:${a.connectors.length} Workbooks:${a.workbooks.length} Analytics:${a.analytics.length} Hunting:${a.hunting.length} Playbooks:${a.playbooks.length}` : '';
+  const wizard=ui
+    ? `<div>Wizard steps: ${ui.steps}${ui.stepNames?.length?` (${escapeHtml(ui.stepNames.slice(0,6).join(' › '))}${ui.stepNames.length>6?' …':''})`:''}</div>`
+    : '<div class="ins-muted">No createUiDefinition.json — packaged without a deployment wizard.</div>';
   el.innerHTML=`
-    <div><b>Solution Name:</b> ${escapeHtml(ui.solutionName||'(unknown)')}</div>
-    ${ui.description?`<div style="margin-top:2px;">${escapeHtml(ui.description.slice(0,240))}${ui.description.length>240?'…':''}</div>`:''}
-    <div style="margin-top:4px;"><b>Implied (keyword counts):</b></div>
-    <div>Connectors:${imp.dataConnectors||0} Workbooks:${imp.workbooks||0} Analytics:${imp.analyticRules||0} Hunting:${imp.huntingQueries||0} Playbooks:${imp.playbooks||0}</div>
-    <div>Wizard Steps (raw occurrences): ${ui.steps||0}</div>
+    <div><b>Solution Name:</b> ${escapeHtml(name)}</div>
+    ${ui?.description?`<div style="margin-top:2px;">${escapeHtml(ui.description.slice(0,240))}${ui.description.length>240?'…':''}</div>`:''}
+    ${counts?`<div style="margin-top:4px;"><b>Parsed artifacts:</b></div><div>${counts}</div>`:''}
+    ${wizard}
   `;
 }
 
@@ -5262,8 +5321,21 @@ async function fetchSolutionFiles(owner,repo,branch,paths,includeNonCore){
     }
   });
   const out=fetched.filter(Boolean);
-  log(`Fetched ${out.length} files (${out.filter(f=>f.json.__format==='yaml').length} YAML).`);
+  STATE.inventory={expected:paths.length,fetched:out.length,failed:paths.length-out.length,truncated:!!STATE.inventoryTruncated};
+  updateInventoryIndicator();
+  log(`Fetched ${out.length}/${paths.length} files (${out.filter(f=>f.json.__format==='yaml').length} YAML).`);
   return out;
+}
+function updateInventoryIndicator(){
+  const box=$('#includeNonCore'), label=$('#inventoryLabel'), wrap=$('#inventoryToggle');
+  if(!box||!label||!wrap) return;
+  const inv=STATE.inventory;
+  if(!inv){ box.checked=false; label.textContent='Solution inventory: not loaded'; wrap.title='Run Visualize to load the solution inventory.'; wrap.style.color=''; return; }
+  const complete=inv.failed===0&&!inv.truncated;
+  box.checked=complete;
+  label.textContent=complete?`Full inventory (${inv.fetched}/${inv.expected} files)`:`Partial inventory (${inv.fetched}/${inv.expected} files${inv.truncated?', GitHub listing truncated':''})`;
+  wrap.title=complete?'Every file listed for this solution was fetched and analysed.':`${inv.failed} file(s) could not be fetched${inv.truncated?' and the GitHub tree listing was truncated':''} — detection may be incomplete. See Diagnostics.`;
+  wrap.style.color=complete?'':'var(--warn)';
 }
 
 async function handleLoadSolutions(){
@@ -5294,7 +5366,7 @@ async function handleVisualize(){
   const repoVal=$('#repoInput').value.trim();
   const branchVal=$('#branchInput').value.trim();
   const solution=$('#solutionSelect').value.trim();
-  STATE.includeNonCore=$('#includeNonCore').checked;
+  STATE.includeNonCore=true;
   if(!repoVal.includes('/')) return setStatus('owner/repo required',true);
   if(!branchVal) return setStatus('Branch required',true);
   if(!solution) return setStatus('Pick a solution',true);
@@ -5349,7 +5421,8 @@ updateSolutionMeta();
 
 function handleReset(){
   STATE.artifacts=null; STATE.meta=null; STATE.createUiAnalysis=null; STATE.solutionAnalysis=null;
-  STATE.fullGraph=null; STATE.virtualView=null; STATE.insights=null; STATE.blueprintExpanded.clear(); STATE.graph={nodes:[],links:[]};
+  STATE.fullGraph=null; STATE.virtualView=null; STATE.insights=null; STATE.inventory=null; STATE.blueprintExpanded.clear(); STATE.graph={nodes:[],links:[]};
+  updateInventoryIndicator();
   if(window.renderInsights) renderInsights();
   if(ensureD3()) d3.select('#zoomLayer').selectAll('*').remove();
   $('#solutionMeta').textContent='';
@@ -5586,6 +5659,18 @@ function insDedupeSimilar(list,key=x=>x){
     if(!similar) kept.push(item);
   });
   return kept;
+}
+function insConnectorFiles(art,c,logical,instanceIndex){
+  const files=art.files||[];
+  const defIds=insUniq([c.rawId,c.raw?.properties?.connectorUiConfig?.id,c.raw?.properties?.connectorId,c.raw?.name,c.raw?.id,c.id].map(x=>String(x||'').toLowerCase()).filter(x=>x&&!/[\[{]/.test(x)));
+  const pkgFiles=insPackageFiles(art,c,logical);
+  const have=new Set(pkgFiles.map(f=>f.path));
+  defIds.forEach(id=>(instanceIndex.get(id)||[]).forEach(p=>{
+    if(have.has(p)) return;
+    const f=files.find(x=>x.path===p);
+    if(f){ pkgFiles.push(f); have.add(p); }
+  }));
+  return pkgFiles;
 }
 function insScanFiles(files){
   const sig={kinds:new Map(),pollers:[],resourceTypes:new Set(),stepTypes:new Set(),dataTypes:new Set(),flags:{},hosts:new Set(),
@@ -5885,9 +5970,8 @@ function buildSolutionInsights(art,meta){
 
   const connectors=logical.map(c=>{
     const defIds=insUniq([c.rawId,c.raw?.properties?.connectorUiConfig?.id,c.raw?.properties?.connectorId,c.raw?.name,c.raw?.id,c.id].map(x=>String(x||'').toLowerCase()).filter(x=>x&&!/[\[{]/.test(x)));
-    const pkgFiles=insPackageFiles(art,c,logical);
+    const pkgFiles=insConnectorFiles(art,c,logical,instanceIndex);
     const havePaths=new Set(pkgFiles.map(f=>f.path));
-    defIds.forEach(id=>(instanceIndex.get(id)||[]).forEach(p=>{ if(!havePaths.has(p)){ const f=files.find(x=>x.path===p); if(f){ pkgFiles.push(f); havePaths.add(p); } } }));
     const sig=insScanFiles(pkgFiles);
     const method=insDetectMethods(sig);
     if(method.primary==='unknown'&&/^microsoft/i.test(c.publisher||'')){
@@ -5999,6 +6083,8 @@ function buildSolutionInsights(art,meta){
     functionAnswer={state:'optional',text:'The solution lists Azure Functions as a dependency.'};
   }
   const findings=[];
+  const inv=STATE.inventory;
+  if(inv&&(inv.failed>0||inv.truncated)) findings.push({level:'warn',text:`Partial inventory: ${inv.fetched} of ${inv.expected} listed files were analysed${inv.truncated?' and the GitHub file listing was truncated':''}. Counts and detection may be incomplete.`});
   if(functionConnectors.length&&serverless.length) findings.push({level:'info',text:`Two collection paths ship in the same solution — serverless: ${serverless.map(c=>c.name).join(', ')}; Azure Function: ${functionConnectors.map(c=>c.name).join(', ')}. Prefer the serverless connector for new deployments.`});
   connectors.filter(c=>c.method.found.some(f=>f.key==='http-collector')).forEach(c=>findings.push({level:'warn',text:`${c.name} references the legacy HTTP Data Collector API (shared key). Microsoft is moving ingestion to the Logs Ingestion API / CCF.`}));
   connectors.filter(c=>c.method.primary==='unknown').forEach(c=>findings.push({level:'warn',text:`${c.name}: the repository JSON does not reveal how data is collected — check the connector page in the Sentinel content hub.`}));

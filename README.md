@@ -177,11 +177,16 @@ Signals gathered per connector:
   - `data-collector` (text `datacollector` or mechanism contains `http data collector`)
 
 Decision:
-1. Only CCF anchors → `CCF`
-2. Only HTTP anchors → `HTTP Data Collector API`
-3. Both anchor families → `Mixed`
-4. Legacy CEF/Syslog/AMA signals without modern anchors → `Legacy (CEF/AMA)`
-5. No decisive anchor → `Unknown`
+1. No connector, no DCR and no ingested table → `No ingestion / Automation-only` (checked first, so playbook/content packs are never classified by ingestion keywords)
+2. Only CCF anchors → `CCF`
+3. Only HTTP anchors → `HTTP Data Collector API`
+4. Both anchor families → `Mixed`
+5. Legacy CEF/Syslog/AMA signals without modern anchors → `Legacy (CEF/AMA)`
+6. No decisive anchor → `Unknown`
+
+Scoring uses the same logical connectors and package files as the insights report, so the **Connector Signals** summary equals the sum of the per-connector table columns (with a Total row). Any verdict below **60% confidence** is shown with a "⚠ Low confidence — manual review recommended" warning in the Solution Meta panel, the Design Overview and the reasoning lines.
+
+The **Logic & Wizard** panel reports the real parsed artifact counts (same source as Design Overview) and the wizard's actual step names. The **inventory** indicator beside the layout controls shows `fetched/listed` files and turns into a warning when any file failed to download or GitHub truncated the tree listing.
 
 The result includes confidence, line-level findings, reasoning, and signal catalogs.
 
