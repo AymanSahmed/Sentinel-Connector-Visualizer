@@ -499,6 +499,119 @@ table.artifact-table tbody tr:hover td {
   user-select:none;
 }
 
+/* ================= SOLUTION INSIGHTS REPORT ================= */
+.ins-root { display:flex; flex-direction:column; gap:1.1rem; font-size:14px; line-height:1.5; color:var(--text-dim); }
+.ins-root * { box-sizing:border-box; }
+.ins-empty { text-align:center; padding:2.4rem 1rem; border:2px dashed var(--panel-border-strong); border-radius:var(--radius-lg); color:var(--text-dim); font-size:15px; background:var(--panel); }
+.ins-empty b { color:var(--accent); }
+.ins-card { background:var(--panel); border:1px solid var(--panel-border); border-radius:var(--radius-lg); padding:1.1rem 1.25rem; box-shadow:var(--shadow-sm); }
+.ins-h2 { display:flex; align-items:center; gap:.6rem; margin:.6rem 0 .1rem; font-size:1.18rem; font-weight:700; color:var(--text); letter-spacing:-.2px; scroll-margin-top:12px; }
+.ins-h2 small { font-size:.78rem; font-weight:500; color:var(--text-muted); }
+.ins-h2::before { content:""; width:5px; height:1.15em; border-radius:3px; background:var(--accent); }
+.ins-hero { position:relative; overflow:hidden; display:flex; gap:1.3rem; align-items:flex-start; flex-wrap:wrap; padding:1.5rem 1.6rem; border-radius:var(--radius-lg); color:#fff; background:linear-gradient(120deg,#0f3e7a 0%,#1d4ed8 55%,#0d9488 130%); box-shadow:var(--shadow-md); }
+.ins-hero::after { content:""; position:absolute; inset:0; background:radial-gradient(circle at 85% -10%,rgba(255,255,255,.25),transparent 55%); pointer-events:none; }
+.ins-hero > * { position:relative; z-index:1; }
+.ins-logo { width:72px; height:72px; border-radius:16px; background:#fff; padding:8px; object-fit:contain; box-shadow:0 4px 14px rgba(0,0,0,.25); flex:none; }
+.ins-logo-fallback { width:72px; height:72px; border-radius:16px; background:rgba(255,255,255,.18); display:flex; align-items:center; justify-content:center; font-size:2rem; font-weight:800; flex:none; }
+.ins-hero-main { flex:1; min-width:280px; }
+.ins-hero h2 { margin:0; font-size:1.7rem; font-weight:800; letter-spacing:-.4px; color:#fff; display:block; }
+.ins-hero .ins-sub { margin:.15rem 0 .6rem; opacity:.9; font-size:.95rem; }
+.ins-hero .ins-sentence { font-size:1.02rem; line-height:1.65; max-width:980px; background:rgba(255,255,255,.12); border:1px solid rgba(255,255,255,.22); padding:.7rem .95rem; border-radius:12px; }
+.ins-hero .ins-sentence b { color:#fff; border-bottom:2px solid rgba(255,255,255,.4); }
+.ins-hero-actions { display:flex; flex-direction:column; gap:.4rem; align-items:flex-end; }
+.ins-hero-actions button { background:rgba(255,255,255,.16); border:1px solid rgba(255,255,255,.35); color:#fff; border-radius:8px; padding:6px 12px; font-size:12px; cursor:pointer; }
+.ins-hero-actions button:hover { background:rgba(255,255,255,.28); }
+.ins-tags { display:flex; gap:.4rem; flex-wrap:wrap; margin-top:.7rem; }
+.ins-tag { background:rgba(255,255,255,.18); border:1px solid rgba(255,255,255,.28); padding:2px 10px; border-radius:999px; font-size:12px; }
+.ins-kpis { display:grid; grid-template-columns:repeat(auto-fit,minmax(118px,1fr)); gap:.7rem; }
+.ins-kpi { text-align:left; cursor:pointer; background:var(--panel); border:1px solid var(--panel-border); border-top:4px solid var(--c,var(--accent)); border-radius:12px; padding:.7rem .9rem; transition:transform .15s,box-shadow .15s; font:inherit; color:inherit; }
+.ins-kpi:hover { transform:translateY(-3px); box-shadow:var(--shadow-md); }
+.ins-kpi b { display:block; font-size:1.9rem; line-height:1.1; color:var(--c,var(--accent)); font-weight:800; }
+.ins-kpi span { font-size:12px; text-transform:uppercase; letter-spacing:.06em; color:var(--text-muted); font-weight:600; }
+.ins-answers { display:grid; grid-template-columns:repeat(auto-fit,minmax(320px,1fr)); gap:.9rem; align-items:start; }
+.ins-q { display:flex; flex-direction:column; gap:.55rem; border-left:5px solid var(--c,var(--accent)); }
+.ins-q h3 { margin:0; font-size:.78rem; text-transform:uppercase; letter-spacing:.08em; color:var(--c,var(--accent)); display:flex; gap:.45rem; align-items:center; font-weight:800; }
+.ins-q h3 span { font-size:1.25rem; }
+.ins-q ul { margin:0; padding-left:1.05rem; display:flex; flex-direction:column; gap:.35rem; }
+.ins-q li::marker { color:var(--c,var(--accent)); }
+.ins-q .ins-big { font-size:1.15rem; font-weight:700; color:var(--text); }
+.ins-chips { display:flex; flex-wrap:wrap; gap:.35rem; }
+.ins-chip { display:inline-flex; gap:.3rem; align-items:center; background:var(--panel-muted); border:1px solid var(--panel-border); color:var(--text); border-radius:8px; padding:2px 9px; font-size:12.5px; font-family:var(--font-mono); }
+.ins-chip.custom { border-color:#0d9488; }
+.ins-chip em { font-style:normal; color:#0d9488; font-size:10px; font-family:var(--font-sans); font-weight:700; text-transform:uppercase; }
+.ins-pill { display:inline-block; padding:1px 9px; border-radius:999px; font-size:12px; font-weight:700; color:var(--c); background:color-mix(in srgb,var(--c) 14%,transparent); border:1px solid color-mix(in srgb,var(--c) 40%,transparent); white-space:nowrap; }
+.ins-method { display:inline-flex; gap:.4rem; align-items:center; padding:3px 12px 3px 4px; border-radius:999px; font-size:13px; font-weight:800; color:#fff; background:var(--c); white-space:nowrap; }
+.ins-method i { font-style:normal; background:rgba(255,255,255,.25); width:22px; height:22px; border-radius:50%; display:inline-flex; align-items:center; justify-content:center; font-size:12px; }
+.ins-conn { display:flex; flex-direction:column; gap:.85rem; border-top:5px solid var(--c); container-type:inline-size; }
+.ins-conn-head { display:flex; gap:.7rem; align-items:center; flex-wrap:wrap; }
+.ins-conn-head h3 { margin:0; font-size:1.12rem; color:var(--text); }
+.ins-conn-head .ins-muted { font-size:12.5px; }
+.ins-muted { color:var(--text-muted); }
+.ins-how { margin:0; padding:.55rem .8rem; border-radius:10px; background:color-mix(in srgb,var(--c) 9%,transparent); border:1px solid color-mix(in srgb,var(--c) 28%,transparent); color:var(--text); font-size:13.5px; }
+.ins-stages { display:grid; grid-template-columns:1.35fr 1fr 1fr 1fr .9fr; gap:0; align-items:stretch; }
+@container (max-width:1050px){ .ins-stages { grid-template-columns:repeat(2,minmax(0,1fr)); gap:.7rem; } .ins-arrow { display:none; } .ins-stage { margin-right:0; } }
+@container (max-width:620px){ .ins-stages { grid-template-columns:1fr; } }
+.ins-stage { position:relative; display:flex; flex-direction:column; gap:.35rem; background:var(--panel-alt); border:1px solid var(--panel-border); border-radius:12px; padding:.7rem .8rem; margin-right:26px; min-width:0; }
+.ins-stage:last-child { margin-right:0; }
+.ins-stage h4 { margin:0; font-size:11px; letter-spacing:.09em; text-transform:uppercase; color:var(--text-muted); display:flex; gap:.35rem; align-items:center; font-weight:800; }
+.ins-stage .ins-st-title { font-weight:700; color:var(--text); font-size:14px; word-break:break-word; }
+.ins-stage .ins-line { font-size:12.5px; word-break:break-word; }
+.ins-stage .ins-line b { color:var(--text-muted); font-weight:600; display:block; font-size:11px; text-transform:uppercase; letter-spacing:.04em; }
+.ins-stage code { font-family:var(--font-mono); font-size:11.5px; color:var(--text); background:var(--panel-muted); padding:1px 5px; border-radius:5px; word-break:break-all; }
+.ins-arrow { position:absolute; right:-22px; top:50%; transform:translateY(-50%); width:26px; height:26px; border-radius:50%; background:var(--c,var(--accent)); color:#fff; display:flex; align-items:center; justify-content:center; font-size:14px; z-index:2; box-shadow:0 2px 6px rgba(0,0,0,.25); }
+.ins-facts { display:grid; grid-template-columns:repeat(auto-fit,minmax(240px,1fr)); gap:.7rem 1.4rem; }
+.ins-fact h5 { margin:0 0 .2rem; font-size:11px; letter-spacing:.08em; text-transform:uppercase; color:var(--text-muted); }
+.ins-fact ul { margin:0; padding-left:1rem; font-size:13px; }
+details.ins-more { border:1px solid var(--panel-border); border-radius:10px; background:var(--panel-alt); }
+details.ins-more > summary { cursor:pointer; padding:.45rem .8rem; font-weight:600; color:var(--accent); font-size:13px; user-select:none; }
+details.ins-more > div { padding:.3rem .9rem .8rem; font-size:13px; }
+.ins-ev { display:flex; flex-direction:column; gap:.45rem; margin:0; padding:0; list-style:none; }
+.ins-ev li { padding:.4rem .6rem; border-radius:8px; background:var(--panel); border:1px solid var(--panel-border); }
+.ins-ev code { display:block; font-size:11.5px; margin-top:2px; color:var(--text-muted); word-break:break-all; }
+.ins-cov { display:grid; grid-template-columns:repeat(auto-fit,minmax(380px,1fr)); gap:.9rem; align-items:start; }
+.ins-cov h3 { margin:0 0 .5rem; display:flex; align-items:center; gap:.5rem; color:var(--text); font-size:1.02rem; }
+.ins-cov h3 b { margin-left:auto; font-size:1.6rem; color:var(--c,var(--accent)); }
+.ins-sevbar { display:flex; height:14px; border-radius:7px; overflow:hidden; background:var(--panel-muted); margin:.3rem 0 .4rem; }
+.ins-sevbar i { display:block; height:100%; }
+.ins-legend { display:flex; gap:.9rem; flex-wrap:wrap; font-size:12px; margin-bottom:.5rem; }
+.ins-legend span::before { content:""; display:inline-block; width:10px; height:10px; border-radius:3px; background:var(--c); margin-right:5px; }
+.ins-tactics { display:grid; grid-template-columns:repeat(7,1fr); gap:4px; margin:.4rem 0 .7rem; }
+.ins-tactic { text-align:center; border-radius:6px; padding:3px 2px; font-size:10px; line-height:1.15; color:var(--text); background:var(--panel-muted); border:1px solid var(--panel-border); }
+.ins-tactic b { display:block; font-size:14px; }
+.ins-list { list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:.35rem; max-height:360px; overflow:auto; }
+.ins-list li { padding:.4rem .6rem; background:var(--panel-alt); border:1px solid var(--panel-border); border-radius:9px; display:flex; flex-direction:column; gap:.2rem; }
+.ins-list .ins-row { display:flex; gap:.5rem; align-items:center; flex-wrap:wrap; }
+.ins-list .ins-name { font-weight:600; color:var(--text); }
+.ins-table-wrap { overflow:auto; }
+table.ins-table { width:100%; border-collapse:collapse; font-size:13px; }
+.ins-table th { text-align:left; font-size:11px; text-transform:uppercase; letter-spacing:.06em; color:var(--text-muted); padding:.5rem .6rem; border-bottom:2px solid var(--panel-border-strong); white-space:nowrap; }
+.ins-table td { padding:.5rem .6rem; border-bottom:1px solid var(--panel-border); vertical-align:top; }
+.ins-table tr:hover td { background:var(--panel-alt); }
+.ins-num { text-align:center; font-weight:700; color:var(--text); }
+.ins-num.zero { color:var(--text-muted); font-weight:400; }
+.ins-findings { list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:.45rem; }
+.ins-findings li { display:flex; gap:.6rem; padding:.55rem .8rem; border-radius:10px; background:var(--panel-alt); border:1px solid var(--panel-border); border-left:5px solid var(--c); color:var(--text); }
+.ins-findings li i { font-style:normal; font-size:1.05rem; }
+.ins-yes { --c:#d97706; } .ins-no { --c:#059669; } .ins-optional { --c:#2563eb; }
+.ins-fn-state { display:inline-block; font-weight:800; font-size:1.15rem; color:var(--c); }
+details.ins-fold { border:1px solid var(--panel-border); border-left:6px solid var(--c); border-radius:12px; background:var(--panel); box-shadow:var(--shadow-sm); }
+details.ins-fold > summary { cursor:pointer; padding:.7rem 1rem; display:flex; gap:.7rem; align-items:center; flex-wrap:wrap; color:var(--text); list-style:none; }
+details.ins-fold > summary::-webkit-details-marker { display:none; }
+details.ins-fold > summary::before { content:"▸"; color:var(--text-muted); transition:transform .15s; }
+details.ins-fold[open] > summary::before { transform:rotate(90deg); }
+details.ins-fold > .ins-conn { border:0; box-shadow:none; border-top:1px solid var(--panel-border); border-radius:0 0 12px 12px; }
+.ins-legend-methods { display:grid; grid-template-columns:repeat(auto-fit,minmax(260px,1fr)); gap:.6rem; }
+.ins-legend-methods > div { padding:.55rem .7rem; border-radius:10px; border-left:5px solid var(--c); background:var(--panel-alt); font-size:12.5px; color:var(--text); }
+.ins-legend-methods b { display:block; color:var(--c); }
+
+.blueprint-zone { filter:drop-shadow(0 5px 12px rgba(15,23,42,.12)); }
+.blueprint-subcontainer { filter:drop-shadow(0 2px 5px rgba(15,23,42,.08)); }
+.blueprint-card { cursor:pointer; }
+.blueprint-card rect { transition:filter .16s ease,transform .16s ease; transform-box:fill-box; transform-origin:center; }
+.blueprint-card:hover rect { filter:brightness(1.06); transform:translateY(-2px); }
+.blueprint-connection { pointer-events:stroke; }
+.blueprint-connection:hover { stroke-width:4px!important; opacity:1!important; }
+
 /* Architecture Highlight Badge */
 .arch-highlight {
   display:inline-flex;
@@ -551,10 +664,10 @@ table.artifact-table tbody tr:hover td {
 
 /* Disclaimer */
 .disclaimer {
-  position:fixed;
-  left:14px;
-  bottom:14px;
-  max-width:360px;
+  position:static;
+  align-self:center;
+  max-width:980px;
+  text-align:center;
   font-size:11px;
   line-height:1.35;
   font-weight:500;
@@ -825,16 +938,16 @@ table.artifact-table tbody tr:hover td {
     <button id="btnDark" class="btn-muted">Dark</button>
   </div>
   <div style="grid-column:1/-1;display:flex;flex-wrap:wrap;gap:.8rem;font-size:.63rem;align-items:center;">
-    <label class="toggle"><input id="includeNonCore" type="checkbox" checked />Include Non-Core</label>
+    <label class="toggle" title="Complete inventory is required for accurate lineage detection."><input id="includeNonCore" type="checkbox" checked disabled />Full Solution Inventory</label>
     <label class="toggle"><input id="showEdgeLabels" type="checkbox" />Edge Labels</label>
     <label class="toggle"><input id="degreeScaled" type="checkbox" />Scale by Degree</label>
     <div style="display:flex;align-items:center;gap:4px;">
       <span style="font-size:.55rem;font-weight:600;letter-spacing:.05em;">Layout:</span>
       <select id="layoutSelect" class="input" style="width:170px;font-size:.6rem;padding:4px 6px;">
-        <option value="force">Force (banded)</option>
+        <option value="architecture" selected>Solution Blueprint (zones)</option>
+        <option value="force">Force (network)</option>
         <option value="radial">Radial Rings</option>
         <option value="grid">Grid by Type</option>
-        <option value="architecture">Architecture (top-down)</option>
       </select>
     </div>
     <button id="btnExportJson" class="btn-muted" style="font-size:.6rem;">Export JSON</button>
@@ -843,6 +956,12 @@ table.artifact-table tbody tr:hover td {
     <span id="rateLimit" style="margin-left:auto;color:var(--text-dim);"></span>
   </div>
 </section>
+
+<section id="insights" class="ins-root" aria-live="polite">
+  <div class="ins-empty">Choose a solution and click <b>Visualize</b> — you'll get a plain-language report: where the logs come from, how they are collected (CCF Pull / CCF Push / Azure Function / Log Ingestion API), and everything the solution ships.</div>
+</section>
+
+<h2 class="ins-h2" id="techMapHeading" style="margin-top:.4rem;color:var(--text);">Technical map &amp; artifact explorer <small>for engineers who want the raw relationships</small></h2>
 
 <div style="display:grid;grid-template-columns:320px 1fr;gap:1.2rem;">
   <aside style="display:flex;flex-direction:column;gap:1rem;">
@@ -967,7 +1086,7 @@ table.artifact-table tbody tr:hover td {
 const CONFIG={D3_VERSION:'7.9.0',ENABLE_BRANCH_AUTODETECT:true,MAX_LOG_LINES:600};
 const STATE={
   cache:new Map(),
-  layoutMode:'force',
+  layoutMode:'architecture',
   includeNonCore:true,
   showEdgeLabels:false,
   degreeScaled:false,
@@ -982,6 +1101,9 @@ const STATE={
   createUiAnalysis:null,
   solutionAnalysis:null,
   simulation:null,
+  virtualView:null,
+  insights:null,
+  blueprintExpanded:new Set(),
   dark:true
 };
 window.STATE=STATE;
@@ -1048,6 +1170,50 @@ async function fetchJson(url,purpose='',tries=3){
 }
 
 /* Primary listing with fallback */
+const YAML_CONTENT_DIR_RE=/\/(analytic[s]?[ _-]?rules?|hunting[ _-]?queries|parsers?|detections?|summary[ _-]?rules?)\//i;
+function isSolutionContentFile(path){
+  const p=String(path||'');
+  if(/\.json$/i.test(p)) return true;
+  return /\.ya?ml$/i.test(p) && YAML_CONTENT_DIR_RE.test('/'+p);
+}
+let YAML_LOADER=null;
+function ensureYaml(){
+  if(window.jsyaml) return Promise.resolve(window.jsyaml);
+  if(YAML_LOADER) return YAML_LOADER;
+  YAML_LOADER=new Promise((resolve,reject)=>{
+    const s=document.createElement('script');
+    s.src='https://cdnjs.cloudflare.com/ajax/libs/js-yaml/4.1.0/js-yaml.min.js';
+    s.onload=()=>resolve(window.jsyaml);
+    s.onerror=()=>reject(new Error('js-yaml failed to load'));
+    document.head.appendChild(s);
+  });
+  return YAML_LOADER;
+}
+async function fetchText(url,purpose=''){
+  if(STATE.cache.has(url)) return STATE.cache.get(url);
+  for(let i=1;i<=3;i++){
+    try{
+      const res=await fetch(url);
+      if(!res.ok) throw new Error(`HTTP ${res.status} ${purpose} @ ${url}`);
+      const text=await res.text(); STATE.cache.set(url,text); return text;
+    }catch(e){
+      if(i===3) throw e;
+      await new Promise(r=>setTimeout(r,300*i));
+    }
+  }
+}
+async function runPool(items,limit,worker){
+  const results=new Array(items.length);
+  let next=0;
+  async function lane(){
+    while(next<items.length){
+      const index=next++;
+      results[index]=await worker(items[index],index);
+    }
+  }
+  await Promise.all(Array.from({length:Math.min(limit,items.length)},lane));
+  return results;
+}
 async function listSolutionJsonPaths(owner,repo,branch,solution){
   try{
     const b=await fetch(`https://api.github.com/repos/${owner}/${repo}/branches/${encodeURIComponent(branch)}`,{headers:ghHeaders()});
@@ -1060,7 +1226,7 @@ async function listSolutionJsonPaths(owner,repo,branch,solution){
     const tj=await t.json();
     const prefix=`Solutions/${solution}/`;
     const paths=(tj.tree||[])
-      .filter(n=>n.type==='blob' && n.path.startsWith(prefix) && n.path.toLowerCase().endsWith('.json'))
+      .filter(n=>n.type==='blob' && n.path.startsWith(prefix) && isSolutionContentFile(n.path))
       .map(n=>n.path);
     if(!paths.length) throw new Error('No JSON via tree, fallback');
     return paths;
@@ -1079,7 +1245,7 @@ async function listSolutionJsonPathsFallback(owner,repo,branch,solution){
     const items=await res.json();
     for(const it of items){
       if(it.type==='dir') await walk(dir?`${dir}/${it.name}`:it.name);
-      else if(it.type==='file' && it.name.toLowerCase().endsWith('.json'))
+      else if(it.type==='file' && isSolutionContentFile(it.name))
         out.push(`Solutions/${solution}${dir?'/'+dir:''}/${it.name}`);
     }
   }
@@ -1101,23 +1267,119 @@ async function listSolutions(owner,repo,branch){
 }
 
 /* ================= QUERY & EXTRACTION HELPERS ================= */
-function extractTablesFromQuery(q){
-  if(!q) return [];
-  // Broaden: custom tables (_CL, _CE, _CF), common built-ins, generic Events suffix
-  const coreBuiltIns = [
-    'CommonSecurityLog','Syslog','SecurityAlert','SecurityIncident','Heartbeat','AzureActivity',
-    'SigninLogs','AuditLogs','OfficeActivity','ApplicationGatewayFirewallLog',
-    'VMConnection','DnsEvents','DeviceEvents','DeviceNetworkEvents'
-  ];
-  const pattern = new RegExp(
-    '\\b(' +
-      coreBuiltIns.join('|') +
-    '|[A-Za-z0-9_]+_(CL|CE|CF)' +
-    '|[A-Za-z0-9]+Events?' +
-    ')\\b','g');
-  const set=new Set();
-  for(const m of q.matchAll(pattern)){ set.add(m[1]); }
-  return [...set];
+const KQL_BUILTIN_TABLES = new Set([
+  'CommonSecurityLog','Syslog','SecurityAlert','SecurityIncident','Heartbeat','AzureActivity',
+  'SigninLogs','AuditLogs','OfficeActivity','ApplicationGatewayFirewallLog','AzureDiagnostics',
+  'IdentityInfo','BehaviorAnalytics','EmailEvents','CloudAppEvents','AADNonInteractiveUserSignInLogs',
+  'VMConnection','DnsEvents','DeviceEvents','DeviceNetworkEvents'
+]);
+const KQL_KEYWORDS = new Set([
+  'let','set','declare','query_parameters','where','project','projectaway','projectkeep',
+  'projectrename','extend','summarize','distinct','take','limit','top','sort','order','serialize',
+  'join','lookup','union','search','find','invoke','evaluate','mvexpand','mvapply','parse',
+  'parsewhere','render','getschema','count','datatable','print','range','externaldata',
+  'materialize','toscalar','table'
+]);
+function extractKqlReferences(q){
+  const result={tables:[],functions:[],watchlists:[],unresolved:[]};
+  if(!q || typeof q!=='string') return result;
+  const tables=new Set(), functions=new Set(), watchlists=new Set(), unresolved=new Set();
+  const clean=q
+    .replace(/\/\*[\s\S]*?\*\//g,' ')
+    .replace(/\/\/.*$/gm,' ')
+    .replace(/^\s*#.*$/gm,' ');
+
+  for(const m of clean.matchAll(/_GetWatchlist\s*\(\s*["']([^"']+)["']/gi)) watchlists.add(m[1]);
+  for(const m of clean.matchAll(/\binvoke\s+([A-Za-z_][\w.]*)/gi)) functions.add(m[1]);
+
+  const addCandidate=value=>{
+    const token=String(value||'').replace(/^[([]+|[)\],;]+$/g,'');
+    if(!token || KQL_KEYWORDS.has(token.toLowerCase()) || /^\$|^\d/.test(token)) return;
+    if(KQL_BUILTIN_TABLES.has(token) || /_(CL|CE|CF)$/i.test(token) || /^[A-Za-z][\w]*Events?$/.test(token)){
+      tables.add(token);
+    }else{
+      unresolved.add(token);
+    }
+  };
+
+  for(const m of clean.matchAll(/(?:^|[;\n])\s*([A-Za-z_][\w]*)\s*(?:\||$)/gm)) addCandidate(m[1]);
+  for(const m of clean.matchAll(/\b(?:join|lookup)\s+(?:kind\s*=\s*\w+\s+)?\(?\s*([A-Za-z_][\w]*)/gi)) addCandidate(m[1]);
+  for(const m of clean.matchAll(/\bunion\s+(?:isfuzzy\s*=\s*\w+\s+)?([^\n|;]+)/gi)){
+    m[1].split(',').forEach(part=>addCandidate(part.trim().split(/\s+/)[0]));
+  }
+  for(const table of KQL_BUILTIN_TABLES){
+    if(new RegExp(`\\b${table}\\b`,'i').test(clean)) tables.add(table);
+  }
+  for(const m of clean.matchAll(/\b([A-Za-z][\w]*_(?:CL|CE|CF))\b/g)) tables.add(m[1]);
+
+  result.tables=[...tables];
+  result.functions=[...functions];
+  result.watchlists=[...watchlists];
+  result.unresolved=[...unresolved].filter(x=>!tables.has(x)&&!functions.has(x));
+  return result;
+}
+function extractTablesFromQuery(q){ return extractKqlReferences(q).tables; }
+function extractWorkbookReferences(json){
+  const refs={tables:new Set(),functions:new Set(),watchlists:new Set(),resources:new Set(),unresolved:new Set()};
+  const seen=new Set();
+  function mergeKql(value){
+    const parsed=extractKqlReferences(value);
+    parsed.tables.forEach(x=>refs.tables.add(x));
+    parsed.functions.forEach(x=>refs.functions.add(x));
+    parsed.watchlists.forEach(x=>refs.watchlists.add(x));
+    parsed.unresolved.forEach(x=>refs.unresolved.add(x));
+  }
+  function walk(value,key=''){
+    if(value==null || seen.has(value)) return;
+    if(typeof value==='string'){
+      if(/query|kql|content/i.test(key)) mergeKql(value);
+      for(const m of value.matchAll(/\/subscriptions\/[^"' \s]+/gi)) refs.resources.add(m[0]);
+      if(/serializedData/i.test(key)){
+        try{ walk(JSON.parse(value),'serializedData.parsed'); }catch{}
+      }
+      return;
+    }
+    if(typeof value!=='object') return;
+    seen.add(value);
+    if(Array.isArray(value)) value.forEach(v=>walk(v,key));
+    else Object.entries(value).forEach(([k,v])=>walk(v,k));
+  }
+  walk(json);
+  return {
+    tables:[...refs.tables], functions:[...refs.functions], unresolved:[...refs.unresolved],
+    watchlists:[...refs.watchlists], resources:[...refs.resources]
+  };
+}
+function extractArmDependencies(json){
+  const out=new Set();
+  (function walk(value,key=''){
+    if(value==null) return;
+    if(typeof value==='string'){
+      if(key.toLowerCase()==='dependson') out.add(value);
+      for(const m of value.matchAll(/(?:subscriptionResourceId|resourceId|reference)\s*\(([^)]+)\)/gi)) out.add(m[0]);
+      return;
+    }
+    if(Array.isArray(value)){ value.forEach(v=>walk(v,key)); return; }
+    if(typeof value==='object') Object.entries(value).forEach(([k,v])=>walk(v,k));
+  })(json);
+  return [...out];
+}
+function extractPlaybookConnections(json){
+  const endpoints=new Set(), connections=new Set(), operations=new Set();
+  const definition=json?.definition||json?.properties?.definition||json;
+  (function walk(value,key=''){
+    if(value==null) return;
+    if(typeof value==='string'){
+      const urls=value.match(/https?:\/\/[^\s"'<>]+/g)||[];
+      urls.forEach(u=>{ try{ endpoints.add(new URL(u).host.toLowerCase()); }catch{} });
+      if(/\$connections|connectionName|connectionId/i.test(key)) connections.add(value);
+      if(/operationId/i.test(key)) operations.add(value);
+      return;
+    }
+    if(Array.isArray(value)){ value.forEach(v=>walk(v,key)); return; }
+    if(typeof value==='object') Object.entries(value).forEach(([k,v])=>walk(v,k));
+  })(definition);
+  return {endpoints:[...endpoints],connections:[...connections],operations:[...operations]};
 }
 function summarizeQueryMetrics(q){
   if(!q) return {lines:0,length:0};
@@ -1190,6 +1452,14 @@ function normalizeDcrFlows(rawFlows){
     const transformLines=tf?tf.split(/\r?\n/).filter(l=>l.trim()).length:0;
     const transformChars=tf.length;
     const outputTables=new Set();
+    const outputStreams=new Set();
+    const destinations=new Set();
+    const declaredOutput=f.outputStream||f.outputstream;
+    if(declaredOutput){
+      outputStreams.add(String(declaredOutput));
+      const normalized=String(declaredOutput).replace(/^Custom-/i,'');
+      if(/_(CL|CE|CF)$/i.test(normalized)) outputTables.add(normalized);
+    }
     if(tf){
       const into=tf.match(/into\s+table\s+([a-zA-Z0-9_]+)/gi);
       if(into) into.forEach(m=>{
@@ -1199,10 +1469,10 @@ function normalizeDcrFlows(rawFlows){
     }
     if(Array.isArray(f.destinations)){
       f.destinations.forEach(d=>{
-        if(typeof d==='string') outputTables.add(d);
+        if(typeof d==='string') destinations.add(d);
         else if(d && typeof d==='object'){
           const n=d.table||d.name||d.id;
-          if(n) outputTables.add(n);
+          if(n) destinations.add(n);
         }
       });
     }
@@ -1210,7 +1480,9 @@ function normalizeDcrFlows(rawFlows){
       id:`flow${i+1}`,
       index:i,
       streams,
+      outputStreams:[...outputStreams],
       outputTables:[...outputTables],
+      destinations:[...destinations],
       transformLines,
       transformChars,
       hasTransform:!!tf
@@ -1354,22 +1626,30 @@ function classifyArtifact(json, path) {
   if(/\/watchlists\//i.test(lowerPath)||/"microsoft\.securityinsights\/watchlists"/.test(ltext)){
     return { type:'watchlist', id:baseDisplay, path, raw:json, description:json?.properties?.description||'' };
   }
-  if(/\/parsers\//i.test(lowerPath)||/\/functions\//i.test(lowerPath)||/"functionalias"|\"parsertype\"/i.test(ltext)){
-    const kql=json?.properties?.query||json?.query||json?.kql||'';
+  const looksArm=Array.isArray(json?.resources)&&/deploymenttemplate/i.test(String(json?.$schema||''));
+  const parserPath=/\/parsers?\//i.test(lowerPath);
+  const functionHit=!/\/data connectors?\//i.test(lowerPath)&&(/\/functions\//i.test(lowerPath)||/"functionalias"|\"parsertype\"/i.test(ltext));
+  if(parserPath||(functionHit&&!looksArm)){
+    const kql=json?.properties?.query||json?.query||json?.kql||json?.FunctionQuery||'';
+    const references=extractKqlReferences(kql);
     return {
-      type:'kqlfunction', id:baseDisplay, path, raw:json,
-      tables:extractTablesFromQuery(kql), queryMetrics:summarizeQueryMetrics(kql)
+      type:'kqlfunction', id:json?.FunctionAlias||json?.Function?.Title||baseDisplay, path, raw:json,
+      description:json?.Description||json?.Function?.Description||'',
+      functionName:json?.FunctionName||'', functionAlias:json?.FunctionAlias||'',
+      tables:references.tables, references, queryMetrics:summarizeQueryMetrics(kql),
+      armDependencies:extractArmDependencies(json)
     };
   }
   if(/\/notebooks?\//i.test(lowerPath)&&/"cells":\s*\[/.test(ltext)){
     return { type:'notebook', id:baseDisplay, path, raw:json, cellCount:(json.cells||[]).length };
   }
   if(lowerPath.includes('/workbooks/') || /"microsoft\.insights\/workbooks"/.test(ltext) || (/"workbook"/.test(ltext)&&json?.properties?.serializedData)){
-    const query=json?.properties?.query||json?.query||'';
+    const references=extractWorkbookReferences(json);
     return {
       type:'workbook', id:baseDisplay, path, raw:json,
       description:json?.properties?.description||'',
-      tables:extractTablesFromQuery(query), queryMetrics:summarizeQueryMetrics(query)
+      tables:references.tables, references, queryMetrics:{lines:0,length:rawStr.length},
+      armDependencies:extractArmDependencies(json)
     };
   }
   const analyticPathHint=
@@ -1380,31 +1660,47 @@ function classifyArtifact(json, path) {
   if(analyticPathHint || isAnalyticRule(json)){
     const p=json.properties||{};
     const query=p.query||json.query||'';
+    const references=extractKqlReferences(query);
     const severity=p.severity||json.severity||'';
     const tactics=(p.tactics||json.tactics||[]).join(', ');
     return {
       type:'analyticrule', id:p.displayName||json.displayName||baseDisplay, path, raw:json,
-      tables:extractTablesFromQuery(query), severity, tactics, queryMetrics:summarizeQueryMetrics(query)
+      tables:references.tables, references, severity, tactics, queryMetrics:summarizeQueryMetrics(query),
+      techniques:p.techniques||json.relevantTechniques||json.techniques||[],
+      frequency:p.queryFrequency||json.queryFrequency||'', period:p.queryPeriod||json.queryPeriod||'',
+      ruleKind:json.kind||p.kind||'', description:p.description||json.description||'',
+      requiredConnectors:json.requiredDataConnectors||p.requiredDataConnectors||[],
+      entityMappings:p.entityMappings||json.entityMappings||[], armDependencies:extractArmDependencies(json)
     };
   }
   if(/\/hunting queries\//i.test(lowerPath)||/\/huntingqueries\//i.test(lowerPath)||(json?.tags && json.tags['hidden-sentinelContentType']==='HuntingQuery')){
     const query=json?.properties?.query||json?.query||'';
+    const references=extractKqlReferences(query);
     return {
       type:'huntingquery', id:baseDisplay, path, raw:json,
-      tables:extractTablesFromQuery(query), queryMetrics:summarizeQueryMetrics(query)
+      tables:references.tables, references, queryMetrics:summarizeQueryMetrics(query),
+      tactics:[].concat(json.tactics||json?.properties?.tactics||[]).join(', '),
+      techniques:json.relevantTechniques||json?.properties?.techniques||[],
+      description:json.description||json?.properties?.description||'',
+      requiredConnectors:json.requiredDataConnectors||[],
+      armDependencies:extractArmDependencies(json)
     };
   }
   if(/\/playbooks\//i.test(lowerPath)||(json?.definition||json?.properties?.definition)){
     const wf=json?.definition||json?.properties?.definition;
+    const connections=extractPlaybookConnections(json);
     return {
       type:'playbook', id:baseDisplay, path, raw:json,
       triggers:wf?.triggers?Object.keys(wf.triggers).length:0,
-      actions:wf?.actions?Object.keys(wf.actions).length:0
+      actions:wf?.actions?Object.keys(wf.actions).length:0,
+      connections, endpoints:connections.endpoints,
+      armDependencies:extractArmDependencies(json)
     };
   }
 
   /* ---------- DCR-LIKE DEPENDENCY (non-core) ---------- */
-  if(lowerFile!=='dcr.json' && (/microsoft\.insights\/datacollectionrules/.test(ltext)||json?.properties?.dataFlows||json?.dataFlows)){
+  const isArmTemplate = Array.isArray(json?.resources) && /deploymenttemplate/i.test(String(json?.$schema||''));
+  if(!isArmTemplate && lowerFile!=='dcr.json' && (/microsoft\.insights\/datacollectionrules/.test(ltext)||json?.properties?.dataFlows||json?.dataFlows)){
     const flows=json?.properties?.dataFlows||json?.dataFlows||[];
     const flowsData=normalizeDcrFlows(flows);
     const tables=new Set(), streams=new Set();
@@ -1420,7 +1716,8 @@ function classifyArtifact(json, path) {
     return {
       type:'dependency', id:baseDisplay, path, raw:json,
       dataFlows:flows.length, tables:[...tables].sort(), streams:[...streams].sort(),
-      flowsData, endpoints:extractEndpointsGeneric(json), serviceEndpoints:extractServiceEndpoints(json)
+      flowsData, endpoints:extractEndpointsGeneric(json), serviceEndpoints:extractServiceEndpoints(json),
+      armDependencies:extractArmDependencies(json)
     };
   }
 
@@ -1520,13 +1817,13 @@ function classifyArtifact(json, path) {
     score,
     strongSignals,
     mediumSignals,
-    dir: path.slice(0, path.lastIndexOf('/'))
+    dir: path.slice(0, path.lastIndexOf('/')),
+    armDependencies:extractArmDependencies(json)
   };
 }
 
-// ================= UPDATED harvestEmbeddedArtifacts =================
-
-function harvestEmbeddedArtifacts(artifacts){
+// Historical connector-only harvester retained for comparison.
+function harvestEmbeddedArtifactsLegacyConnectorOnly(artifacts){
   const mt = artifacts.coreFiles.find(c=>c.coreKind==='mainTemplate');
   if(!mt || !mt.raw) return;
 
@@ -1577,8 +1874,8 @@ function harvestEmbeddedArtifacts(artifacts){
   });
 }
 
-// ---- NEW helper: choose one connector definition per directory ----
-function refineConnectorCandidates(list){
+// Historical directory refiner retained for comparison.
+function refineConnectorCandidatesLegacy(list){
   if(!Array.isArray(list) || list.length===0) return list;
   const groups = list.reduce((m,c)=>{
     const key = c.dir || '';
@@ -1647,8 +1944,8 @@ function refineConnectorCandidates(list){
   return out;
 }
 
-// ---- REVISED buildArtifacts inserting refine step & removing earlier extra dedupe ----
-function buildArtifacts(files){
+// Historical refined artifact builder retained for comparison.
+function buildArtifactsLegacyRefined(files){
   const acc = {
     connectors:[], dcrs:[], workbooks:[], analytics:[], hunting:[],
     playbooks:[], watchlists:[], functions:[], notebooks:[], infra:[],
@@ -1720,8 +2017,8 @@ function buildArtifacts(files){
   return acc;
 }
 
-/* KEEP ONLY THIS dedupeConnectors (remove older duplicate) */
-function dedupeConnectors(list){
+/* Historical canonical-ID dedupe strategy. */
+function dedupeConnectorsLegacyCanonical(list){
   if(!Array.isArray(list)||list.length<=1) return list;
   function canonicalKey(c){
     const rawId=(c.raw?.properties?.connectorId)||(c.raw?.id)||c.rawId||c.id||'';
@@ -1756,8 +2053,8 @@ function dedupeConnectors(list){
 }
 
 
-/* Updated dedupeConnectors to leverage rawId aggressively */
-function dedupeConnectors(list){
+/* Historical raw-ID dedupe strategy. */
+function dedupeConnectorsLegacyRawId(list){
   if(!Array.isArray(list)||list.length<=1) return list;
   function canonicalKey(c){
     const rawId=(c.raw?.id)|| (c.raw?.properties?.connectorId) || c.rawId || c.id || '';
@@ -1861,7 +2158,40 @@ function dedupeConnectors(list){
   return out;
 }
 
+function dedupeContentByName(list){
+  const map=new Map();
+  (list||[]).forEach((item,i)=>{
+    const key=String(item.id||'').trim().toLowerCase()||`__${i}`;
+    if(!map.has(key)){ map.set(key,item); return; }
+    const keep=map.get(key);
+    const preferNew=item.raw?.__format==='yaml' && keep.raw?.__format!=='yaml';
+    const primary=preferNew?item:keep, other=preferNew?keep:item;
+    primary.altPaths=[...(primary.altPaths||[]),other.path,...(other.altPaths||[])].filter(Boolean);
+    if(!(primary.requiredConnectors||[]).length) primary.requiredConnectors=other.requiredConnectors||[];
+    if(!(primary.techniques||[]).length) primary.techniques=other.techniques||[];
+    if(!primary.severity) primary.severity=other.severity;
+    if(!primary.tactics) primary.tactics=other.tactics;
+    if(!primary.frequency) primary.frequency=other.frequency;
+    if(!primary.description) primary.description=other.description;
+    map.set(key,primary);
+  });
+  return [...map.values()];
+}
 /* Build artifacts bucket */
+function dedupeExactConnectorVariants(list){
+  const seen=new Set();
+  return (list||[]).filter(connector=>{
+    const identity=[
+      connector.path||'',
+      connector.rawId||connector.raw?.properties?.connectorId||connector.raw?.name||connector.id||'',
+      connector.ingestionType||''
+    ].join('|').toLowerCase();
+    if(seen.has(identity)) return false;
+    seen.add(identity);
+    return true;
+  });
+}
+
 function buildArtifacts(files){
   const acc = {
     connectors:[],
@@ -1917,17 +2247,27 @@ function buildArtifacts(files){
     }
   });
 
-  // Deduplicate connectors (existing helper)
-  acc.connectors = dedupeConnectors(acc.connectors);
+  // Embedded ARM resources must enter the same normalization pipeline as file artifacts.
+  harvestEmbeddedArtifacts(acc);
 
-  // Link connectors to DCR dependencies (simple name text match)
-  const dcrNamesLower = new Map(acc.dcrs.map(d=>[d.id.toLowerCase(), d.id]));
+  // The repo often ships the same rule as YAML and as an ARM template: count it once, keep both paths.
+  ['analytics','hunting','functions','workbooks'].forEach(bucket=>{ acc[bucket]=dedupeContentByName(acc[bucket]); });
+
+  acc.connectors = dedupeExactConnectorVariants(acc.connectors);
+
+  // Resolve connector -> DCR references using stable IDs first and names only as a fallback.
+  const dcrRefs = new Map();
+  acc.dcrs.forEach(d=>{
+    [d.id,d.raw?.id,d.raw?.name,d.raw?.properties?.immutableId]
+      .filter(Boolean).forEach(value=>dcrRefs.set(String(value).toLowerCase(),d.id));
+  });
   acc.connectors.forEach(conn=>{
     const txt = JSON.stringify(conn.raw||{}).toLowerCase();
-    conn.linkedDcrIds = [];
-    dcrNamesLower.forEach((orig, low)=>{
-      if(txt.includes(low)) conn.linkedDcrIds.push(orig);
+    const linked=new Set();
+    dcrRefs.forEach((resolved, reference)=>{
+      if(reference.length>=6 && txt.includes(reference)) linked.add(resolved);
     });
+    conn.linkedDcrIds=[...linked];
   });
 
   // Aggregate service endpoints from connectors, dependency DCRs, and core DCR files
@@ -1959,44 +2299,160 @@ function buildArtifacts(files){
 }
 
 /* Harvest embedded content (mainTemplate) */
+function armResolve(value, template){
+  if(typeof value!=='string') return '';
+  let out=value;
+  for(let i=0;i<4 && /parameters\(|variables\(/.test(out);i++){
+    out=out
+      .replace(/parameters\('([^']+)'\)/g,(m,k)=>{
+        const p=template?.parameters?.[k];
+        const d=p?.defaultValue;
+        return typeof d==='string'?`'${d}'`:m;
+      })
+      .replace(/variables\('([^']+)'\)/g,(m,k)=>{
+        const v=template?.variables?.[k];
+        return typeof v==='string'?`'${v}'`:m;
+      });
+  }
+  const literals=[...out.matchAll(/'([^']*)'/g)].map(m=>m[1]).filter(Boolean);
+  if(!/^\[/.test(out)) return out.split('/').pop();
+  const unresolved=/(parameters|variables)\(/.test(out);
+  if(unresolved && !literals.length) return '';
+  return literals.join('').split('/').pop();
+}
 function harvestEmbeddedArtifacts(artifacts){
-  const mt=artifacts.coreFiles.find(c=>c.coreKind==='mainTemplate');
-  if(!mt||!mt.raw) return;
-  const resources=Array.isArray(mt.raw.resources)?mt.raw.resources:[];
+  const resources=[];
+  function collect(list,sourcePath,template){
+    if(!Array.isArray(list)) return;
+    list.forEach(r=>{
+      const resource={...r,__sourcePath:sourcePath,__template:template};
+      resources.push(resource);
+      collect(r?.resources,sourcePath,template);
+    });
+  }
+  (artifacts.files||[]).forEach(file=>{
+    if(file.raw?.type) resources.push({...file.raw,__sourcePath:file.path,__template:file.raw});
+    collect(file.raw?.resources,file.path,file.raw);
+  });
+  if(!resources.length) return;
   const exists=(arr,id)=>arr.some(x=>x.id===id);
   resources.forEach(r=>{
     const t=(r.type||'').toLowerCase();
+    if(t.endsWith('/dataconnectors')){
+      const props=r.properties||{};
+      const uiCfg=props.connectorUiConfig||props.connectorUIConfig;
+      const dcrCfg=props.dcrConfig;
+      const id=uiCfg?.title||uiCfg?.displayName||props.displayName||props.connectorId||r.name?.split('/').pop()||'DataConnector';
+      if(!exists(artifacts.connectors,id)){
+        const streams=Array.isArray(dcrCfg?.streamDeclarations)
+          ? dcrCfg.streamDeclarations.map(s=>s?.streamName).filter(Boolean) : [];
+        artifacts.connectors.push({
+          type:'connector',id,rawId:props.connectorId||r.name||id,
+          path:`(embedded ${r.__sourcePath||'ARM template'})`,raw:r,
+          mechanism:dcrCfg?'CCF-DCR':uiCfg?'CCF-UI':'Unknown',
+          ingestionType:dcrCfg?'CCF-DCR':uiCfg?'CCF-UI':'Unknown',
+          tables:Array.isArray(props.dataTypes)?props.dataTypes.map(x=>x?.name||x).filter(Boolean):[],
+          streams,description:uiCfg?.description||props.description||'',
+          publisher:uiCfg?.publisher||props.publisher||'',domain:uiCfg?.domain||props.domain||'',
+          endpoints:extractEndpointsGeneric(r),serviceEndpoints:extractServiceEndpoints(r),
+          armDependencies:extractArmDependencies(r),embedded:true,dir:`(embedded ${r.__sourcePath||''})`,score:100
+        });
+      }
+    }
+    if(t==='microsoft.insights/datacollectionrules'){
+      const props=r.properties||{};
+      const flowsData=normalizeDcrFlows(props.dataFlows||[]);
+      const resolved=armResolve(r.name,r.__template)||(r.__sourcePath||'').split('/').pop().replace(/\.json$/i,'');
+      const id=resolved||'DataCollectionRule';
+      if(!exists(artifacts.dcrs,id)){
+        const outputTables=[...new Set(flowsData.flatMap(f=>f.outputTables))];
+        const declared=Object.keys(props.streamDeclarations||{});
+        artifacts.dcrs.push({
+          type:'dependency',id,path:r.__sourcePath||'(embedded)',raw:r,embedded:true,
+          dataFlows:flowsData.length,flowsData,tables:outputTables.sort(),
+          streams:[...new Set([...declared,...flowsData.flatMap(f=>f.streams)])],
+          dceRef:armResolve(props.dataCollectionEndpointId,r.__template)||props.dataCollectionEndpointId||'',
+          endpoints:[],serviceEndpoints:[],armDependencies:extractArmDependencies(r)
+        });
+      }
+    }
+    if(t==='microsoft.insights/datacollectionendpoints'){
+      artifacts.dces=artifacts.dces||[];
+      const id=armResolve(r.name,r.__template)||'DataCollectionEndpoint';
+      if(!artifacts.dces.some(x=>x.id===id)) artifacts.dces.push({id,path:r.__sourcePath||'(embedded)'});
+    }
+    if(t==='microsoft.securityinsights/automationrules'){
+      artifacts.automationRules=artifacts.automationRules||[];
+      const props=r.properties||{};
+      artifacts.automationRules.push({id:props.displayName||armResolve(r.name,r.__template)||'Automation rule',
+        path:r.__sourcePath||'(embedded)',order:props.order,triggersOn:props.triggeringLogic?.triggersOn,
+        actions:(props.actions||[]).map(a=>a.actionType)});
+    }
+    if(t==='microsoft.web/sites'){
+      artifacts.functionApps=artifacts.functionApps||[];
+      artifacts.functionApps.push({id:armResolve(r.name,r.__template)||'FunctionApp',path:r.__sourcePath||'(embedded)',kind:r.kind||''});
+    }
     if(/workbooks$/.test(t)){
       const id=r.name?.split('/').pop()||r.properties?.displayName||'Workbook';
-      if(!exists(artifacts.workbooks,id)){
-        const query=r.properties?.query||'';
-        artifacts.workbooks.push({type:'workbook',id,path:'(embedded mainTemplate)',raw:r,
-          description:r.properties?.description||'',tables:extractTablesFromQuery(query),
-          queryMetrics:summarizeQueryMetrics(query)});
+      const references=extractWorkbookReferences(r);
+      const existing=artifacts.workbooks.find(x=>x.id===id);
+      if(existing){
+        existing.references=references;
+        existing.tables=references.tables;
+        existing.embeddedRaw=r;
+      }else{
+        artifacts.workbooks.push({type:'workbook',id,path:`(embedded ${r.__sourcePath||'ARM template'})`,raw:r,
+          description:r.properties?.description||'',tables:references.tables,references,
+          armDependencies:extractArmDependencies(r),queryMetrics:{lines:0,length:JSON.stringify(r).length}});
       }
     }
     if(/alertrules$/.test(t)){
       const props=r.properties||{}; const query=props.query||'';
       const id=props.displayName||r.name?.split('/').pop()||'AnalyticRule';
-      if(!exists(artifacts.analytics,id)){
-        artifacts.analytics.push({type:'analyticrule',id,path:'(embedded mainTemplate)',raw:r,
+      const references=extractKqlReferences(query);
+      const existing=artifacts.analytics.find(x=>x.id===id);
+      if(existing){
+        existing.references=references;
+        existing.tables=references.tables;
+        existing.severity=existing.severity||props.severity||'';
+        existing.tactics=existing.tactics||(props.tactics||[]).join(', ');
+        existing.entityMappings=props.entityMappings||[];
+        existing.frequency=existing.frequency||props.queryFrequency||'';
+        existing.period=existing.period||props.queryPeriod||'';
+        existing.techniques=(existing.techniques&&existing.techniques.length)?existing.techniques:(props.techniques||[]);
+        existing.ruleKind=existing.ruleKind||r.kind||'';
+        existing.description=existing.description||props.description||'';
+        existing.requiredConnectors=existing.requiredConnectors?.length?existing.requiredConnectors:(props.requiredDataConnectors||[]);
+        existing.embeddedRaw=r;
+      }else{
+        artifacts.analytics.push({type:'analyticrule',id,path:`(embedded ${r.__sourcePath||'ARM template'})`,raw:r,
           severity:props.severity||'',tactics:(props.tactics||[]).join(', '),
-          tables:extractTablesFromQuery(query),queryMetrics:summarizeQueryMetrics(query)});
+          techniques:props.techniques||[],frequency:props.queryFrequency||'',period:props.queryPeriod||'',
+          ruleKind:r.kind||'',description:props.description||'',requiredConnectors:props.requiredDataConnectors||[],
+          tables:references.tables,references,entityMappings:props.entityMappings||[],
+          armDependencies:extractArmDependencies(r),queryMetrics:summarizeQueryMetrics(query)});
       }
     }
     if(/watchlists$/.test(t)){
       const id=r.name?.split('/').pop()||r.properties?.displayName||'Watchlist';
       if(!exists(artifacts.watchlists,id)){
-        artifacts.watchlists.push({type:'watchlist',id,path:'(embedded mainTemplate)',raw:r,
+        artifacts.watchlists.push({type:'watchlist',id,path:`(embedded ${r.__sourcePath||'ARM template'})`,raw:r,
           description:r.properties?.description||''});
       }
     }
     if(t.endsWith('/savedsearches') && r.properties?.category==='Function'){
       const id=r.properties?.displayName||r.name?.split('/').pop()||'Function';
-      if(!exists(artifacts.functions,id)){
-        const kql=r.properties?.query||'';
-        artifacts.functions.push({type:'kqlfunction',id,path:'(embedded mainTemplate)',raw:r,
-          tables:extractTablesFromQuery(kql),queryMetrics:summarizeQueryMetrics(kql)});
+      const kql=r.properties?.query||'';
+      const references=extractKqlReferences(kql);
+      const existing=artifacts.functions.find(x=>x.id===id);
+      if(existing){
+        existing.references=references;
+        existing.tables=references.tables;
+        existing.embeddedRaw=r;
+      }else{
+        artifacts.functions.push({type:'kqlfunction',id,path:`(embedded ${r.__sourcePath||'ARM template'})`,raw:r,
+          tables:references.tables,references,armDependencies:extractArmDependencies(r),
+          queryMetrics:summarizeQueryMetrics(kql)});
       }
     }
   });
@@ -2041,7 +2497,7 @@ async function extractSolutionMeta(owner,repo,branch,solution,paths){
   const solutionName=sm.name||sm.displayName||sm.solutionName||
     paramPick('parameters.SolutionName','parameters.solutionName','parameters.solution','parameters.name')||
     solution;
-  const publisher=sm.publisherName||sm.publisher||sm.publisherId||
+  const publisher=sm.publisherName||sm.publisher||sm.support?.name||sm.publisherId||
     paramPick('parameters.Publisher','parameters.publisher','parameters.publisherName')||'Unknown';
   const offerId=sm.offerId||sm.offerID||sm.marketplaceOfferId||'';
   const categories=normalizeMetaList(sm.categories||sm.category);
@@ -2083,7 +2539,7 @@ const ARCH_CONST = {
   }
 };
 /*
-function analyzeSolutionArchitecture(art, options={}){
+function analyzeSolutionArchitectureLegacyBinary(art, options={}){
   if(!art) return {
     type:'Unknown',
     reasoning:'No artifacts loaded.',
@@ -2413,7 +2869,7 @@ function analyzeSolutionArchitecture(art, options={}){
 }
 */
 
-function analyzeSolutionArchitecture(art, options={}){
+function analyzeSolutionArchitectureLegacyWeighted(art, options={}){
   if(!art) return {
     type:'CCF', // forced fallback to one of the two
     connectors:[],
@@ -3020,6 +3476,166 @@ function buildDependencyGraph(art, solutionName){
   return { nodes, links };
 }
 
+function buildLineageGraph(art, solutionName, analysis){
+  const nodes=[], links=[], nodeByKey=new Map(), artifactKey=new WeakMap(), aliases=new Map();
+  const rootKey='solution::root';
+  const normalize=value=>String(value||'').toLowerCase().replace(/\[[^\]]+\]/g,'').replace(/[^a-z0-9_]+/g,'');
+  const keyFor=(type,value)=>`${type}::${encodeURIComponent(String(value||'unknown').toLowerCase())}`;
+  const evidence=(artifact,detector,jsonPath='')=>({file:artifact?.path||'(derived)',jsonPath,detector});
+  function addNode(key,type,displayId,meta={}){
+    if(!nodeByKey.has(key)){
+      const node={id:key,type,meta:{...meta,displayId:displayId||key}};
+      nodeByKey.set(key,node); nodes.push(node);
+    }else Object.assign(nodeByKey.get(key).meta,meta);
+    return key;
+  }
+  function addEdge(source,target,edgeType,confidence=1,edgeEvidence=[]){
+    if(!source||!target||source===target||!nodeByKey.has(source)||!nodeByKey.has(target)) return;
+    const existing=links.find(l=>l.source===source&&l.target===target&&l.edgeType===edgeType);
+    if(existing){
+      existing.confidence=Math.max(existing.confidence||0,confidence);
+      existing.evidence.push(...edgeEvidence);
+    }else links.push({source,target,edgeType,confidence,evidence:edgeEvidence});
+  }
+  function registerArtifact(item,type){
+    const native=item.rawId||item.raw?.properties?.connectorId||item.raw?.id||item.raw?.name||item.path||item.id;
+    let key=keyFor(type,native);
+    if(nodeByKey.has(key)) key=`${key}::${encodeURIComponent(item.path||item.id)}`;
+    addNode(key,type,item.id,{...item,displayId:item.id,canonicalKey:key});
+    artifactKey.set(item,key);
+    [item.id,item.rawId,item.raw?.id,item.raw?.name,item.raw?.properties?.connectorId,item.raw?.properties?.immutableId]
+      .filter(Boolean).forEach(value=>aliases.set(normalize(value),key));
+    addEdge(rootKey,key,`solution-${type==='dependency'?'dcr':type}`,1,[evidence(item,'package-membership')]);
+    return key;
+  }
+  function addTable(name,meta={}){
+    const display=String(name||'').replace(/^Custom-/i,'');
+    return addNode(keyFor('table',display),'table',display,{custom:/_(CL|CE|CF)$/i.test(display),...meta});
+  }
+  function addStream(name,meta={}){
+    const display=String(name||'').replace(/^Stream:/,'');
+    return addNode(keyFor('stream',display),'stream',display,meta);
+  }
+  function addEndpoint(host,meta={}){
+    const display=String(host||'').toLowerCase();
+    return addNode(keyFor('endpoint',display),'endpoint',display,meta);
+  }
+  function resolveReference(reference){
+    const normalized=normalize(reference);
+    if(aliases.has(normalized)) return aliases.get(normalized);
+    for(const [alias,key] of aliases){
+      if(alias.length>=6 && normalized && (normalized.includes(alias)||alias.includes(normalized))) return key;
+    }
+    return null;
+  }
+
+  addNode(rootKey,'solution',solutionName||'Solution',{
+    displayId:solutionName||'Solution',archType:analysis?.type,publisher:STATE.meta?.publisher
+  });
+  const groups=[
+    ['coreFiles','filecore'],['connectors','connector'],['dcrs','dependency'],
+    ['functions','kqlfunction'],['workbooks','workbook'],['analytics','analyticrule'],
+    ['hunting','huntingquery'],['playbooks','playbook'],['watchlists','watchlist'],
+    ['notebooks','notebook'],['infra','functioninfra'],['deploy','deployment'],['others','json']
+  ];
+  groups.forEach(([bucket,type])=>(art[bucket]||[]).forEach(item=>registerArtifact(item,type)));
+
+  (art.dcrs||[]).concat((art.coreFiles||[]).filter(x=>x.coreKind==='dcr')).forEach(dcr=>{
+    const dcrKey=artifactKey.get(dcr);
+    (dcr.flowsData||[]).forEach(flow=>{
+      const flowKey=keyFor('dataflow',`${dcrKey}:${flow.id}`);
+      addNode(flowKey,'dataflow',`${dcr.id} / ${flow.id}`,{...flow,parentDcr:dcr.id});
+      addEdge(dcrKey,flowKey,'dcr-flow',1,[evidence(dcr,'dcr-dataflow','$.properties.dataFlows')]);
+      (flow.streams||[]).forEach(stream=>{
+        const streamKey=addStream(stream,{parentDcr:dcr.id,flow:flow.id});
+        addEdge(streamKey,flowKey,'stream-flow',1,[evidence(dcr,'dcr-input-stream','$.properties.dataFlows[].streams')]);
+      });
+      (flow.outputStreams||[]).forEach(stream=>{
+        const streamKey=addStream(stream,{parentDcr:dcr.id,flow:flow.id,output:true});
+        addEdge(flowKey,streamKey,'flow-stream',1,[evidence(dcr,'dcr-output-stream','$.properties.dataFlows[].outputStream')]);
+      });
+      (flow.outputTables||[]).forEach(table=>{
+        const tableKey=addTable(table,{producer:dcr.id});
+        addEdge(flowKey,tableKey,'flow-table',1,[evidence(dcr,'dcr-output-table','$.properties.dataFlows[].outputStream')]);
+      });
+    });
+  });
+
+  (art.connectors||[]).forEach(connector=>{
+    const connectorKey=artifactKey.get(connector);
+    (connector.linkedDcrIds||[]).forEach(reference=>{
+      addEdge(connectorKey,resolveReference(reference),'connector-dcr',.95,[evidence(connector,'exact-dcr-reference','$.properties.dcrConfig')]);
+    });
+    (connector.streams||[]).forEach(stream=>{
+      const streamKey=addStream(stream,{connector:connector.id});
+      addEdge(connectorKey,streamKey,'connector-stream',.9,[evidence(connector,'connector-stream-declaration','$.properties.dcrConfig.streamDeclarations')]);
+    });
+    (connector.tables||[]).forEach(table=>{
+      const tableKey=addTable(table,{connector:connector.id});
+      addEdge(connectorKey,tableKey,'connector-table',.75,[evidence(connector,'connector-data-type','$.properties.dataTypes')]);
+    });
+    (connector.endpoints||[]).forEach(host=>{
+      const endpointKey=addEndpoint(host,{source:'connector'});
+      addEdge(endpointKey,connectorKey,'endpoint-connector',.9,[evidence(connector,'url-host')]);
+    });
+  });
+
+  [...(art.functions||[]),...(art.workbooks||[]),...(art.analytics||[]),...(art.hunting||[])].forEach(item=>{
+    const consumerKey=artifactKey.get(item);
+    (item.references?.tables||item.tables||[]).forEach(table=>{
+      const tableKey=addTable(table);
+      const edgeType=item.type==='kqlfunction'?'table-function':
+        item.type==='analyticrule'?'table-analytic':item.type==='huntingquery'?'table-hunting':'table-workbook';
+      addEdge(tableKey,consumerKey,edgeType,.95,[evidence(item,'kql-table-reference','query')]);
+    });
+    (item.references?.functions||[]).forEach(reference=>{
+      const functionKey=resolveReference(reference);
+      if(functionKey) addEdge(functionKey,consumerKey,'function-consumer',.95,[evidence(item,'kql-invoke','query')]);
+    });
+    (item.references?.watchlists||[]).forEach(reference=>{
+      const watchlistKey=resolveReference(reference);
+      if(watchlistKey) addEdge(watchlistKey,consumerKey,'watchlist-consumer',.95,[evidence(item,'kql-watchlist','query')]);
+    });
+  });
+
+  (art.playbooks||[]).forEach(playbook=>{
+    const playbookKey=artifactKey.get(playbook);
+    (playbook.connections?.endpoints||playbook.endpoints||[]).forEach(host=>{
+      const endpointKey=addEndpoint(host,{source:'playbook'});
+      addEdge(playbookKey,endpointKey,'playbook-endpoint',.9,[evidence(playbook,'logic-app-http-action')]);
+    });
+    (playbook.connections?.connections||[]).forEach(connection=>{
+      const connectionKey=addNode(keyFor('serviceendpoint',connection),'serviceendpoint',connection,{connection:true});
+      addEdge(playbookKey,connectionKey,'playbook-connection',1,[evidence(playbook,'logic-app-api-connection')]);
+    });
+  });
+
+  groups.forEach(([bucket])=>(art[bucket]||[]).forEach(item=>{
+    const source=artifactKey.get(item);
+    (item.armDependencies||[]).forEach(reference=>{
+      const target=resolveReference(reference);
+      if(target) addEdge(target,source,'arm-depends-on',1,[evidence(item,'arm-dependency','dependsOn')]);
+    });
+  }));
+  (art.serviceEndpoints||[]).forEach(service=>{
+    const serviceKey=addNode(keyFor('serviceendpoint',service.id),'serviceendpoint',service.id,{sources:service.sources});
+    (service.sources||[]).forEach(source=>{
+      const sourceKey=resolveReference(source.id);
+      if(sourceKey) addEdge(sourceKey,serviceKey,'service-endpoint',.8,[{file:'(derived)',jsonPath:'',detector:'api-path-signature'}]);
+    });
+  });
+
+  nodeByKey.get(rootKey).meta.counts={
+    connectors:(art.connectors||[]).length,dcrs:(art.dcrs||[]).length,
+    workbooks:(art.workbooks||[]).length,analytics:(art.analytics||[]).length,
+    playbooks:(art.playbooks||[]).length,hunting:(art.hunting||[]).length,
+    watchlists:(art.watchlists||[]).length,functions:(art.functions||[]).length,
+    notebooks:(art.notebooks||[]).length,coreFiles:(art.coreFiles||[]).length,
+    serviceEndpoints:(art.serviceEndpoints||[]).length
+  };
+  return {nodes,links};
+}
+
 function buildArchitectureGraph(art, meta, analysis){
   const g = { nodes:[], links:[] };
   const add = (id, type, metaObj={}) => {
@@ -3236,7 +3852,7 @@ function buildTooltip(){
     show(evt,d){
       const m=d.meta||{};
       const L=[];
-      L.push(`<div><b>${(TYPE_META[d.type]?.label)||d.type}</b> – ${escapeHtml(d.id)}</div>`);
+      L.push(`<div><b>${(TYPE_META[d.type]?.label)||d.type}</b> – ${escapeHtml(m.displayId||d.id)}</div>`);
       if(d.type==='solution' && m.counts){
         const c=m.counts;
         L.push(`<div><b>Artifacts:</b> Conn ${c.connectors} DCR ${c.dcrs} Fn ${c.functions} Wkb ${c.workbooks}</div>`);
@@ -3294,7 +3910,7 @@ function nodeLines(d){
 
   // ---------- Solution ----------
   if(d.type === 'solution'){
-    push(trunc(d.id, 40));
+    push(trunc(base, 40));
     if(m.archType) push(`Arch: ${m.archType}`);
     if(m.counts){
       const c = m.counts;
@@ -3310,7 +3926,7 @@ function nodeLines(d){
 
   // ---------- Connector ----------
   else if(d.type === 'connector'){
-    push(trunc(d.id, 40));
+    push(trunc(base, 40));
     if(m.ingestionType) push(m.ingestionType);
     const tables = Array.isArray(m.tables)?m.tables.length:0;
     const streams = Array.isArray(m.streams)?m.streams.length:0;
@@ -3324,7 +3940,7 @@ function nodeLines(d){
 
   // ---------- Dependency (DCR-likes) ----------
   else if(d.type === 'dependency'){
-    push(trunc(d.id, 38));
+    push(trunc(base, 38));
     const flows = Array.isArray(m.flowsData)?m.flowsData.length:0;
     const tables = Array.isArray(m.tables)?m.tables.length:0;
     const streams = Array.isArray(m.streams)?m.streams.length:0;
@@ -3333,7 +3949,7 @@ function nodeLines(d){
 
   // ---------- Core File ----------
   else if(d.type === 'filecore'){
-    push(trunc(d.id, 42));
+    push(trunc(base, 42));
     if(m.coreKind) push(m.coreKind);
     if(m.coreKind === 'dcr'){
       push(`Flows:${m.dataFlows||0} Streams:${m.streamCount||0}`);
@@ -3347,7 +3963,7 @@ function nodeLines(d){
 
   // ---------- Data Flow ----------
   else if(d.type === 'dataflow'){
-    push(`Flow:${m.id||d.id}`);
+    push(`Flow:${m.id||base}`);
     const sl = m.transformLines || 0;
     const ot = Array.isArray(m.outputTables)?m.outputTables.length:0;
     push(`Lines:${sl} OutT:${ot}`);
@@ -3359,27 +3975,27 @@ function nodeLines(d){
 
   // ---------- Stream ----------
   else if(d.type === 'stream'){
-    push(trunc(d.id.replace(/^Stream:/,''), 34));
+    push(trunc(base.replace(/^Stream:/,''), 34));
     if(m.parentDcr) push(`DCR:${trunc(m.parentDcr, 20)}`);
     if(m.flow) push(`Flow:${m.flow}`);
   }
 
   // ---------- Table ----------
   else if(d.type === 'table'){
-    push(trunc(d.id, 34));
+    push(trunc(base, 34));
     if(m.custom) push('Custom');
   }
 
   // ---------- Workbook ----------
   else if(d.type === 'workbook'){
-    push(trunc(d.id, 40));
+    push(trunc(base, 40));
     if(m.tables && m.tables.length) push(`Tables:${m.tables.length}`);
     if(m.description) push(trunc(m.description, 30));
   }
 
   // ---------- Analytic Rule ----------
   else if(d.type === 'analyticrule'){
-    push(trunc(d.id, 42));
+    push(trunc(base, 42));
     if(m.severity) push(`Sev:${m.severity}`);
     if(m.tables && m.tables.length) push(`Tables:${m.tables.length}`);
     if(m.tactics) push(trunc(m.tactics, 30));
@@ -3387,52 +4003,52 @@ function nodeLines(d){
 
   // ---------- Hunting Query ----------
   else if(d.type === 'huntingquery'){
-    push(trunc(d.id, 42));
+    push(trunc(base, 42));
     if(m.tables && m.tables.length) push(`Tables:${m.tables.length}`);
     if(m.queryMetrics) push(`Lines:${m.queryMetrics.lines}`);
   }
 
   // ---------- Playbook ----------
   else if(d.type === 'playbook'){
-    push(trunc(d.id, 42));
+    push(trunc(base, 42));
     if(m.triggers != null) push(`Trig:${m.triggers}`);
     if(m.actions != null) push(`Act:${m.actions}`);
   }
 
   // ---------- Watchlist ----------
   else if(d.type === 'watchlist'){
-    push(trunc(d.id, 42));
+    push(trunc(base, 42));
     if(m.description) push(trunc(m.description, 32));
   }
 
   // ---------- KQL Function ----------
   else if(d.type === 'kqlfunction'){
-    push(trunc(d.id, 42));
+    push(trunc(base, 42));
     if(m.tables && m.tables.length) push(`Tables:${m.tables.length}`);
     if(m.queryMetrics) push(`Lines:${m.queryMetrics.lines}`);
   }
 
   // ---------- Notebook ----------
   else if(d.type === 'notebook'){
-    push(trunc(d.id, 42));
+    push(trunc(base, 42));
     if(m.cellCount != null) push(`Cells:${m.cellCount}`);
   }
 
   // ---------- Function Infra ----------
   else if(d.type === 'functioninfra'){
-    push(trunc(d.id, 42));
+    push(trunc(base, 42));
     if(m.bindingsCount) push(`Bindings:${m.bindingsCount}`);
   }
 
   // ---------- Deployment ----------
   else if(d.type === 'deployment'){
-    push(trunc(d.id, 42));
+    push(trunc(base, 42));
     if(m.resourceCount != null) push(`Resources:${m.resourceCount}`);
   }
 
   // ---------- Service Endpoint ----------
   else if(d.type === 'serviceendpoint'){
-    const name = d.id.replace(/^SE:/,'');
+    const name = base.replace(/^SE:/,'');
     push(trunc(name, 44));
     if(m.sources && m.sources.length){
       // Distill counts by type
@@ -3446,18 +4062,18 @@ function nodeLines(d){
 
   // ---------- Endpoint (host) ----------
   else if(d.type === 'endpoint'){
-    push(trunc(d.id, 46));
+    push(trunc(base, 46));
   }
 
   // ---------- External System ----------
   else if(d.type === 'externalsystem'){
-    push(trunc(d.id, 46));
+    push(trunc(base, 46));
     if(m.hostCount != null) push(`Hosts:${m.hostCount}`);
   }
 
   // ---------- Generic JSON ----------
   else if(d.type === 'json'){
-    push(trunc(d.id, 46));
+    push(trunc(base, 46));
   }
 
   // Safety: limit lines
@@ -3468,8 +4084,14 @@ function nodeLines(d){
   }
   return lines;
 }
+
+/* Solution stage map: buildVirtualSolutionView / renderBlueprintGraph are defined in the #stage-map script below. */
 function renderGraph(preserve=false){
   if(!ensureD3())return;
+  if(STATE.layoutMode==='architecture'){
+    renderBlueprintGraph();
+    return;
+  }
   const nodes=STATE.graph.nodes, links=STATE.graph.links;
   const svg=d3.select('#viz'), layer=d3.select('#zoomLayer');
   layer.selectAll('*').remove();
@@ -3489,10 +4111,16 @@ function renderGraph(preserve=false){
   const linkPath=linkG.append('path')
     .attr('class','graph-link')
     .attr('stroke',l=>EDGE_STYLE[l.edgeType]?.stroke||'#64748b')
-    .attr('stroke-opacity',.55)
-    .attr('stroke-width',1.3)
+    .attr('stroke-opacity',l=>.25+.55*(l.confidence??1))
+    .attr('stroke-width',l=>1+1.2*(l.confidence??1))
+    .attr('stroke-dasharray',l=>(l.confidence??1)>=.9?null:(l.confidence??1)>=.7?'7 4':'2 5')
     .attr('fill','none')
     .attr('marker-end','url(#arrow)');
+  linkPath.append('title').text(l=>{
+    const confidence=Math.round((l.confidence??1)*100);
+    const sources=(l.evidence||[]).slice(0,3).map(e=>`${e.detector}: ${e.file}${e.jsonPath?' '+e.jsonPath:''}`).join('\n');
+    return `${l.edgeType} (${confidence}% confidence)${sources?'\n'+sources:''}`;
+  });
   let edgeLabels=null;
   if(STATE.showEdgeLabels){
     edgeLabels=linkG.append('text')
@@ -3610,17 +4238,24 @@ function renderGraph(preserve=false){
     });
     tick(); STATE.simulation=null;
   } else if(STATE.layoutMode==='architecture'){
-    const layers=[
-      nodes.filter(n=>n.type==='solution'),
-      nodes.filter(n=>n.type==='externalsystem'),
-      nodes.filter(n=>n.type==='endpoint'),
-      nodes.filter(n=>n.type==='connector'),
-      nodes.filter(n=>n.type==='dependency'),
-      nodes.filter(n=>n.type==='dataflow'),
-      nodes.filter(n=>n.type==='kqlfunction'),
-      nodes.filter(n=>n.type==='table'),
-      nodes.filter(n=>['analyticrule','workbook','huntingquery','playbook','watchlist','notebook'].includes(n.type))
-    ].filter(a=>a.length);
+    const architectureBands=[
+      ['solution','filecore','deployment','json'],
+      ['externalsystem','endpoint','serviceendpoint'],
+      ['connector','functioninfra'],
+      ['dependency'],
+      ['stream','dataflow'],
+      ['table','kqlfunction','watchlist'],
+      ['analyticrule','workbook','huntingquery'],
+      ['playbook','notebook']
+    ];
+    const assigned=new Set();
+    const layers=architectureBands.map(types=>{
+      const layer=nodes.filter(n=>types.includes(n.type));
+      layer.forEach(n=>assigned.add(n.id));
+      return layer;
+    }).filter(a=>a.length);
+    const remaining=nodes.filter(n=>!assigned.has(n.id));
+    if(remaining.length) layers.push(remaining);
     const layerGap=150;
     const startX=140;
     layers.forEach((layerNodes,i)=>{
@@ -3844,7 +4479,7 @@ function buildArchitectureReasoning(arch, artifacts){
 
 
 /* ===== REPLACEMENT: analyzeSolutionArchitecture (adds Legacy & Unknown) ===== */
-function analyzeSolutionArchitecture(art){
+function analyzeSolutionArchitecture(art, options={}){
   if(!art) return {
     type:'Unknown',
     connectors:[],
@@ -3997,7 +4632,8 @@ function analyzeSolutionArchitecture(art){
   const qualifiesLegacy = legacyUnique.length>0 && !hasStrongCcfAnchor && !hasStrongHttpAnchor;
 
   let type='Unknown';
-  if(hasStrongCcfAnchor) type='CCF';
+  if(hasStrongCcfAnchor && hasStrongHttpAnchor) type='Mixed';
+  else if(hasStrongCcfAnchor) type='CCF';
   else if(hasStrongHttpAnchor) type='HTTP Data Collector API';
   else if(qualifiesLegacy) type='Legacy (CEF/AMA)';
   else type='Unknown';
@@ -4007,10 +4643,16 @@ function analyzeSolutionArchitecture(art){
     if(totalCcf>totalHttp) type='CCF';
     else if(totalHttp>totalCcf) type='HTTP Data Collector API';
   }
+  const decisiveSignals=totalCcf+totalHttp+(coreHasDcr?2:0)+(coreHasApiLogs?2:0);
+  const dominantSignals=Math.max(totalCcf+(coreHasDcr?2:0),totalHttp+(coreHasApiLogs?2:0));
+  let confidence=decisiveSignals?dominantSignals/decisiveSignals:.1;
+  if(type==='Mixed') confidence=Math.min(.9,Math.max(.55,decisiveSignals/10));
+  if(type==='Unknown') confidence=.1;
 
   // Reasoning lines
   const reasoningLines=[];
   reasoningLines.push(`Final: ${type}`);
+  reasoningLines.push(`Confidence: ${Math.round(confidence*100)}%`);
   if(coreHasDcr) reasoningLines.push('Core template resource: dataCollectionRules');
   if(coreHasDce) reasoningLines.push('Core template resource: dataCollectionEndpoints');
   if(hasFile('dcr.json')) reasoningLines.push('Packaging: dcr.json present');
@@ -4044,6 +4686,7 @@ function analyzeSolutionArchitecture(art){
 
   return {
     type,
+    confidence,
     connectors,
     counts,
     core:{
@@ -4383,7 +5026,8 @@ function showArtifactDetails(node){
   const m=node.meta||{};
   const out=[];
   out.push(`<div style="font-weight:600;margin-bottom:2px;">${TYPE_META[node.type]?.label||node.type}</div>`);
-  out.push(`<div><b>ID:</b> ${escapeHtml(node.id)}</div>`);
+  out.push(`<div><b>Name:</b> ${escapeHtml(m.displayId||node.id)}</div>`);
+  if(m.canonicalKey) out.push(`<div><b>Canonical key:</b> <code>${escapeHtml(m.canonicalKey)}</code></div>`);
   if(node.type==='filecore'){
     if(m.coreKind) out.push(`<div><b>Core Kind:</b> ${escapeHtml(m.coreKind)}</div>`);
     if(m.coreKind==='dcr') out.push(`<div><b>DataFlows:</b> ${m.dataFlows||0} Streams:${m.streamCount||0}</div>`);
@@ -4416,6 +5060,24 @@ function showArtifactDetails(node){
   if(node.type==='watchlist' && m.description) out.push(`<div><b>Description:</b> ${escapeHtml(m.description)}</div>`);
   if(m.endpoints?.length){
     out.push(`<div><b>Endpoints:</b> ${escapeHtml(m.endpoints.slice(0,12).join(', '))}${m.endpoints.length>12?'…':''}</div>`);
+  }
+  const relationships=(STATE.fullGraph?.links||[]).filter(l=>{
+    const source=typeof l.source==='object'?l.source.id:l.source;
+    const target=typeof l.target==='object'?l.target.id:l.target;
+    return source===node.id||target===node.id;
+  });
+  if(relationships.length){
+    out.push(`<div style="margin-top:6px;"><b>Relationships (${relationships.length}):</b></div>`);
+    relationships.slice(0,20).forEach(link=>{
+      const source=typeof link.source==='object'?link.source.id:link.source;
+      const target=typeof link.target==='object'?link.target.id:link.target;
+      const otherId=source===node.id?target:source;
+      const other=STATE.fullGraph.nodes.find(n=>n.id===otherId);
+      const direction=source===node.id?'→':'←';
+      const confidence=Math.round((link.confidence??1)*100);
+      const detector=(link.evidence||[])[0]?.detector||'derived';
+      out.push(`<div>${direction} ${escapeHtml(other?.meta?.displayId||otherId)} <span class="badge">${escapeHtml(link.edgeType)} ${confidence}%</span> <small>${escapeHtml(detector)}</small></div>`);
+    });
   }
   if(node.meta?.paths?.length){
     out.push(
@@ -4535,9 +5197,13 @@ function buildArtifactTypeQuickFilters(){
 
 /* ================= EXPORTS ================= */
 function exportJson(){
-  const obj={meta:STATE.meta,artifacts:STATE.artifacts,graph:STATE.fullGraph,solutionAnalysis:STATE.solutionAnalysis};
+  const obj=STATE.layoutMode==='architecture' && STATE.virtualView
+    ? STATE.virtualView
+    : {meta:STATE.meta,artifacts:STATE.artifacts,graph:STATE.fullGraph,solutionAnalysis:STATE.solutionAnalysis};
   const blob=new Blob([JSON.stringify(obj,null,2)],{type:'application/json'});
-  const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='sentinel_graph.json'; a.click(); URL.revokeObjectURL(a.href);
+  const a=document.createElement('a'); a.href=URL.createObjectURL(blob);
+  a.download=STATE.layoutMode==='architecture'?'sentinel_solution_blueprint.json':'sentinel_graph.json';
+  a.click(); URL.revokeObjectURL(a.href);
 }
 function exportCsv(){
   if(!STATE.fullGraph) return;
@@ -4573,20 +5239,30 @@ async function fetchSolutionFiles(owner,repo,branch,paths,includeNonCore){
     'tableschema.json','host.json','functionapp.json','azuredeploy.json'
   ]);
   const base=`https://raw.githubusercontent.com/${owner}/${repo}/${encodeURIComponent(branch)}/`;
-  const out=[];
-  for(const p of paths){
+  const hasYaml=paths.some(p=>/\.ya?ml$/i.test(p));
+  const yaml=hasYaml?await ensureYaml().catch(e=>{ log(e.message,true); return null; }):null;
+  let done=0;
+  const fetched=await runPool(paths,8,async p=>{
     const fileName=p.split('/').pop().toLowerCase();
-    const isConnectorCandidate=/connector|dataconnector|data[-_ ]connectors/i.test(p);
-    const isCore=coreNames.has(fileName)||includeNonCore||isConnectorCandidate;
-    if(!isCore) continue;
     try{
-      const js=await fetchJson(base+p,'artifact');
-      if(js) out.push({path:p,json:js,core:coreNames.has(fileName)});
+      let js;
+      if(/\.ya?ml$/i.test(p)){
+        if(!yaml) return null;
+        js=yaml.load(await fetchText(base+p,'yaml artifact'));
+        if(js && typeof js==='object' && !Array.isArray(js)) js.__format='yaml';
+      }else{
+        js=await fetchJson(base+p,'artifact');
+      }
+      done++;
+      if(done%20===0) setStatus(`Fetched ${done}/${paths.length} files...`);
+      return js && typeof js==='object' ? {path:p,json:js,core:coreNames.has(fileName)} : null;
     }catch(e){
       log(`Failed fetch ${p}: ${e.message}`,true);
+      return null;
     }
-  }
-  log(`Fetched ${out.length} JSON files.`);
+  });
+  const out=fetched.filter(Boolean);
+  log(`Fetched ${out.length} files (${out.filter(f=>f.json.__format==='yaml').length} YAML).`);
   return out;
 }
 
@@ -4633,7 +5309,6 @@ async function handleVisualize(){
     const files=await fetchSolutionFiles(owner,repo,branchVal,paths,STATE.includeNonCore);
     if(!files.length) return setStatus('No files fetched',true);
     STATE.artifacts=buildArtifacts(files);
-    harvestEmbeddedArtifacts(STATE.artifacts);
      STATE.meta=await extractSolutionMeta(owner,repo,branchVal,solution,paths);
     /* STATE.solutionAnalysis = analyzeSolutionArchitecture(STATE.artifacts);*/ 
     STATE.solutionAnalysis = analyzeSolutionArchitecture(STATE.artifacts, {
@@ -4644,9 +5319,14 @@ updateSolutionMeta();
     const cuid=files.find(f=>/createuidefinition\.json$/i.test(f.path));
     STATE.createUiAnalysis=cuid?analyzeCreateUiDefinition(cuid.json):null;
 
-    const baseGraph=buildDependencyGraph(STATE.artifacts,STATE.meta.solutionName||solution);
-    const archGraph=buildArchitectureGraph(STATE.artifacts,STATE.meta,STATE.solutionAnalysis);
-    STATE.fullGraph=(STATE.layoutMode==='architecture')?archGraph:baseGraph;
+    STATE.fullGraph=buildLineageGraph(
+      STATE.artifacts,
+      STATE.meta.solutionName||solution,
+      STATE.solutionAnalysis
+    );
+    STATE.insights=buildSolutionInsights(STATE.artifacts,STATE.meta);
+    renderInsights();
+    STATE.virtualView=buildVirtualSolutionView(STATE.artifacts,STATE.meta);
     STATE.graph=JSON.parse(JSON.stringify(STATE.fullGraph));
 
     updateSolutionMeta();
@@ -4669,7 +5349,8 @@ updateSolutionMeta();
 
 function handleReset(){
   STATE.artifacts=null; STATE.meta=null; STATE.createUiAnalysis=null; STATE.solutionAnalysis=null;
-  STATE.fullGraph=null; STATE.graph={nodes:[],links:[]};
+  STATE.fullGraph=null; STATE.virtualView=null; STATE.insights=null; STATE.blueprintExpanded.clear(); STATE.graph={nodes:[],links:[]};
+  if(window.renderInsights) renderInsights();
   if(ensureD3()) d3.select('#zoomLayer').selectAll('*').remove();
   $('#solutionMeta').textContent='';
   $('#artifactMeta').textContent='Select a node.';
@@ -4701,9 +5382,12 @@ document.addEventListener('DOMContentLoaded',()=>{
   $('#layoutSelect').addEventListener('change',e=>{
     STATE.layoutMode=e.target.value;
     if(STATE.artifacts){
-      const baseGraph=buildDependencyGraph(STATE.artifacts,STATE.meta?.solutionName||'Solution');
-      const archGraph=buildArchitectureGraph(STATE.artifacts,STATE.meta,STATE.solutionAnalysis);
-      STATE.fullGraph=(STATE.layoutMode==='architecture')?archGraph:baseGraph;
+      STATE.fullGraph=buildLineageGraph(
+        STATE.artifacts,
+        STATE.meta?.solutionName||'Solution',
+        STATE.solutionAnalysis
+      );
+      STATE.virtualView=buildVirtualSolutionView(STATE.artifacts,STATE.meta);
       applyFilters();
       updateSolutionMeta();
       buildDesignOverview();
@@ -4767,6 +5451,1144 @@ document.addEventListener('DOMContentLoaded',()=>{
   setStatus('Ready. Load solutions.');
 });
 document.addEventListener('keydown',e=>{ if(e.key==='Escape') highlightNode(null); });
+</script>
+<script id="insights-engine">
+/* =====================================================================
+   SOLUTION INSIGHTS ENGINE
+   Turns raw artifacts into a human-readable report model:
+   what the solution is, where logs come from, HOW they are collected
+   (CCF pull / CCF push / Azure Function / log ingestion ...), what it
+   deploys and what content ships with it.
+   ===================================================================== */
+const INS_DOC_HOST_RE=/(^|\.)(docs\.microsoft\.com|learn\.microsoft\.com|github\.com|aka\.ms|portal\.azure\.com|schema\.management\.azure\.com|azure\.microsoft\.com|raw\.githubusercontent\.com|go\.microsoft\.com|microsoft\.com|w3\.org|youtube\.com|linkedin\.com|twitter\.com|x\.com|opensource\.org|creativecommons\.org|azurecomcdn\.net|management\.azure\.com|login\.microsoftonline\.com)$/i;
+const INS_NATIVE_KINDS=new Set(['azureactivedirectory','azuresecuritycenter','microsoftcloudappsecurity','office365','officeatp','microsoftthreatprotection','threatintelligence','azureactivitylog','dynamics365','officeirm','microsoftpurviewinformationprotection','microsoftdefenderforcloudtenantbased','office365project','officepowerbi','azureadidentityprotection','teams','mdatp','excel','amazonwebservicescloudtrail']);
+const INS_CLOUD_KINDS={amazonwebservicess3:'AWS S3 bucket + SQS queue',gcp:'Google Cloud Pub/Sub',storageaccountblobcontainer:'Azure Blob Storage container',amazonwebservicescloudtrail:'AWS CloudTrail'};
+const INS_AGENT_TABLES=new Set(['commonsecuritylog','syslog','securityevent','windowsevent','event','linux_syslog_cl']);
+const INS_METHODS={
+  'ccf-push':{label:'CCF Push',sub:'Codeless connector · Logs Ingestion API',color:'#7c3aed',hosting:'Serverless — Microsoft managed',icon:'⬆',
+    how:'The source system sends events to a Data Collection Endpoint (DCE) through the Logs Ingestion API, authenticated with an Entra app. Sentinel provisions the DCE, DCR and table.'},
+  'ccf-pull':{label:'CCF Pull',sub:'Codeless connector · REST API poller',color:'#0d9488',hosting:'Serverless — Microsoft managed',icon:'⬇',
+    how:'Sentinel calls the vendor REST API on a schedule and writes the events through a Data Collection Rule. No code and no Azure Function to deploy.'},
+  'ccf-cloud':{label:'CCF Pull · Cloud',sub:'Codeless connector · cloud storage / queue',color:'#0891b2',hosting:'Serverless — Microsoft managed',icon:'☁',
+    how:'Sentinel reads logs that the source writes into a cloud storage or messaging service you own, using the Codeless Connector Framework.'},
+  'function':{label:'Azure Function',sub:'Custom code · customer-hosted',color:'#d97706',hosting:'Function App in your subscription',icon:'ƒ',
+    how:'A Function App you deploy runs on a timer, calls the vendor API and sends the events to Log Analytics. You own hosting cost, keys and updates.'},
+  'logs-ingestion':{label:'Log Ingestion API',sub:'DCR / DCE based',color:'#2563eb',hosting:'Depends on the sender',icon:'⇪',
+    how:'Data is posted to a Data Collection Endpoint and shaped by a Data Collection Rule before landing in the table.'},
+  'http-collector':{label:'HTTP Data Collector API',sub:'Legacy · workspace shared key',color:'#b45309',hosting:'Depends on the sender',icon:'⚠',
+    how:'Legacy ingestion that authenticates with the workspace ID and shared key. Being superseded by the Logs Ingestion API / CCF.'},
+  'agent':{label:'Agent-based',sub:'Azure Monitor Agent · CEF / Syslog / Windows',color:'#475569',hosting:'Log forwarder VM / agent you manage',icon:'🖥',
+    how:'An agent (or Linux log forwarder) collects CEF, Syslog or Windows events from your devices and forwards them to the workspace.'},
+  'native':{label:'Native integration',sub:'Microsoft first-party connector',color:'#0369a1',hosting:'Built into Sentinel',icon:'◈',
+    how:'Connects directly to a Microsoft or Azure service in your tenant — enable it in Sentinel, no extra infrastructure.'},
+  'unknown':{label:'Not determinable',sub:'No collection signals found in the JSON files',color:'#94a3b8',hosting:'Unknown',icon:'?',
+    how:'The repository files for this connector do not expose enough information to tell how data is collected.'}
+};
+const INS_TACTICS=['Reconnaissance','ResourceDevelopment','InitialAccess','Execution','Persistence','PrivilegeEscalation','DefenseEvasion','CredentialAccess','Discovery','LateralMovement','Collection','CommandAndControl','Exfiltration','Impact'];
+const INS_API_NAMES={azuresentinel:'Microsoft Sentinel',teams:'Microsoft Teams',office365:'Outlook / Office 365',outlook:'Outlook',servicenow:'ServiceNow',jira:'Jira',slack:'Slack',azuread:'Entra ID',keyvault:'Key Vault',azureloganalyticsdatacollector:'Log Analytics Data Collector',azuremonitorlogs:'Azure Monitor Logs',arm:'Azure Resource Manager',http:'HTTP',sendgrid:'SendGrid',salesforce:'Salesforce',webcontents:'Web contents',azureautomation:'Azure Automation',microsoftgraphsecurity:'Graph Security',wdatp:'Defender for Endpoint'};
+
+function insWalk(node,cb,key='',parent=null,path='$',depth=0){
+  if(node==null||depth>40) return;
+  cb(key,node,parent,path);
+  if(Array.isArray(node)){ node.forEach((v,i)=>insWalk(v,cb,key,node,`${path}[${i}]`,depth+1)); return; }
+  if(typeof node==='object') for(const k of Object.keys(node)) insWalk(node[k],cb,k,node,`${path}.${k}`,depth+1);
+}
+const insShort=p=>String(p||'').replace(/^Solutions\/[^/]+\//,'');
+const insNorm=s=>String(s||'').toLowerCase().replace(/\(using azure functions?\)|using azure functions?|connector/g,'').replace(/[^a-z0-9()]+/g,'');
+const insUniq=a=>[...new Set((a||[]).filter(Boolean))];
+const insDir=p=>String(p||'').slice(0,String(p||'').lastIndexOf('/'));
+const insBase=p=>String(p||'').split('/').pop();
+function insPretty(s){ return String(s||'').replace(/[_-]+/g,' ').replace(/([a-z0-9])([A-Z])/g,'$1 $2').replace(/\s+/g,' ').trim(); }
+function insTemplateUrl(u){ return String(u||'').replace(/\{\{\s*([^}]+?)\s*\}\}/g,'‹$1›'); }
+function insTableKey(t){ return String(t||'').replace(/^Custom-/i,'').toLowerCase(); }
+function insTableName(t){ return String(t||'').replace(/^Custom-/i,''); }
+
+function insIsDefinition(c){
+  const r=c.raw||{}, p=r.properties||{};
+  const hasUi=!!(p.connectorUiConfig||p.connectorUIConfig||r.connectorUiConfig);
+  const legacyUi=!!(r.title&&(r.instructionSteps||r.descriptionMarkdown||r.connectivityCriterias||r.connectivityCriteria||r.dataTypes));
+  return hasUi||legacyUi||/dataconnectordefinitions$/i.test(String(r.type||''));
+}
+function insIsPackaging(c){
+  const src=String(c.path||'').replace(/^\(embedded\s+/,'');
+  return /(^|\/)Package\//i.test(src)||/maintemplate\.json/i.test(src);
+}
+function insLogicalConnectors(art){
+  let all=art.connectors||[];
+  const defs=all.filter(insIsDefinition);
+  if(defs.length) all=defs;
+  const nonPackaging=all.filter(c=>!insIsPackaging(c));
+  if(nonPackaging.length) all=nonPackaging;
+  const files=all.filter(c=>!c.embedded);
+  const out=[];
+  all.forEach(c=>{
+    if(c.embedded){
+      const match=files.find(d=>insNorm(d.id)===insNorm(c.id));
+      if(match){ (match.mergedEmbedded=match.mergedEmbedded||[]).push(c); return; }
+    }
+    out.push(c);
+  });
+  return out;
+}
+function insIndexInstances(files){
+  const map=new Map();
+  files.filter(f=>!/(^|\/)Package\/|maintemplate\.json$/i.test(f.path)).forEach(f=>insWalk(f.raw,(k,v)=>{
+    if(!v||typeof v!=='object'||Array.isArray(v)) return;
+    let name=v.properties?.connectorDefinitionName||v.connectorDefinitionName;
+    if(typeof name!=='string'||!name) return;
+    if(/^\[/.test(name)) name=armResolve(name,f.raw);
+    if(!name||/[\[{]/.test(name)) return;
+    const key=name.toLowerCase();
+    const list=map.get(key)||map.set(key,[]).get(key);
+    if(!list.includes(f.path)) list.push(f.path);
+  }));
+  return map;
+}
+function insPackageFiles(art,def,defs){
+  const files=art.files||[];
+  const embeddedSource=p=>String(p||'').match(/^\(embedded\s+(.+)\)$/)?.[1];
+  const extra=(def.mergedEmbedded||[]).map(e=>embeddedSource(e.path)).filter(Boolean);
+  let list;
+  const emb=embeddedSource(def.path);
+  if(emb) list=files.filter(f=>f.path===emb);
+  else{
+    const dir=insDir(def.path);
+    const nested=defs.filter(d=>d!==def&&d.path&&!d.path.startsWith('(')&&d.path.startsWith(dir+'/')).map(d=>insDir(d.path)).filter(d=>d.length>dir.length);
+    list=files.filter(f=>f.path.startsWith(dir+'/')&&!nested.some(n=>f.path.startsWith(n+'/')));
+    const siblings=defs.filter(d=>d.path&&!d.path.startsWith('(')&&insDir(d.path)===dir);
+    if(siblings.length>1){
+      const stem=insBase(def.path).split(/[_\-. ]/)[0].toLowerCase();
+      list=list.filter(f=>insDir(f.path)!==dir||insBase(f.path).toLowerCase().includes(stem));
+    }
+  }
+  const have=new Set(list.map(f=>f.path));
+  extra.forEach(p=>files.filter(f=>f.path===p&&!have.has(f.path)).forEach(f=>list.push(f)));
+  if(emb&&!list.length) list.push({path:def.path,raw:def.raw});
+  return list;
+}
+
+function insResolveExpr(s){
+  s=String(s||'');
+  if(!/^\[/.test(s)) return s;
+  let m=s.match(/^\[format\('([^']*)'\s*,\s*parameters\('([^']+)'\)\)\]$/);
+  if(m) return m[1].replace('{0}',`{{${m[2]}}}`);
+  m=s.match(/^\[concat\(parameters\('([^']+)'\),\s*'([^']*)'\)\]$/);
+  if(m) return `{{${m[1]}}}${m[2]}`;
+  return s;
+}
+function insDedupeSimilar(list,key=x=>x){
+  const tokens=s=>new Set(String(s).toLowerCase().match(/[a-z0-9]{3,}/g)||[]);
+  const kept=[];
+  (list||[]).forEach(item=>{
+    const t=tokens(key(item));
+    if(!t.size) return;
+    const similar=kept.some(k=>{ const kt=tokens(key(k)); let hit=0; t.forEach(w=>{ if(kt.has(w)) hit++; }); return hit/Math.max(1,Math.min(t.size,kt.size))>=.6; });
+    if(!similar) kept.push(item);
+  });
+  return kept;
+}
+function insScanFiles(files){
+  const sig={kinds:new Map(),pollers:[],resourceTypes:new Set(),stepTypes:new Set(),dataTypes:new Set(),flags:{},hosts:new Set(),
+    providers:[],customs:[],inputs:[],isPreview:false,connectorIds:new Set(),graphTable:'',titles:[],tenantPerms:null,diagSettings:false};
+  const seenPoller=new Set();
+  const flag=(name,file,where,snippet)=>{
+    const list=sig.flags[name]||(sig.flags[name]=[]);
+    if(list.length<3&&!list.some(x=>x.file===file)) list.push({file,where,snippet:String(snippet||'').slice(0,140)});
+  };
+  files.forEach(f=>{
+    const file=insShort(f.path);
+    if(/(^|\/)(host|function)\.json$/i.test(f.path)) flag('functionFile',file,'file name',insBase(f.path));
+    if(/function[_ -]?app/i.test(f.path)) flag('functionName',file,'file name',insBase(f.path));
+    insWalk(f.raw,(key,v,parent,path)=>{
+      if(/^(workspace_?key|shared_?key|primary_?key)$/i.test(key)) flag('sharedKey',file,path,key);
+      if(Array.isArray(v)){
+        if(key==='dataTypes') v.forEach(d=>{ const n=d?.name||(typeof d==='string'?d:''); if(n) sig.dataTypes.add(String(n)); });
+        return;
+      }
+      if(v&&typeof v==='object'){
+        if(typeof v.kind==='string'&&(typeof v.type==='string'||v.properties)) sig.kinds.set(v.kind.toLowerCase(),{file,where:`${path}.kind`,value:v.kind});
+        const cfg=v.request?.apiEndpoint?v:(v.properties?.request?.apiEndpoint?v.properties:null);
+        if(cfg){
+          const resolvedUrl=insResolveExpr(cfg.request.apiEndpoint);
+          const rawName=insResolveExpr(v.name||parent?.name||'');
+          const id=resolvedUrl.toLowerCase();
+          if(!seenPoller.has(id)){
+            seenPoller.add(id);
+            sig.pollers.push({
+              name:String(rawName).split('/').pop(),url:resolvedUrl,method:cfg.request.httpMethod||'GET',
+              windowMin:cfg.request.queryWindowInMin??cfg.request.queryWindowInMinutes??null,
+              qps:cfg.request.rateLimitQps??cfg.request.rateLimitQPS??null,
+              auth:cfg.auth?.type||cfg.auth?.authType||'',paging:cfg.paging?.pagingType||'',
+              stream:cfg.dcrConfig?.streamName||'',dataType:cfg.dataType||'',file,where:path
+            });
+          }
+        }
+        if(typeof v.type==='string'){
+          if(/[./]/.test(v.type)) sig.resourceTypes.add(v.type.toLowerCase());
+          else sig.stepTypes.add(v.type);
+          if(v.type==='Textbox'&&v.parameters?.label) sig.inputs.push(String(v.parameters.label));
+          if(v.type==='OAuthForm') sig.inputs.push('OAuth client credentials');
+        }
+        if(key==='permissions'){
+          if(Array.isArray(v.tenant)&&v.tenant.length) sig.tenantPerms=v.tenant;
+          (v.resourceProvider||[]).forEach(p=>{ if(/diagnosticsettings/i.test(String(p.provider||''))) sig.diagSettings=true; });
+          (v.resourceProvider||[]).forEach(p=>sig.providers.push({name:p.providerDisplayName||p.provider,text:insCleanText(p.permissionsDisplayText),scope:p.scope}));
+          (v.customs||[]).forEach(c=>sig.customs.push({name:insCleanText(c.name),text:insCleanText(c.description)}));
+        }
+        if(v.availability?.isPreview===true||v.isPreview===true) sig.isPreview=true;
+        if(typeof v.graphQueriesTableName==='string'&&!/[{]/.test(v.graphQueriesTableName)) sig.graphTable=v.graphQueriesTableName;
+        if(v.title&&typeof v.id==='string'&&!/[\[{]/.test(v.id)) sig.connectorIds.add(v.id);
+        if(v.title&&typeof v.title==='string'&&(v.connectorUiConfig||v.descriptionMarkdown||v.instructionSteps||v.publisher)) sig.titles.push(v.title);
+        if(typeof v.connectorId==='string') sig.connectorIds.add(v.connectorId);
+        return;
+      }
+      if(typeof v==='string'&&v.length>3){
+        if(/\/api\/logs/i.test(v)) flag('dataCollectorApi',file,path,v);
+        if(/workspace[_ ]?key|shared[_ ]?key|primarykey/i.test(v)) flag('sharedKey',file,path,v);
+        if(/ingestion\.monitor\.azure|logs ingestion api|dcrimmutableid|dcr[_ ]?immutable|data ?collection ?endpoint/i.test(v)) flag('logsIngestion',file,path,v);
+        if(/azure functions?|function ?app/i.test(v)) flag('functionText',file,path,v);
+        if(/\bcef\b|common event format/i.test(v)) flag('cef',file,path,v);
+        if(/\bsyslog\b/i.test(v)) flag('syslog',file,path,v);
+        if(/azure monitor agent|\bAMA\b/.test(v)) flag('ama',file,path,v);
+        (v.match(/https?:\/\/[^\s"'<>)\]]+/g)||[]).forEach(u=>{
+          try{ const h=new URL(u.replace(/[{}]/g,'')).host.toLowerCase(); if(h&&!INS_DOC_HOST_RE.test(h)) sig.hosts.add(h); }catch{}
+        });
+      }
+    });
+  });
+  return sig;
+}
+
+function insDetectMethods(sig){
+  const found=[];
+  const add=(key,strength,why,evidence)=>found.push({key,strength,why,evidence:(evidence||[]).slice(0,3)});
+  const kind=k=>sig.kinds.get(k);
+  const flagEv=n=>sig.flags[n]||[];
+  const pushKind=kind('push');
+  if(pushKind||sig.stepTypes.has('DeployPushConnectorButton'))
+    add('ccf-push','strong',pushKind?'Data connector resource has kind "Push"':'Connector UI contains the Deploy Push Connector button',
+      pushKind?[{file:pushKind.file,where:pushKind.where,snippet:'kind: Push'}]:[]);
+  const pollKind=kind('restapipoller')||kind('apipolling');
+  if(pollKind||sig.pollers.length)
+    add('ccf-pull','strong',pollKind?`Data connector resource has kind "${pollKind.value}"`:'Polling configuration with an API endpoint request is defined',
+      (pollKind?[{file:pollKind.file,where:pollKind.where,snippet:`kind: ${pollKind.value}`}]:[])
+        .concat(sig.pollers.slice(0,2).map(p=>({file:p.file,where:p.where,snippet:`request.apiEndpoint: ${p.url}`}))));
+  Object.keys(INS_CLOUD_KINDS).forEach(k=>{
+    const hit=kind(k);
+    if(hit&&!INS_NATIVE_KINDS.has(k)) add('ccf-cloud','strong',`Data connector kind "${hit.value}" (${INS_CLOUD_KINDS[k]})`,[{file:hit.file,where:hit.where,snippet:`kind: ${hit.value}`}]);
+  });
+  const fnEv=[...flagEv('functionFile'),...flagEv('functionName')];
+  const fnResource=sig.resourceTypes.has('microsoft.web/sites');
+  if(fnEv.length||fnResource){
+    const ev=fnEv.slice();
+    if(fnResource) ev.push({file:'(ARM template)',where:'resources[].type',snippet:'Microsoft.Web/sites'});
+    add('function','strong',fnResource?'ARM template deploys a Function App (Microsoft.Web/sites)':'Function App packaging files (host.json / function.json / FunctionApp) found',ev);
+  }else if(flagEv('functionText').length){
+    add('function','medium','Connector instructions mention Azure Functions',flagEv('functionText'));
+  }
+  const agentTables=[...sig.dataTypes].filter(t=>INS_AGENT_TABLES.has(t.toLowerCase()));
+  const agentSteps=[...sig.stepTypes].filter(t=>/^(InstallAgent|OmsSolutions|InstallAgentOnLinux|InstallAgentOnWindows)/i.test(t));
+  const codelessOrFunction=found.some(f=>['ccf-pull','ccf-push','ccf-cloud','function'].includes(f.key)&&f.strength==='strong');
+  if(codelessOrFunction){
+    /* a CCF / Function path is confirmed: CommonSecurityLog/Syslog here is only the destination table, not an agent */
+  }else if(agentTables.length||agentSteps.length)
+    add('agent','strong',agentTables.length?`Data type ${agentTables.join(', ')} is collected by an agent`:`Connector UI uses agent step "${agentSteps[0]}"`,
+      agentTables.length?[{file:'(connector dataTypes)',where:'dataTypes',snippet:agentTables.join(', ')}]:[]);
+  else if(flagEv('cef').length||flagEv('syslog').length||flagEv('ama').length)
+    add('agent','medium','Connector text refers to CEF / Syslog / Azure Monitor Agent',[...flagEv('cef'),...flagEv('syslog'),...flagEv('ama')]);
+  const nativeHit=[...sig.kinds.keys()].find(k=>INS_NATIVE_KINDS.has(k));
+  const nativeStep=[...sig.stepTypes].find(t=>/^(AAD|Dynamics365|Office365|OfficeATP|MicrosoftCloudAppSecurity|AzureSecurityCenter|ThreatIntelligence|MicrosoftThreatProtection|MicrosoftDefender|PremiumMicrosoftDefender|AzureActivityLog|AzureDiagnostics|Policy)/i.test(t));
+  if(nativeHit) add('native','strong',`Data connector kind "${sig.kinds.get(nativeHit).value}" is a built-in Microsoft integration`,[{file:sig.kinds.get(nativeHit).file,where:sig.kinds.get(nativeHit).where,snippet:`kind: ${sig.kinds.get(nativeHit).value}`}]);
+  else if(nativeStep) add('native','strong',`Connector UI uses the built-in "${nativeStep}" step`,[{file:'(connector instructions)',where:'instructionSteps[].type',snippet:nativeStep}]);
+  else if(sig.tenantPerms) add('native','strong',`Needs tenant-level role (${sig.tenantPerms.join(', ')}) to connect a Microsoft service`,[{file:'(connector permissions)',where:'permissions.tenant',snippet:sig.tenantPerms.join(', ')}]);
+  else if(sig.diagSettings) add('native','medium','Enabled through Azure diagnostic settings on the source resource',[{file:'(connector permissions)',where:'permissions.resourceProvider',snippet:'diagnosticSettings'}]);
+  const dce=sig.resourceTypes.has('microsoft.insights/datacollectionendpoints')||sig.resourceTypes.has('microsoft.insights/datacollectionrules');
+  const legacyApi=flagEv('dataCollectorApi').length>0||(flagEv('sharedKey').length>0&&found.some(f=>f.key==='function'));
+  if(legacyApi&&!found.some(f=>['ccf-pull','ccf-push','ccf-cloud'].includes(f.key)&&f.strength==='strong')) add('http-collector','strong','Workspace shared key / Data Collector API (/api/logs) is referenced',[...flagEv('dataCollectorApi'),...flagEv('sharedKey')]);
+  if((dce||flagEv('logsIngestion').length)&&!found.some(f=>['ccf-pull','ccf-push','ccf-cloud'].includes(f.key)))
+    add('logs-ingestion','medium','Logs Ingestion API / DCE / DCR resources are part of the package',flagEv('logsIngestion'));
+  const order=['ccf-push','ccf-pull','ccf-cloud','function','agent','native','logs-ingestion','http-collector'];
+  const strongFirst=found.slice().sort((a,b)=>(a.strength===b.strength?0:a.strength==='strong'?-1:1)||order.indexOf(a.key)-order.indexOf(b.key));
+  const strongKeys=insUniq(strongFirst.filter(f=>f.strength==='strong').map(f=>f.key));
+  const keys=strongKeys.length?strongKeys:insUniq(strongFirst.map(f=>f.key));
+  const primary=order.find(k=>keys.includes(k)&&k!=='http-collector')||keys[0]||'unknown';
+  const fnKey=keys.includes('function');
+  let functionIngestion=null;
+  if(fnKey){
+    const hasDcrApi=(flagEv('logsIngestion').length>0||dce)&&!legacyApi;
+    functionIngestion=legacyApi?'Data Collector API (legacy, workspace shared key)':hasDcrApi?'Logs Ingestion API (DCR / DCE)':'Log Analytics ingestion (implemented in function code)';
+  }
+  return {primary,keys,found:strongFirst,functionIngestion};
+}
+
+function insPollerLabel(p){
+  const tail=String(p.url||'').split('?')[0].split('/').filter(Boolean).pop()||'';
+  return insPretty(p.name||tail||p.dataType||'Events');
+}
+function insAuthLabel(a){
+  const k=String(a||'').toLowerCase();
+  if(k==='apikey') return 'API key / token';
+  if(k==='basic') return 'Basic (username + password)';
+  if(k==='oauth2') return 'OAuth 2.0';
+  if(k==='session') return 'Session login';
+  if(k==='jwttoken') return 'JWT token';
+  if(k==='push') return 'Microsoft Entra app (OAuth 2.0)';
+  return a?insPretty(a):'';
+}
+
+function insBuildSource(method,c,sig,solutionName){
+  const vendor=c.publisher||solutionName||'Vendor';
+  const lines=[]; let title=`${vendor} service`; let note='';
+  const pollers=sig.pollers;
+  if(method.primary==='ccf-pull'){
+    title=`${vendor} REST API`;
+    pollers.forEach(p=>lines.push({label:insPollerLabel(p),value:insTemplateUrl(p.url),meta:`${String(p.method||'GET').toUpperCase()}${p.windowMin?` · every ${p.windowMin} min`:''}`}));
+    if(pollers.some(p=>/^\{\{[^}]+\}\}/.test(p.url))) note='The API host is a connector parameter — the customer enters it when connecting.';
+    if(!lines.length) sig.hosts.forEach(h=>lines.push({label:'Host',value:h}));
+  }else if(method.primary==='ccf-push'){
+    title='Your application / appliance';
+    lines.push({label:'Delivery',value:'HTTPS POST to a Data Collection Endpoint (Logs Ingestion API)'});
+    note='The sender authenticates with an Entra app created during deployment.';
+  }else if(method.primary==='ccf-cloud'){
+    const k=[...sig.kinds.keys()].find(x=>INS_CLOUD_KINDS[x]);
+    title=INS_CLOUD_KINDS[k]||'Cloud storage / queue';
+    lines.push({label:'Collected from',value:'A bucket/queue/container the customer owns'});
+  }else if(method.primary==='function'){
+    title=`${vendor} API (polled by a Function)`;
+    [...sig.hosts].slice(0,4).forEach(h=>lines.push({label:'Referenced endpoint',value:h}));
+    if(!lines.length) lines.push({label:'Endpoint',value:'Defined in function code / app settings'});
+  }else if(method.primary==='agent'){
+    const cef=sig.flags.cef?.length||[...sig.dataTypes].some(t=>/commonsecuritylog/i.test(t));
+    title='Network / security appliance or OS logs';
+    lines.push({label:'Transport',value:cef?'CEF over Syslog':'Syslog / agent'});
+    lines.push({label:'Forwarder',value:'Linux log forwarder or host with Azure Monitor Agent'});
+  }else if(method.primary==='native'){
+    title='Microsoft service in your tenant';
+    lines.push({label:'Connection',value:'Tenant-level connection enabled inside Sentinel'});
+  }else{
+    sig.hosts.forEach(h=>lines.push({label:'Referenced endpoint',value:h}));
+  }
+  return {title,lines,note};
+}
+
+function insPlaybookSummary(pb){
+  const raw=pb.raw||{};
+  let wf=null;
+  insWalk(raw,(k,v)=>{ if(!wf&&v&&typeof v==='object'&&!Array.isArray(v)&&/microsoft\.logic\/workflows/i.test(String(v.type||''))) wf=v; });
+  const def=wf?.properties?.definition||raw.definition||raw.properties?.definition||{};
+  const triggers=def.triggers||{};
+  const tKey=Object.keys(triggers)[0]||'';
+  const t=triggers[tKey]||{};
+  const pathHint=`${tKey} ${t.inputs?.path||''} ${JSON.stringify(t.inputs?.body||'').slice(0,200)}`.toLowerCase();
+  let trigger='Manual / unknown';
+  if(/incident/.test(pathHint)) trigger='Sentinel incident';
+  else if(/alert/.test(pathHint)) trigger='Sentinel alert';
+  else if(/entity/.test(pathHint)) trigger='Sentinel entity (manual)';
+  else if(String(t.type).toLowerCase()==='request') trigger='HTTP request';
+  else if(String(t.type).toLowerCase()==='recurrence') trigger='Schedule';
+  const text=JSON.stringify(raw);
+  const apis=insUniq([...text.matchAll(/managedApis\/([a-z0-9_]+)/gi)].map(m=>m[1].toLowerCase()).concat([...text.matchAll(/\['([a-z0-9_]+)'\]\['connectionId'\]/gi)].map(m=>m[1].toLowerCase())))
+    .filter(a=>a!=='$connections').map(a=>INS_API_NAMES[a]||insPretty(a));
+  const folder=pb.path&&!pb.path.startsWith('(')?pb.path.split('/').slice(-2,-1)[0]:'';
+  const base=insBase(pb.path||'').replace(/\.json$/i,'');
+  const name=/^(azuredeploy|maintemplate)/i.test(base)?(folder||pb.id):(pb.id&&!/^(azuredeploy)/i.test(pb.id)?pb.id:base);
+  return {name:insPretty(name),trigger,connectors:apis,actions:Object.keys(def.actions||{}).length,
+    description:raw.metadata?.description||raw.metadata?.comments||def.description||'',path:pb.path};
+}
+
+function insCollectTableSchemas(files){
+  const out=new Map();
+  files.forEach(f=>{
+    const template=f.raw;
+    insWalk(f.raw,(k,v)=>{
+      if(!v||typeof v!=='object'||Array.isArray(v)) return;
+      if(/operationalinsights\/workspaces\/tables$/i.test(String(v.type||''))||(v.properties?.schema?.columns&&v.properties?.schema?.name)){
+        const schema=v.properties?.schema||{};
+        const name=schema.name||armResolve(String(v.name||''),template);
+        if(name&&Array.isArray(schema.columns)) out.set(insTableKey(name),{columns:schema.columns.length,retention:v.properties?.retentionInDays,plan:v.properties?.plan||''});
+      }
+    });
+  });
+  return out;
+}
+
+function insFindManifest(files){
+  return files.find(f=>f.raw&&!Array.isArray(f.raw)&&(f.raw['Data Connectors']||f.raw['Analytic Rules']||f.raw.BasePath)&&/(^|\/)Data\//i.test(f.path))?.raw||null;
+}
+function insCleanMarkdown(s){ return String(s||'').replace(/\[([^\]]+)\]\([^)]*\)/g,'$1').replace(/\*\*|__/g,'').replace(/\r/g,'').trim(); }
+function insCleanText(s){
+  const t=insCleanMarkdown(s).replace(/\[?\s*See the documentation[^.\]]*[.\]]*/gi,'').replace(/\(?https?:\/\/\S+\)?/g,'').replace(/\s+/g,' ').replace(/\s+\./g,'.').trim();
+  const sentences=t.split(/(?<=[.!?])\s+/).filter(Boolean);
+  let out=sentences[0]||t;
+  if(sentences[1]&&out.length<60&&!/^(follow|see|refer)/i.test(sentences[1])) out+=' '+sentences[1];
+  return out.replace(/\b(follow|see|refer)\b[^.]*$/i,'').replace(/\s+/g,' ').trim();
+}
+
+function insDcrName(d){
+  const id=String(d.id||'');
+  if(/^(dcr|datacollectionrule|azuredeploy|maintemplate)(\.json)?$/i.test(id)||/\.json$/i.test(id)){
+    const folder=String(d.path||'').split('/').slice(-2,-1)[0]||'';
+    return (folder?insPretty(folder).replace(/\s*ccp$/i,'')+' ':'')+'DCR';
+  }
+  return id;
+}
+function insApplyTitleHints(method,name){
+  const title=String(name||'');
+  const says=(re)=>re.test(title);
+  const rebuild=(keys,why)=>{
+    method.keys=keys; method.primary=['ccf-push','ccf-pull','ccf-cloud','function','agent','native','logs-ingestion','http-collector'].find(k=>keys.includes(k))||method.primary;
+    method.found=method.found.filter(f=>keys.includes(f.key));
+    method.found.unshift({key:method.primary,strength:'strong',why,evidence:[{file:'(connector title)',where:'title',snippet:title}]});
+    method.found=method.found.filter((f,i,a)=>a.findIndex(x=>x.key===f.key&&x.why===f.why)===i);
+    if(!keys.includes('function')) method.functionIngestion=null;
+  };
+  const ccf=['ccf-pull','ccf-push','ccf-cloud'];
+  if(says(/\busing azure functions?\b/i)&&!method.keys.includes('function')){
+    method.keys=['function'];
+    method.found=[{key:'function',strength:'strong',why:'Connector title states it uses Azure Functions',evidence:[{file:'(connector title)',where:'title',snippet:title}]}];
+    method.primary='function';
+    method.functionIngestion='Log Analytics ingestion (implemented in function code)';
+  }else if(says(/using azure functions?|azure function/i)&&method.keys.includes('function')&&method.keys.some(k=>ccf.includes(k)))
+    rebuild(method.keys.filter(k=>!ccf.includes(k)),'Connector title states it uses Azure Functions');
+  else if(says(/codeless|\bccf\b|\bccp\b/i)&&method.keys.some(k=>ccf.includes(k))&&method.keys.some(k=>['function','agent','http-collector'].includes(k)))
+    rebuild(method.keys.filter(k=>ccf.includes(k)),'Connector title states it is a Codeless Connector Framework connector');
+  return method;
+}
+function buildSolutionInsights(art,meta){
+  const files=art.files||[];
+  const manifest=insFindManifest(files);
+  const sm=meta?.rawSolutionMeta||{};
+  const solutionName=meta?.solutionName||'Solution';
+  const logical=insLogicalConnectors(art);
+  const instanceIndex=insIndexInstances(files);
+  const allDcrs=(art.dcrs||[]).concat((art.coreFiles||[]).filter(x=>x.coreKind==='dcr'));
+  const schemas=insCollectTableSchemas(files);
+
+  const analytics=(art.analytics||[]).map(a=>({
+    name:a.id,severity:a.severity||'Unknown',tactics:insUniq(String(a.tactics||'').split(/[,;]/).map(s=>s.trim())),
+    techniques:[].concat(a.techniques||[]),tables:insUniq((a.references?.tables||a.tables||[]).map(insTableName)),
+    frequency:a.frequency||'',period:a.period||'',kind:a.ruleKind||'',description:a.description||'',
+    connectorIds:insUniq((a.requiredConnectors||[]).map(r=>String(r.connectorId||r).toLowerCase())),path:a.path,unresolved:a.references?.unresolved||[]
+  }));
+  const hunting=(art.hunting||[]).map(h=>({
+    name:h.id,tactics:insUniq(String(h.tactics||'').split(/[,;]/).map(s=>s.trim())),techniques:[].concat(h.techniques||[]),
+    tables:insUniq((h.references?.tables||h.tables||[]).map(insTableName)),description:h.description||'',
+    connectorIds:insUniq((h.requiredConnectors||[]).map(r=>String(r.connectorId||r).toLowerCase())),path:h.path,unresolved:h.references?.unresolved||[]
+  }));
+  const workbooks=(art.workbooks||[]).map(w=>({name:insPretty(/^(azuredeploy|maintemplate)/i.test(insBase(w.path||'').replace(/\.json$/i,''))?(w.path||'').split('/').slice(-2,-1)[0]:(w.id&&w.id!==insBase(w.path||'').replace(/\.json$/i,'')?w.id:insBase(w.path||'').replace(/\.json$/i,''))),
+    tables:insUniq((w.references?.tables||w.tables||[]).map(insTableName)),description:w.description||'',path:w.path,unresolved:w.references?.unresolved||[]}));
+  const parsers=(art.functions||[]).map(f=>({name:f.id,alias:f.functionAlias||'',tables:insUniq((f.references?.tables||f.tables||[]).map(insTableName)),description:f.description||'',path:f.path}));
+  const playbooks=(art.playbooks||[]).map(insPlaybookSummary);
+  const watchlists=(art.watchlists||[]).map(w=>({name:insPretty(w.id),description:w.description||''}));
+  const notebooks=(art.notebooks||[]).map(n=>({name:insPretty(n.id),cells:n.cellCount||0}));
+  const automationRules=art.automationRules||[];
+
+  const connectors=logical.map(c=>{
+    const defIds=insUniq([c.rawId,c.raw?.properties?.connectorUiConfig?.id,c.raw?.properties?.connectorId,c.raw?.name,c.raw?.id,c.id].map(x=>String(x||'').toLowerCase()).filter(x=>x&&!/[\[{]/.test(x)));
+    const pkgFiles=insPackageFiles(art,c,logical);
+    const havePaths=new Set(pkgFiles.map(f=>f.path));
+    defIds.forEach(id=>(instanceIndex.get(id)||[]).forEach(p=>{ if(!havePaths.has(p)){ const f=files.find(x=>x.path===p); if(f){ pkgFiles.push(f); havePaths.add(p); } } }));
+    const sig=insScanFiles(pkgFiles);
+    const method=insDetectMethods(sig);
+    if(method.primary==='unknown'&&/^microsoft/i.test(c.publisher||'')){
+      method.primary='native'; method.keys=['native'];
+      method.found=[{key:'native',strength:'medium',why:'Microsoft-published connector with no custom collection mechanism — a built-in integration',evidence:[]}];
+    }
+    const pkgPaths=new Set(pkgFiles.map(f=>f.path));
+    const dcrs=allDcrs.filter(d=>pkgPaths.has(d.path)).map(d=>({
+      id:insDcrName(d),flows:(d.flowsData||[]).length,transform:(d.flowsData||[]).some(f=>f.hasTransform),
+      outputTables:insUniq((d.flowsData||[]).flatMap(f=>f.outputTables).map(insTableName)),
+      inputStreams:insUniq((d.flowsData||[]).flatMap(f=>f.streams))
+    }));
+    const tableMap=new Map();
+    const addTable=t=>{ const n=insTableName(t); if(!n||!/^[A-Za-z_][A-Za-z0-9_]*$/.test(n)) return; const k=n.toLowerCase(); if(!tableMap.has(k)||(tableMap.get(k)===k&&n!==k)) tableMap.set(k,n); };
+    (c.tables||[]).forEach(addTable); sig.dataTypes.forEach(addTable); addTable(sig.graphTable);
+    sig.pollers.forEach(p=>{ addTable(p.dataType); addTable(p.stream); });
+    dcrs.forEach(d=>d.outputTables.forEach(addTable));
+    const tables=[...tableMap.values()];
+    const source=insBuildSource(method,c,sig,solutionName);
+    const authSet=insUniq(sig.pollers.map(p=>insAuthLabel(p.auth)));
+    if(method.primary==='ccf-push') authSet.push(insAuthLabel('push'));
+    const windows=sig.pollers.map(p=>p.windowMin).filter(v=>v!=null);
+    const ids=insUniq([c.rawId,c.raw?.properties?.connectorUiConfig?.id,...sig.connectorIds].map(x=>String(x||'').toLowerCase()));
+    const embeddedTitle=(c.mergedEmbedded||[]).map(x=>x.id).find(t=>t&&/\(.*\)/.test(t)&&insNorm(t)===insNorm(c.id));
+    const title=embeddedTitle||(sig.titles.find(t=>insNorm(t)===insNorm(c.id))||c.id);
+    insApplyTitleHints(method,title);
+    const functionApps=(art.functionApps||[]).filter(f=>pkgPaths.has(f.path)).map(f=>f.id);
+    const requiredBy=analytics.filter(a=>a.connectorIds.some(i=>ids.includes(i))).length;
+    const legacyByName=/deprecat|legacy/i.test(`${c.id} ${c.description||''}`);
+    return {
+      name:title,publisher:c.publisher||'',description:insCleanMarkdown(c.description||''),
+      ids,definitionPath:c.path,files:[...pkgPaths].map(insShort),method,methodInfo:INS_METHODS[method.primary],
+      source,auth:authSet,inputs:insUniq(sig.inputs),prerequisites:{
+        permissions:insDedupeSimilar(insUniq(sig.providers.map(p=>`${p.name||'Workspace'}: ${p.text||''}`.trim()))),
+        customs:insDedupeSimilar(sig.customs,x=>`${x.name} ${x.text}`)},
+      schedule:{windowMin:windows.length?Math.min(...windows):null,paging:insUniq(sig.pollers.map(p=>p.paging)),qps:insUniq(sig.pollers.map(p=>p.qps).filter(v=>v!=null))},
+      pollers:sig.pollers.map(p=>({label:insPollerLabel(p),url:insTemplateUrl(p.url),method:String(p.method||'GET').toUpperCase(),windowMin:p.windowMin,stream:p.stream,table:p.dataType||insTableName(p.stream)})),
+      tables,dcrs,hasTransform:dcrs.some(d=>d.transform),hasDce:sig.resourceTypes.has('microsoft.insights/datacollectionendpoints')||sig.pollers.some(p=>!!p.stream)||method.primary==='ccf-push',
+      functionApps,usesFunction:method.keys.includes('function'),requiredBy,isPreview:sig.isPreview,legacy:legacyByName,
+      endpointsReferenced:[...sig.hosts].slice(0,8)
+    };
+  });
+
+  /* Agent-based connectors often declare no tables: attribute the standard agent tables that this solution's content queries. */
+  const queriedByContent=insUniq([...analytics,...hunting,...workbooks,...parsers].flatMap(x=>x.tables)).map(t=>t.toLowerCase());
+  connectors.filter(c=>c.method.primary==='agent'&&!c.tables.length).forEach(c=>{
+    ['CommonSecurityLog','Syslog','SecurityEvent','WindowsEvent'].forEach(t=>{ if(queriedByContent.includes(t.toLowerCase())) c.tables.push(t); });
+    if(c.tables.length) c.tablesInferred=true;
+  });
+
+  /* Queries often call a parser alias (e.g. `OktaSSO | where …`): resolve such identifiers against the solution's own tables and parsers. */
+  const known=new Map();
+  connectors.forEach(c=>c.tables.forEach(t=>known.set(t.toLowerCase(),{kind:'table',tables:[t]})));
+  parsers.forEach(p=>[p.name,p.alias].filter(Boolean).forEach(n=>{ const k=String(n).toLowerCase(); if(!known.has(k)) known.set(k,{kind:'parser',parser:p,tables:p.tables}); }));
+  [...analytics,...hunting,...workbooks].forEach(item=>{
+    (item.unresolved||[]).forEach(tok=>{
+      const hit=known.get(String(tok).toLowerCase());
+      if(!hit) return;
+      const add=t=>{ if(!item.tables.some(x=>x.toLowerCase()===t.toLowerCase())) item.tables.push(t); };
+      if(hit.kind==='table') add(hit.tables[0]);
+      else{ item.viaParsers=insUniq([...(item.viaParsers||[]),hit.parser.name]); hit.tables.forEach(add); }
+    });
+  });
+
+  const producedBy=new Map();
+  connectors.forEach(c=>c.tables.forEach(t=>{ const k=t.toLowerCase(); (producedBy.get(k)||producedBy.set(k,[]).get(k)).push(c.name); }));
+  const tableRows=new Map();
+  const touch=(name,kind,item)=>{
+    const k=name.toLowerCase();
+    if(!tableRows.has(k)) tableRows.set(k,{name,producers:producedBy.get(k)||[],analytics:[],hunting:[],workbooks:[],parsers:[],schema:schemas.get(k)||null,custom:/_(CL|CE|CF)$/i.test(name)});
+    if(item) tableRows.get(k)[kind].push(item);
+  };
+  connectors.forEach(c=>c.tables.forEach(t=>touch(t)));
+  analytics.forEach(a=>a.tables.forEach(t=>touch(t,'analytics',a.name)));
+  hunting.forEach(h=>h.tables.forEach(t=>touch(t,'hunting',h.name)));
+  workbooks.forEach(w=>w.tables.forEach(t=>touch(t,'workbooks',w.name)));
+  parsers.forEach(p=>p.tables.forEach(t=>touch(t,'parsers',p.name)));
+  const tables=[...tableRows.values()].sort((a,b)=>(b.producers.length-a.producers.length)||((b.analytics.length+b.hunting.length+b.workbooks.length)-(a.analytics.length+a.hunting.length+a.workbooks.length)));
+
+  connectors.forEach(c=>{
+    const own=new Set(c.tables.map(t=>t.toLowerCase()));
+    const hit=list=>list.filter(x=>x.tables.some(t=>own.has(t.toLowerCase()))||(x.connectorIds||[]).some(i=>c.ids.includes(i))).length;
+    c.consumers={analytics:hit(analytics),hunting:hit(hunting),workbooks:hit(workbooks),parsers:hit(parsers)};
+  });
+
+  const severityOrder=['High','Medium','Low','Informational'];
+  const severity=Object.fromEntries(severityOrder.map(s=>[s,analytics.filter(a=>a.severity.toLowerCase()===s.toLowerCase()).length]));
+  const tacticCounts={};
+  analytics.concat(hunting).forEach(x=>x.tactics.forEach(t=>{ const k=t.replace(/\s+/g,''); if(k) tacticCounts[k]=(tacticCounts[k]||0)+1; }));
+
+  const description=insCleanMarkdown(manifest?.Description||'');
+  const techMarker=description.search(/Underlying Microsoft Technologies/i);
+  const intro=(techMarker>0?description.slice(0,techMarker):description).split(/\n\s*\n/)[0].trim();
+  const rawDescription=String(manifest?.Description||'');
+  const techBlock=techMarker>=0?rawDescription.slice(rawDescription.search(/Underlying Microsoft Technologies/i)):'';
+  const technologies=insUniq([...techBlock.matchAll(/\[([^\]]+)\]\(/g)].map(m=>m[1].trim()).filter(t=>!/preview|supplemental/i.test(t)));
+  const logoSrc=String(manifest?.Logo||'').match(/src=["']([^"']+)["']/i)?.[1]||'';
+
+  const methodKeys=insUniq(connectors.flatMap(c=>c.method.keys.length?[c.method.primary,...c.method.keys.filter(k=>k!==c.method.primary&&c.method.primary==='unknown')]:[c.method.primary]));
+  const primaryMethods=insUniq(connectors.map(c=>c.method.primary));
+  const functionConnectors=connectors.filter(c=>c.usesFunction);
+  const serverless=connectors.filter(c=>['ccf-pull','ccf-push','ccf-cloud','native'].includes(c.method.primary));
+  let functionAnswer={state:'no',text:'No Azure Function is required.'};
+  if(functionConnectors.length){
+    functionAnswer=functionConnectors.length===connectors.length||!serverless.length
+      ?{state:'yes',text:'Yes — data collection runs in an Azure Function App you deploy and operate.'}
+      :{state:'optional',text:`Optional — ${functionConnectors.length} of ${connectors.length} connectors use an Azure Function (customer-hosted); the others are serverless.`};
+  }else if(/azure functions?/i.test(technologies.join(' '))){
+    functionAnswer={state:'optional',text:'The solution lists Azure Functions as a dependency.'};
+  }
+  const findings=[];
+  if(functionConnectors.length&&serverless.length) findings.push({level:'info',text:`Two collection paths ship in the same solution — serverless: ${serverless.map(c=>c.name).join(', ')}; Azure Function: ${functionConnectors.map(c=>c.name).join(', ')}. Prefer the serverless connector for new deployments.`});
+  connectors.filter(c=>c.method.found.some(f=>f.key==='http-collector')).forEach(c=>findings.push({level:'warn',text:`${c.name} references the legacy HTTP Data Collector API (shared key). Microsoft is moving ingestion to the Logs Ingestion API / CCF.`}));
+  connectors.filter(c=>c.method.primary==='unknown').forEach(c=>findings.push({level:'warn',text:`${c.name}: the repository JSON does not reveal how data is collected — check the connector page in the Sentinel content hub.`}));
+  const previews=connectors.filter(c=>c.isPreview);
+  if(previews.length) findings.push({level:'info',text:`${previews.length===connectors.length&&previews.length>1?'All connectors are':previews.map(c=>c.name).slice(0,3).join(', ')+(previews.length>3?` +${previews.length-3} more`:'')+(previews.length===1?' is':' are')} marked as Preview — behaviour and billing may change.`});
+  if(!connectors.length) findings.push({level:'info',text:'This solution ships no data connector. Its content analyses data that other connectors/solutions already ingest.'});
+  if(!analytics.length&&!hunting.length) findings.push({level:'info',text:'No analytics rules or hunting queries were found in the repository files for this solution.'});
+  const withTransform=connectors.filter(c=>c.hasTransform);
+  if(withTransform.length) findings.push({level:'good',text:`${withTransform.length===connectors.length&&withTransform.length>1?'All connectors apply':withTransform.map(c=>c.name).slice(0,3).join(', ')+(withTransform.length>3?` +${withTransform.length-3} more`:'')+(withTransform.length===1?' applies':' apply')} an ingestion-time transformation in the Data Collection Rule.`});
+  const customTables=tables.filter(t=>t.custom&&t.producers.length);
+  if(customTables.length) findings.push({level:'info',text:`Creates ${customTables.length} custom table${customTables.length>1?'s':''} (${customTables.map(t=>t.name).join(', ')}) — ingestion into these tables is billed.`});
+  const queriedOnly=tables.filter(t=>!t.producers.length);
+
+  return {
+    solution:{name:solutionName,publisher:connectors.find(c=>c.publisher)?.publisher||sm.support?.name||manifest?.Author||'',author:manifest?.Author||'',version:sm.version||manifest?.Version||'',
+      support:sm.support||null,firstPublish:sm.firstPublishDate||'',lastPublish:sm.lastPublishDate||'',categories:meta?.categories||[],domains:meta?.domains||[],
+      verticals:normalizeMetaList(sm.categories?.verticals),providers:normalizeMetaList(sm.providers),description:intro,technologies,logo:logoSrc,
+      is1P:manifest?.Is1PConnector===true,path:manifest?'manifest':''},
+    connectors,primaryMethods:primaryMethods,methodKeys,functionAnswer,
+    content:{analytics,hunting,workbooks,parsers,playbooks,watchlists,notebooks,automationRules,severity,tacticCounts},
+    tables,queriedOnly,findings,
+    counts:{connectors:connectors.length,tables:tables.filter(t=>t.producers.length).length,analytics:analytics.length,hunting:hunting.length,workbooks:workbooks.length,playbooks:playbooks.length,parsers:parsers.length,watchlists:watchlists.length,notebooks:notebooks.length,automationRules:automationRules.length}
+  };
+}
+window.buildSolutionInsights=buildSolutionInsights;
+</script>
+<script id="insights-ui">
+/* =====================================================================
+   SOLUTION INSIGHTS REPORT (renderer)
+   ===================================================================== */
+(function(){
+  const e=s=>escapeHtml(s);
+  const SEV={High:'#dc2626',Medium:'#d97706',Low:'#2563eb',Informational:'#64748b',Unknown:'#94a3b8'};
+  const TRIG={'Sentinel incident':'#7c3aed','Sentinel alert':'#db2777','Sentinel entity (manual)':'#0891b2','HTTP request':'#475569','Schedule':'#0d9488'};
+  const pill=(t,c,title)=>`<span class="ins-pill" style="--c:${c}"${title?` title="${e(title)}"`:''}>${e(t)}</span>`;
+  const badge=m=>`<span class="ins-method" style="--c:${m.color}"><i>${m.icon}</i>${e(m.label)}</span>`;
+  const plural=(n,w)=>`${n} ${w}${n===1?'':'s'}`;
+  const chip=(t,custom)=>`<span class="ins-chip${custom?' custom':''}">${e(t)}${custom?' <em>custom</em>':''}</span>`;
+  const chips=(list,max=10)=>{
+    const shown=list.slice(0,max).map(t=>chip(t,/_(CL|CE|CF)$/i.test(t))).join('');
+    return `<div class="ins-chips">${shown}${list.length>max?`<span class="ins-muted">+${list.length-max} more</span>`:''}</div>`;
+  };
+  const prettyTactic=t=>String(t||'').replace(/([a-z])([A-Z])/g,'$1 $2');
+  const secId=n=>`ins-sec-${n}`;
+
+  function summarySentence(ins){
+    const s=ins.solution, c=ins.connectors, k=ins.counts;
+    const ships=[];
+    if(k.analytics) ships.push(plural(k.analytics,'analytics rule'));
+    if(k.hunting) ships.push(plural(k.hunting,'hunting query').replace('querys','queries'));
+    if(k.workbooks) ships.push(plural(k.workbooks,'workbook'));
+    if(k.playbooks) ships.push(plural(k.playbooks,'playbook'));
+    if(k.parsers) ships.push(plural(k.parsers,'parser'));
+    const shipText=ships.length?`It ships <b>${ships.join(', ')}</b>.`:'No detection or response content was found in the repository files.';
+    if(!c.length){
+      const queried=ins.queriedOnly.slice(0,4).map(t=>`<b>${e(t.name)}</b>`).join(', ');
+      return `<b>${e(s.name)}</b> is a <b>content-only</b> solution — it has no data connector and analyses data already in your workspace${queried?` (${queried}${ins.queriedOnly.length>4?', …':''})`:''}. ${shipText}`;
+    }
+    const how=c.map(x=>`<b>${e(x.methodInfo.label)}</b> (${e(x.name)})`).join(' and ');
+    const tables=insUniq(c.flatMap(x=>x.tables)).slice(0,4).map(t=>`<b>${e(t)}</b>`).join(', ');
+    const fn=ins.functionAnswer.state==='yes'?' It <b>requires an Azure Function</b>.':ins.functionAnswer.state==='optional'?' An <b>Azure Function is optional</b> (legacy path).':' <b>No Azure Function</b> is needed.';
+    return `<b>${e(s.name)}</b> collects data using ${how}${tables?`, storing it in ${tables}`:''}.${fn} ${shipText}`;
+  }
+
+  function heroHtml(ins){
+    const s=ins.solution;
+    const tier=s.support?.tier;
+    const tags=[
+      s.publisher&&`🏢 ${e(s.publisher)}`, s.version&&`v${e(s.version)}`,
+      tier&&`🛟 ${e(tier)} support`, s.is1P&&'Microsoft first-party',
+      ...s.domains.slice(0,3).map(d=>`🏷 ${e(d)}`), ...s.verticals.slice(0,2).map(v=>`🏭 ${e(v)}`)
+    ].filter(Boolean);
+    return `<div class="ins-hero">
+      ${s.logo?`<img class="ins-logo" src="${e(s.logo)}" alt="" onerror="this.outerHTML='<div class=&quot;ins-logo-fallback&quot;>${e(s.name.charAt(0))}</div>'">`:`<div class="ins-logo-fallback">${e(s.name.charAt(0))}</div>`}
+      <div class="ins-hero-main">
+        <h2>${e(s.name)}</h2>
+        <div class="ins-sub">${e(s.description||'Microsoft Sentinel solution')}</div>
+        <div class="ins-sentence">${summarySentence(ins)}</div>
+        <div class="ins-tags">${tags.map(t=>`<span class="ins-tag">${t}</span>`).join('')}</div>
+      </div>
+      <div class="ins-hero-actions">
+        <button data-ins-action="copy-md">⧉ Copy summary (Markdown)</button>
+        <button data-ins-action="export-insights">⇩ Export insights JSON</button>
+      </div>
+    </div>`;
+  }
+
+  function kpisHtml(ins){
+    const k=ins.counts;
+    const items=[
+      ['Connectors',k.connectors,'#0d9488','connectors'],['Tables ingested',k.tables,'#0891b2','tables'],
+      ['Analytics rules',k.analytics,'#7c3aed','coverage'],['Hunting queries',k.hunting,'#6366f1','coverage'],
+      ['Workbooks',k.workbooks,'#2563eb','coverage'],['Playbooks',k.playbooks,'#db2777','coverage'],
+      ['Parsers',k.parsers,'#14b8a6','coverage'],['Watchlists',k.watchlists,'#d97706','coverage']
+    ];
+    return `<div class="ins-kpis">${items.map(([l,v,c,t])=>`<button class="ins-kpi" style="--c:${c}" data-ins-goto="${t}"><b>${v}</b><span>${l}</span></button>`).join('')}</div>`;
+  }
+
+  function groupBy(list,fn){ const m=new Map(); list.forEach(x=>{ const k=fn(x); (m.get(k)||m.set(k,[]).get(k)).push(x); }); return [...m.entries()]; }
+  function nameList(items,max=3){ return items.slice(0,max).map(x=>e(x.name)).join(', ')+(items.length>max?` +${items.length-max} more`:''); }
+  function answersHtml(ins){
+    const c=ins.connectors;
+    const where=c.length
+      ?`<ul>${groupBy(c,x=>x.source.title).map(([title,items])=>`<li><b>${e(title)}</b>${items.length>1?` <span class="ins-muted">×${items.length}</span>`:''}<div class="ins-muted" style="font-size:12.5px">${nameList(items)}</div></li>`).join('')}</ul>`
+      :`<div>No connector shipped.${ins.queriedOnly.length?' Queries existing tables:':''}</div>${chips(ins.queriedOnly.map(t=>t.name),8)}`;
+    const how=c.length
+      ?`<ul>${groupBy(c,x=>x.method.primary).map(([key,items])=>`<li>${badge(INS_METHODS[key])}${items.length>1?` <b>×${items.length}</b>`:''}<div class="ins-muted" style="margin-top:2px">${e(INS_METHODS[key].hosting)}${items[0].method.functionIngestion?` · writes via ${e(items[0].method.functionIngestion)}`:''}</div><div class="ins-muted" style="font-size:12.5px">${nameList(items)}</div></li>`).join('')}</ul>`
+      :'<div>Not applicable.</div>';
+    const fa=ins.functionAnswer;
+    const fnClass=fa.state==='yes'?'ins-yes':fa.state==='optional'?'ins-optional':'ins-no';
+    const fnApps=insUniq(c.flatMap(x=>x.functionApps));
+    const tablesIn=insUniq(c.flatMap(x=>x.tables));
+    const prereq=[];
+    c.forEach(x=>{
+      x.prerequisites.customs.forEach(p=>prereq.push(`${p.name||''}${p.name&&p.text?': ':''}${p.text||''}`.trim()));
+      if(x.inputs.length) prereq.push(`${x.name}: you provide ${x.inputs.slice(0,4).join(', ')}`);
+    });
+    if(c.some(x=>x.method.primary==='ccf-push')) prereq.push('Rights to register a Microsoft Entra app and assign the Monitoring Metrics Publisher role');
+    if(c.some(x=>x.usesFunction)) prereq.push('An Azure subscription to host the Function App (compute + storage cost)');
+    if(c.some(x=>x.method.primary==='agent')) prereq.push('A Linux log forwarder / host with Azure Monitor Agent');
+    const perms=insUniq(c.flatMap(x=>x.prerequisites.permissions)).slice(0,3);
+    perms.forEach(p=>prereq.push(p));
+    const prereqUnique=insDedupeSimilar(insUniq(prereq.map(p=>p.replace(/\s+/g,' ').trim()).filter(Boolean)));
+    const tech=ins.solution.technologies;
+    return `<div class="ins-answers">
+      <div class="ins-card ins-q" style="--c:#0d9488"><h3><span>📡</span>Where do the logs come from?</h3>${where}</div>
+      <div class="ins-card ins-q" style="--c:#7c3aed"><h3><span>🔌</span>How are they collected?</h3>${how}</div>
+      <div class="ins-card ins-q ${fnClass}"><h3><span>ƒ</span>Is an Azure Function involved?</h3>
+        <span class="ins-fn-state">${fa.state==='yes'?'Yes':fa.state==='optional'?'Optional':'No'}</span>
+        <div>${e(fa.text)}</div>${fnApps.length?`<div class="ins-muted">Deploys ${plural(fnApps.length,'Function App')} into your subscription.</div>`:''}
+        ${tech.length?`<div class="ins-muted">Solution lists dependencies: ${tech.map(e).join(', ')}</div>`:''}</div>
+      <div class="ins-card ins-q" style="--c:#0891b2"><h3><span>🗄</span>Where does the data land?</h3>
+        ${tablesIn.length?chips(tablesIn,8):'<div>No tables are created by this solution.</div>'}</div>
+      <div class="ins-card ins-q" style="--c:#d97706"><h3><span>🧰</span>What do I need to deploy it?</h3>
+        ${prereqUnique.length?`<ul>${prereqUnique.slice(0,6).map(p=>`<li>${e(p.length>200?p.slice(0,197)+'…':p)}</li>`).join('')}</ul>`:'<div>Standard Sentinel workspace permissions.</div>'}</div>
+      <div class="ins-card ins-q" style="--c:#db2777"><h3><span>🛡</span>What do I get?</h3>${contentSummary(ins)}</div>
+    </div>`;
+  }
+  function contentSummary(ins){
+    const k=ins.counts, sev=ins.content.severity;
+    const rows=[];
+    if(k.analytics) rows.push(`<li><b>${k.analytics}</b> analytics rules <span class="ins-muted">(${['High','Medium','Low','Informational'].filter(s=>sev[s]).map(s=>`${sev[s]} ${s}`).join(' · ')})</span></li>`);
+    if(k.hunting) rows.push(`<li><b>${k.hunting}</b> hunting queries</li>`);
+    if(k.workbooks) rows.push(`<li><b>${k.workbooks}</b> workbook${k.workbooks>1?'s':''} for dashboards</li>`);
+    if(k.playbooks) rows.push(`<li><b>${k.playbooks}</b> response playbook${k.playbooks>1?'s':''}</li>`);
+    if(k.parsers) rows.push(`<li><b>${k.parsers}</b> KQL parser${k.parsers>1?'s':''} / function${k.parsers>1?'s':''}</li>`);
+    if(k.watchlists) rows.push(`<li><b>${k.watchlists}</b> watchlist${k.watchlists>1?'s':''}</li>`);
+    return rows.length?`<ul>${rows.join('')}</ul>`:'<div>No content files were detected.</div>';
+  }
+
+  function stage(title,icon,body,color){
+    return `<div class="ins-stage" style="--c:${color}"><h4>${icon} ${title}</h4>${body}<span class="ins-arrow">➜</span></div>`;
+  }
+  const looksTech=v=>/^(https?:|‹|\/|\{|[A-Za-z0-9_.-]+\/)|[‹›]|\.[a-z]{2,}\//i.test(String(v||''));
+  function sourceStage(c){
+    const lines=c.source.lines.slice(0,5).map(l=>`<div class="ins-line"><b>${e(l.label)}</b>${looksTech(l.value)?`<code>${e(l.value)}</code>`:e(l.value)}${l.meta?` <span class="ins-muted">${e(l.meta)}</span>`:''}</div>`).join('');
+    const more=c.source.lines.length>5?`<div class="ins-muted">+${c.source.lines.length-5} more</div>`:'';
+    return `<div class="ins-st-title">${e(c.source.title)}</div>${lines}${more}${c.source.note?`<div class="ins-muted" style="font-size:12px">ⓘ ${e(c.source.note)}</div>`:''}`;
+  }
+  function collectionStage(c){
+    const m=c.methodInfo, p=c.method.primary;
+    const out=[`<div>${badge(m)}</div><div class="ins-muted" style="font-size:12px">${e(m.sub)}</div>`];
+    out.push(`<div class="ins-line"><b>Hosting</b>${e(m.hosting)}</div>`);
+    if(c.schedule.windowMin) out.push(`<div class="ins-line"><b>Schedule</b>Polls every ${c.schedule.windowMin} min${c.schedule.paging.length?` · paging: ${e(c.schedule.paging.join(', '))}`:''}</div>`);
+    if(p==='function') out.push(`<div class="ins-line"><b>Runs as</b>Timer-triggered Function App${c.functionApps.length?` (${e(c.functionApps.join(', '))})`:''}</div>`);
+    if(c.auth.length) out.push(`<div class="ins-line"><b>Authentication</b>${c.auth.map(e).join(', ')}</div>`);
+    return out.join('');
+  }
+  function ingestStage(c){
+    const p=c.method.primary, out=[];
+    if(['ccf-pull','ccf-push','ccf-cloud','logs-ingestion'].includes(p)){
+      if(c.hasDce) out.push('<div class="ins-line"><b>Endpoint</b>Data Collection Endpoint (DCE)</div>');
+      if(c.dcrs.length) out.push(`<div class="ins-line"><b>Rule</b>${c.dcrs.map(d=>`<code>${e(d.id)}</code>`).join(' ')}</div>`);
+      else out.push('<div class="ins-line"><b>Rule</b>Data Collection Rule (created at deploy)</div>');
+      out.push(`<div class="ins-line"><b>Transform</b>${c.hasTransform?'Ingestion-time KQL transform':'None / pass-through'}</div>`);
+    }else if(p==='function'){
+      out.push(`<div class="ins-line"><b>Writes via</b>${e(c.method.functionIngestion||'Log Analytics ingestion')}</div>`);
+      if(c.dcrs.length) out.push(`<div class="ins-line"><b>Rule</b>${c.dcrs.map(d=>`<code>${e(d.id)}</code>`).join(' ')}</div>`);
+    }else if(p==='http-collector') out.push('<div class="ins-line"><b>Writes via</b>HTTP Data Collector API <code>/api/logs</code> + workspace key</div>');
+    else if(p==='agent') out.push('<div class="ins-line"><b>Writes via</b>Azure Monitor Agent + Data Collection Rule</div>');
+    else if(p==='native') out.push('<div class="ins-line"><b>Writes via</b>Built-in Sentinel connection — no DCR to manage</div>');
+    else out.push('<div class="ins-muted">Not visible in repository files.</div>');
+    return out.join('');
+  }
+  function tablesStage(c){
+    return (c.tables.length?chips(c.tables,6):'<div class="ins-muted">No table names declared.</div>')+(c.tablesInferred?'<div class="ins-muted" style="font-size:11.5px">inferred from the tables this solution’s content queries</div>':'');
+  }
+  function consumersStage(c){
+    const k=c.consumers;
+    const rows=[[k.analytics,'🔍','analytics rules'],[k.hunting,'🎯','hunting queries'],[k.workbooks,'📊','workbooks'],[k.parsers,'ƒ','parsers']].filter(r=>r[0]);
+    return rows.length?rows.map(r=>`<div class="ins-line"><b style="display:inline;font-size:15px;color:var(--text)">${r[0]}</b> ${r[1]} ${r[2]}</div>`).join(''):'<div class="ins-muted">No shipped content queries these tables.</div>';
+  }
+
+  function connectorHtml(c,i){
+    const m=c.methodInfo;
+    const prereqItems=[...c.prerequisites.permissions.map(p=>({n:'Workspace',t:p})),...c.prerequisites.customs.map(x=>({n:x.name,t:x.text}))];
+    const facts=[];
+    if(c.inputs.length) facts.push(`<div class="ins-fact"><h5>You will be asked for</h5><ul>${c.inputs.slice(0,8).map(i=>`<li>${e(i)}</li>`).join('')}</ul></div>`);
+    if(prereqItems.length) facts.push(`<div class="ins-fact"><h5>Prerequisites</h5><ul>${prereqItems.slice(0,6).map(p=>`<li>${p.n&&p.n!=='Workspace'?`<b>${e(p.n)}</b> — `:''}${e(p.t||'')}</li>`).join('')}</ul></div>`);
+    if(c.pollers.length>1||c.pollers.some(p=>p.table)) facts.push(`<div class="ins-fact"><h5>Event streams polled</h5><ul>${c.pollers.slice(0,8).map(p=>`<li><b>${e(p.label)}</b> → <code>${e(p.table||'')}</code></li>`).join('')}</ul></div>`);
+    if(c.endpointsReferenced.length&&c.method.primary!=='ccf-pull') facts.push(`<div class="ins-fact"><h5>Endpoints referenced</h5><ul>${c.endpointsReferenced.map(h=>`<li><code>${e(h)}</code></li>`).join('')}</ul></div>`);
+    const evidence=c.method.found.length
+      ?`<ul class="ins-ev">${c.method.found.map(f=>`<li>${badge(INS_METHODS[f.key])} <span class="ins-pill" style="--c:${f.strength==='strong'?'#059669':'#d97706'}">${f.strength}</span> ${e(f.why)}${(f.evidence||[]).map(v=>`<code>${e(v.file||'')} ${v.where?'· '+e(v.where):''} ${v.snippet?'→ '+e(v.snippet):''}</code>`).join('')}</li>`).join('')}</ul>`
+      :'<div class="ins-muted">No collection signals were found.</div>';
+    return `<div class="ins-card ins-conn" id="ins-conn-${i}" style="--c:${m.color}">
+      <div class="ins-conn-head">${badge(m)}<h3>${e(c.name)}</h3>
+        ${c.publisher?`<span class="ins-muted">by ${e(c.publisher)}</span>`:''}
+        ${c.isPreview?pill('Preview','#d97706'):''}${c.legacy?pill('Legacy','#b45309'):''}
+        ${c.method.keys.filter(k=>k!==c.method.primary&&k!=='logs-ingestion').map(k=>pill('also: '+INS_METHODS[k].label,INS_METHODS[k].color)).join('')}
+      </div>
+      <p class="ins-how"><b>${e(m.label)}:</b> ${e(m.how)}</p>
+      ${c.description?`<div class="ins-muted">${e(c.description.slice(0,420))}${c.description.length>420?'…':''}</div>`:''}
+      <div class="ins-stages">
+        ${stage('Source','📡',sourceStage(c),'#0d9488')}
+        ${stage('Collection','🔌',collectionStage(c),m.color)}
+        ${stage('Ingestion','⚙',ingestStage(c),'#2563eb')}
+        ${stage('Log Analytics tables','🗄',tablesStage(c),'#0891b2')}
+        <div class="ins-stage" style="--c:#7c3aed"><h4>🛡 Used by</h4>${consumersStage(c)}</div>
+      </div>
+      ${facts.length?`<div class="ins-facts">${facts.join('')}</div>`:''}
+      <details class="ins-more"><summary>Why was it classified as “${e(m.label)}”? (detection evidence)</summary><div>${evidence}</div></details>
+      <details class="ins-more"><summary>Files in this connector package (${c.files.length})</summary><div>${c.files.map(f=>`<div><code>${e(f)}</code></div>`).join('')}</div></details>
+    </div>`;
+  }
+
+  function methodsLegend(ins){
+    const keys=insUniq(ins.connectors.flatMap(c=>[c.method.primary,...c.method.keys]));
+    if(!keys.length) return '';
+    return `<details class="ins-more" open><summary>What do these collection methods mean?</summary><div class="ins-legend-methods">${keys.map(k=>`<div style="--c:${INS_METHODS[k].color}"><b>${INS_METHODS[k].icon} ${e(INS_METHODS[k].label)}</b>${e(INS_METHODS[k].how)}</div>`).join('')}</div></details>`;
+  }
+
+  function listItems(items,render,max=8){
+    const li=items.map(render);
+    if(li.length<=max) return `<ul class="ins-list">${li.join('')}</ul>`;
+    return `<ul class="ins-list">${li.slice(0,max).join('')}</ul><details class="ins-more" style="margin-top:.4rem"><summary>Show all ${li.length}</summary><div><ul class="ins-list" style="max-height:420px">${li.slice(max).join('')}</ul></div></details>`;
+  }
+  function coverageHtml(ins){
+    const C=ins.content, k=ins.counts;
+    const total=Math.max(1,C.analytics.length);
+    const sevOrder=['High','Medium','Low','Informational'];
+    const bar=sevOrder.filter(s=>C.severity[s]).map(s=>`<i style="width:${C.severity[s]/total*100}%;background:${SEV[s]}" title="${s}: ${C.severity[s]}"></i>`).join('');
+    const legend=sevOrder.filter(s=>C.severity[s]).map(s=>`<span style="--c:${SEV[s]}">${s} ${C.severity[s]}</span>`).join('');
+    const maxT=Math.max(1,...Object.values(C.tacticCounts));
+    const tactics=INS_TACTICS.map(t=>{const n=C.tacticCounts[t]||0;return `<div class="ins-tactic" style="${n?`background:rgba(124,58,237,${.15+.7*n/maxT});color:${n/maxT>.5?'#fff':'inherit'}`:'opacity:.55'}" title="${prettyTactic(t)}: ${n}"><b>${n||'·'}</b>${prettyTactic(t)}</div>`;}).join('');
+    const analytics=C.analytics.length?`<div class="ins-card"><h3>🔍 Analytics rules <b style="--c:#7c3aed">${k.analytics}</b></h3>
+      <div class="ins-sevbar">${bar}</div><div class="ins-legend">${legend}</div>
+      <div class="ins-muted" style="font-size:12px">MITRE ATT&amp;CK tactics covered (analytics + hunting)</div><div class="ins-tactics">${tactics}</div>
+      ${listItems(C.analytics.slice().sort((a,b)=>sevOrder.indexOf(a.severity)-sevOrder.indexOf(b.severity)),a=>`<li><div class="ins-row">${pill(a.severity,SEV[a.severity]||SEV.Unknown)}<span class="ins-name">${e(a.name)}</span></div>
+        <div class="ins-muted" style="font-size:12px">${[a.tactics.map(prettyTactic).join(', '),a.frequency&&`runs every ${a.frequency.replace(/^PT?/i,'').toLowerCase()}`,a.kind].filter(Boolean).map(e).join(' · ')}</div>${a.tables.length?chips(a.tables,4):''}</li>`)}</div>`:'';
+    const hunting=C.hunting.length?`<div class="ins-card"><h3>🎯 Hunting queries <b style="--c:#6366f1">${k.hunting}</b></h3>${listItems(C.hunting,h=>`<li><span class="ins-name">${e(h.name)}</span>${h.tactics.length?`<span class="ins-muted" style="font-size:12px">${e(h.tactics.map(prettyTactic).join(', '))}</span>`:''}</li>`)}</div>`:'';
+    const workbooks=C.workbooks.length?`<div class="ins-card"><h3>📊 Workbooks <b style="--c:#2563eb">${k.workbooks}</b></h3>${listItems(C.workbooks,w=>`<li><span class="ins-name">${e(w.name)}</span>${w.description?`<span class="ins-muted" style="font-size:12px">${e(w.description.slice(0,160))}</span>`:''}${w.tables.length?chips(w.tables,5):''}</li>`)}</div>`:'';
+    const playbooks=C.playbooks.length?`<div class="ins-card"><h3>⚡ Playbooks <b style="--c:#db2777">${k.playbooks}</b></h3>${listItems(C.playbooks,p=>`<li><div class="ins-row"><span class="ins-name">${e(p.name)}</span>${pill(p.trigger,TRIG[p.trigger]||'#475569','Trigger')}</div>
+        ${p.description?`<span class="ins-muted" style="font-size:12px">${e(p.description.slice(0,180))}</span>`:''}
+        <div class="ins-chips">${p.connectors.map(x=>`<span class="ins-chip">🔗 ${e(x)}</span>`).join('')}<span class="ins-muted" style="font-size:12px">${p.actions} actions</span></div></li>`)}</div>`:'';
+    const parsers=C.parsers.length?`<div class="ins-card"><h3>ƒ Parsers &amp; functions <b style="--c:#14b8a6">${k.parsers}</b></h3>${listItems(C.parsers,p=>`<li><span class="ins-name">${e(p.name)}</span>${p.alias&&p.alias!==p.name?`<span class="ins-muted" style="font-size:12px">alias ${e(p.alias)}</span>`:''}${p.tables.length?chips(p.tables,4):''}</li>`,6)}</div>`:'';
+    const misc=(C.watchlists.length||C.notebooks.length||C.automationRules.length)?`<div class="ins-card"><h3>🧩 Other content</h3>
+      ${C.watchlists.length?`<div class="ins-muted">Watchlists</div>${chips(C.watchlists.map(w=>w.name),8)}`:''}
+      ${C.notebooks.length?`<div class="ins-muted" style="margin-top:.4rem">Notebooks</div>${chips(C.notebooks.map(w=>w.name),8)}`:''}
+      ${C.automationRules.length?`<div class="ins-muted" style="margin-top:.4rem">Automation rules</div>${chips(C.automationRules.map(w=>w.id),8)}`:''}</div>`:'';
+    const all=analytics+hunting+workbooks+playbooks+parsers+misc;
+    return all?`<div class="ins-cov">${all}</div>`:'<div class="ins-card ins-muted">No analytics rules, hunting queries, workbooks, playbooks or parsers were found in this solution’s repository files.</div>';
+  }
+
+  function tablesHtml(ins){
+    if(!ins.tables.length) return '';
+    const cnt=(list)=>`<td class="ins-num${list.length?'':' zero'}" title="${e(list.join('\n'))}">${list.length||'–'}</td>`;
+    const rows=ins.tables.slice(0,60).map(t=>`<tr>
+      <td><code class="ins-chip${t.custom?' custom':''}">${e(t.name)}</code></td>
+      <td>${t.producers.length?(t.custom?pill('Custom table','#0d9488'):pill('Built-in table','#64748b')):pill('Queried only','#94a3b8','Not ingested by this solution')}</td>
+      <td>${t.producers.length?t.producers.map(e).join('<br>'):'<span class="ins-muted">other solutions / Azure</span>'}</td>
+      <td>${t.schema?`${t.schema.columns} columns${t.schema.plan?` · ${e(t.schema.plan)}`:''}`:'<span class="ins-muted">–</span>'}</td>
+      ${cnt(t.analytics)}${cnt(t.hunting)}${cnt(t.workbooks)}${cnt(t.parsers)}</tr>`).join('');
+    return `<div class="ins-card ins-table-wrap"><table class="ins-table"><thead><tr><th>Table</th><th>Kind</th><th>Ingested by</th><th>Schema</th><th class="ins-num">Analytics</th><th class="ins-num">Hunting</th><th class="ins-num">Workbooks</th><th class="ins-num">Parsers</th></tr></thead><tbody>${rows}</tbody></table>${ins.tables.length>60?`<div class="ins-muted">Showing 60 of ${ins.tables.length} tables.</div>`:''}</div>`;
+  }
+  function findingsHtml(ins){
+    if(!ins.findings.length) return '';
+    const icon={info:'ℹ️',warn:'⚠️',good:'✅'}, color={info:'#2563eb',warn:'#d97706',good:'#059669'};
+    return `<ul class="ins-findings">${ins.findings.map(f=>`<li style="--c:${color[f.level]}"><i>${icon[f.level]}</i><span>${e(f.text)}</span></li>`).join('')}</ul>`;
+  }
+
+  function connectorOverview(ins){
+    if(ins.connectors.length<2) return '';
+    const rows=ins.connectors.map((c,i)=>`<tr>
+      <td><a href="#ins-conn-${i}" data-ins-open="${i}" style="color:var(--accent);font-weight:600;text-decoration:none">${e(c.name)}</a></td>
+      <td>${badge(c.methodInfo)}</td><td>${e(c.source.title)}</td>
+      <td>${c.tables.length?c.tables.slice(0,2).map(t=>`<code class="ins-chip">${e(t)}</code>`).join(' ')+(c.tables.length>2?` <span class="ins-muted">+${c.tables.length-2}</span>`:''):'<span class="ins-muted">–</span>'}</td>
+      <td>${c.usesFunction?pill('Function','#d97706'):pill('None','#059669')}</td>
+      <td>${c.auth.length?e(c.auth.join(', ')):'<span class="ins-muted">–</span>'}</td></tr>`).join('');
+    return `<div class="ins-card ins-table-wrap"><table class="ins-table"><thead><tr><th>Connector</th><th>Collection method</th><th>Source</th><th>Tables</th><th>Azure Function</th><th>Auth</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+  }
+  function connectorsHtml(ins){
+    if(!ins.connectors.length) return '<div class="ins-card ins-muted">This solution does not include a data connector.</div>';
+    const many=ins.connectors.length>3;
+    return ins.connectors.map((c,i)=>many
+      ?`<details class="ins-fold" id="ins-fold-${i}" style="--c:${c.methodInfo.color}"${i===0?' open':''}><summary>${badge(c.methodInfo)} <b>${e(c.name)}</b> <span class="ins-muted">${c.tables.length?e(c.tables.slice(0,2).join(', ')):'no tables declared'}</span></summary>${connectorHtml(c,i)}</details>`
+      :connectorHtml(c,i)).join('');
+  }
+
+  window.renderInsights=function(){
+    const root=document.getElementById('insights');
+    const ins=STATE.insights;
+    if(!root) return;
+    if(!ins){ root.innerHTML='<div class="ins-empty">Choose a solution and click <b>Visualize</b> — you’ll get a plain-language report: where the logs come from, how they are collected (CCF Pull / CCF Push / Azure Function / Log Ingestion API), and everything the solution ships.</div>'; return; }
+    root.innerHTML=[
+      heroHtml(ins), kpisHtml(ins), answersHtml(ins),
+      `<h2 class="ins-h2" id="${secId('connectors')}">Data ingestion — how logs reach Sentinel <small>${plural(ins.connectors.length,'connector')}</small></h2>`,
+      methodsLegend(ins),
+      connectorOverview(ins),
+      connectorsHtml(ins),
+      `<h2 class="ins-h2" id="${secId('coverage')}">Detection &amp; response content <small>what you get after installing</small></h2>`,
+      coverageHtml(ins),
+      ins.tables.length?`<h2 class="ins-h2" id="${secId('tables')}">Data tables <small>who writes them and who reads them</small></h2>`:'',
+      tablesHtml(ins),
+      ins.findings.length?`<h2 class="ins-h2" id="${secId('findings')}">Good to know</h2>`:'', findingsHtml(ins)
+    ].join('');
+  };
+
+  function toMarkdown(ins){
+    const s=ins.solution, L=[];
+    L.push(`# ${s.name}`,'',s.description||'');
+    L.push('',`**Publisher:** ${s.publisher||'n/a'}${s.version?` · **Version:** ${s.version}`:''}${s.support?.tier?` · **Support:** ${s.support.tier}`:''}`,'');
+    L.push('## Data collection');
+    if(!ins.connectors.length) L.push('No data connector — content-only solution.');
+    ins.connectors.forEach(c=>{
+      L.push(`### ${c.name} — ${c.methodInfo.label}`,`- Source: ${c.source.title}${c.source.lines[0]?` (${c.source.lines.map(l=>l.value).slice(0,3).join(', ')})`:''}`,
+        `- Hosting: ${c.methodInfo.hosting}${c.method.functionIngestion?` · writes via ${c.method.functionIngestion}`:''}`,
+        `- Tables: ${c.tables.join(', ')||'n/a'}`,c.auth.length?`- Authentication: ${c.auth.join(', ')}`:'');
+    });
+    L.push('',`**Azure Function:** ${ins.functionAnswer.text}`,'','## Content shipped');
+    const k=ins.counts;
+    L.push(`- Analytics rules: ${k.analytics}`,`- Hunting queries: ${k.hunting}`,`- Workbooks: ${k.workbooks}`,`- Playbooks: ${k.playbooks}`,`- Parsers: ${k.parsers}`,`- Watchlists: ${k.watchlists}`);
+    return L.filter(x=>x!==undefined).join('\n');
+  }
+  document.addEventListener('click',ev=>{
+    const open=ev.target.closest('[data-ins-open]');
+    if(open){ ev.preventDefault(); const i=open.getAttribute('data-ins-open'); const fold=document.getElementById('ins-fold-'+i); if(fold) fold.open=true; document.getElementById('ins-conn-'+i)?.scrollIntoView({behavior:'smooth',block:'start'}); return; }
+    const goto=ev.target.closest('[data-ins-goto]');
+    if(goto){ document.getElementById(secId(goto.getAttribute('data-ins-goto')))?.scrollIntoView({behavior:'smooth',block:'start'}); return; }
+    const act=ev.target.closest('[data-ins-action]')?.getAttribute('data-ins-action');
+    if(act==='copy-md'&&STATE.insights){ navigator.clipboard?.writeText(toMarkdown(STATE.insights)).then(()=>setStatus('Summary copied as Markdown.')); }
+    if(act==='export-insights'&&STATE.insights){
+      const blob=new Blob([JSON.stringify(STATE.insights,null,2)],{type:'application/json'});
+      const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='sentinel_solution_insights.json'; a.click(); URL.revokeObjectURL(a.href);
+    }
+  });
+})();
+</script>
+<script id="stage-map">
+/* =====================================================================
+   SOLUTION STAGE MAP  (technical view)
+   Sources → Collection → Ingestion → Tables → Detection & response
+   Aggregated container-to-container edges keep the diagram readable.
+   ===================================================================== */
+(function(){
+  const STAGES=[
+    {id:'sources',label:'1 · Data sources',color:'#0d9488',soft:'#e6f7f4',softDark:'#12332f'},
+    {id:'collection',label:'2 · Collection method',color:'#7c3aed',soft:'#f3effe',softDark:'#2a2145'},
+    {id:'ingestion',label:'3 · Ingestion & transform',color:'#2563eb',soft:'#e9f1ff',softDark:'#1b2a4a'},
+    {id:'storage',label:'4 · Log Analytics tables',color:'#0891b2',soft:'#e5f6fa',softDark:'#12313a'},
+    {id:'consume',label:'5 · Detection & response',color:'#db2777',soft:'#fff0f6',softDark:'#40202f'}
+  ];
+  const FLOW={data:'#0d9488',write:'#0891b2',query:'#6e7ec1',alert:'#8b5cf6',auto:'#ec4899'};
+  const groupBy=(list,fn)=>{ const m=new Map(); list.forEach(x=>{ const k=fn(x); (m.get(k)||m.set(k,[]).get(k)).push(x); }); return [...m.entries()]; };
+  const SEV_COLOR={High:'#dc2626',Medium:'#d97706',Low:'#2563eb',Informational:'#64748b',Unknown:'#94a3b8'};
+
+  window.buildVirtualSolutionView=function(art,meta){
+    const ins=STATE.insights||buildSolutionInsights(art,meta);
+    const X=STATE.blueprintExpanded;
+    const card=(id,title,sub,accent,tooltip,extra)=>({id,title,sub,accent,color:'node-custom',tooltip,...(extra||{})});
+    function container(id,label,accent,cards,limit=4){
+      const open=X.has(id), visible=open?cards:cards.slice(0,limit);
+      const rows=visible.map(c=>({type:'row',nodes:[c]}));
+      if(cards.length>limit) rows.push({type:'row',nodes:[{id:`${id}::toggle`,title:open?'Show less':`+${cards.length-limit} more…`,sub:open?'collapse this group':'click to expand',accent:'#64748b',color:'node-more',expandKey:id,tooltip:`${cards.length} items in this group`}]});
+      return {type:'subcontainer',id,label:`${label} (${cards.length})`,color:'sub-custom',accent,items:rows,cardIds:cards.map(c=>c.id)};
+    }
+    const C=ins.connectors;
+    const zones=STAGES.map(s=>({id:s.id,label:s.label,color:s.id,accent:s.color,soft:s.soft,softDark:s.softDark,items:[]}));
+    const zone=id=>zones.find(z=>z.id===id);
+    const connections=[];
+    const seen=new Set();
+    const link=(from,to,label,kind,style='solid')=>{
+      const key=`${from}|${to}|${label}`;
+      if(!from||!to||seen.has(key)) return; seen.add(key);
+      connections.push({from,to,style,color:FLOW[kind],label,kind});
+    };
+
+    /* 1 · sources */
+    if(C.length){
+      const groups=groupBy(C,c=>c.source.title);
+      zone('sources').items.push(container('src','Source systems','#0d9488',groups.map(([title,items])=>card(`src:${title}`,title,`${items.length} connector${items.length>1?'s':''}`,'#0d9488',
+        `Source: ${title}\n${items.map(c=>'• '+c.name).slice(0,8).join('\n')}`)),5));
+    }else if(ins.queriedOnly.length){
+      zone('sources').items.push(container('src','Existing workspace data','#0d9488',[card('src:existing','Data already in your workspace',`${ins.queriedOnly.length} table${ins.queriedOnly.length>1?'s':''} queried`,'#0d9488','This solution ships no connector; it analyses tables ingested by other solutions or Azure services.')],1));
+    }
+
+    /* 2 · collection */
+    const byMethod=groupBy(C,c=>c.method.primary);
+    byMethod.forEach(([key,items])=>{
+      const m=INS_METHODS[key];
+      zone('collection').items.push(container(`col:${key}`,`${m.icon} ${m.label}`,m.color,items.map(c=>card(`conn:${c.definitionPath||c.name}`,c.name,c.tables.length?c.tables.slice(0,2).join(', '):m.sub,m.color,
+        `${c.name}\nMethod: ${m.label}\nHosting: ${m.hosting}${c.tables.length?'\nTables: '+c.tables.join(', '):''}${c.auth.length?'\nAuth: '+c.auth.join(', '):''}`,{connectorName:c.name})),4));
+      items.forEach(c=>link(`src:${c.source.title}`,`col:${key}`,'collected via','data'));
+    });
+
+    /* 3 · ingestion */
+    const dcrCards=new Map();
+    C.forEach(c=>c.dcrs.forEach(d=>{ if(!dcrCards.has(d.id)) dcrCards.set(d.id,card(`dcr:${d.id}`,d.id,`${d.flows} flow${d.flows===1?'':'s'}${d.transform?' · transform':''}`,'#2563eb',`Data Collection Rule\nFlows: ${d.flows}\nTransform: ${d.transform?'yes':'no'}\nOutputs: ${d.outputTables.join(', ')||'n/a'}`)); }));
+    const fnCards=C.filter(c=>c.usesFunction).map(c=>card(`fn:${c.name}`,'Function App',`runs ${c.name}`,'#d97706',`Azure Function App deployed in the customer subscription\nWrites via: ${c.method.functionIngestion||'Log Analytics ingestion'}`));
+    const agentCount=C.filter(c=>c.method.primary==='agent').length;
+    const nativeCount=C.filter(c=>c.method.primary==='native').length;
+    const httpCount=C.filter(c=>c.method.keys.includes('http-collector')).length;
+    const cloudCount=C.filter(c=>c.method.primary==='ccf-cloud').length;
+    if(dcrCards.size||C.some(c=>c.hasDce&&c.method.primary!=='agent')) zone('ingestion').items.push(container('ing:dcr','Data Collection Rules','#2563eb',dcrCards.size?[...dcrCards.values()]:[card('dcr:auto','Data Collection Rule','created when connector is deployed','#2563eb','Codeless connectors create the DCE and DCR automatically.')],3));
+    if(fnCards.length) zone('ingestion').items.push(container('ing:fn','Azure Function Apps','#d97706',fnCards,3));
+    if(agentCount) zone('ingestion').items.push(container('ing:agent','Agents / log forwarders','#475569',[card('agent:ama','Azure Monitor Agent',`CEF · Syslog · Windows (${agentCount})`,'#475569','Agent or Linux log forwarder collects events and forwards them to the workspace.')],1));
+    if(nativeCount) zone('ingestion').items.push(container('ing:native','Built-in connection','#0369a1',[card('native:builtin','Native Sentinel connection',`${nativeCount} connector${nativeCount>1?'s':''}`,'#0369a1','Connected inside Sentinel — no DCR, agent or Function to manage.')],1));
+    if(httpCount) zone('ingestion').items.push(container('ing:http','Data Collector API (legacy)','#b45309',[card('http:legacy','HTTP Data Collector API',`${httpCount} connector${httpCount>1?'s':''}`,'#b45309','Workspace shared-key ingestion — superseded by the Logs Ingestion API.')],1));
+    if(cloudCount) zone('ingestion').items.push(container('ing:cloud','Cloud storage / queue','#0891b2',[card('cloud:store','Customer cloud storage',`${cloudCount} connector${cloudCount>1?'s':''}`,'#0891b2','The source writes logs to a bucket/queue/container that Sentinel reads.')],1));
+    const ingFor=c=>{
+      const out=[]; const p=c.method.primary;
+      if(['ccf-pull','ccf-push','logs-ingestion'].includes(p)||(c.dcrs.length&&p!=='agent')) out.push('ing:dcr');
+      if(c.usesFunction) out.push('ing:fn');
+      if(p==='agent') out.push('ing:agent');
+      if(p==='native') out.push('ing:native');
+      if(c.method.keys.includes('http-collector')) out.push('ing:http');
+      if(p==='ccf-cloud') out.push('ing:cloud');
+      return insUniq(out).filter(id=>zone('ingestion').items.some(i=>i.id===id));
+    };
+    const ingLabel={ 'ing:dcr':'via DCR','ing:fn':'runs in','ing:agent':'forwarded by','ing:native':'built-in','ing:http':'posts to','ing:cloud':'reads from'};
+    C.forEach(c=>ingFor(c).forEach(id=>link(`col:${c.method.primary}`,id,ingLabel[id],'data')));
+
+    /* 4 · tables */
+    const producedTables=ins.tables.filter(t=>t.producers.length);
+    const custom=producedTables.filter(t=>t.custom), builtin=producedTables.filter(t=>!t.custom);
+    const tcard=t=>card(`tbl:${t.name}`,t.name,`${t.custom?'custom':'built-in'}${t.schema?` · ${t.schema.columns} columns`:''}`,t.custom?'#0891b2':'#64748b',
+      `${t.name}\n${t.custom?'Custom table':'Built-in table'}\nIngested by: ${t.producers.join(', ')}\nUsed by: ${t.analytics.length} analytics · ${t.hunting.length} hunting · ${t.workbooks.length} workbooks`);
+    if(custom.length) zone('storage').items.push(container('store:custom','Custom tables (_CL)','#0891b2',custom.map(tcard),5));
+    if(builtin.length) zone('storage').items.push(container('store:builtin','Built-in tables','#64748b',builtin.map(tcard),5));
+    const queried=ins.queriedOnly;
+    if(queried.length) zone('storage').items.push(container('store:queried','Also queried (other sources)','#94a3b8',queried.map(t=>card(`tbl:${t.name}`,t.name,'not ingested here','#94a3b8',`${t.name}\nQueried by this solution's content but ingested by another connector or Azure service.`)),4));
+    const storeOf=name=>{ const t=ins.tables.find(x=>x.name.toLowerCase()===name.toLowerCase()); if(!t) return null; return t.producers.length?(t.custom?'store:custom':'store:builtin'):'store:queried'; };
+    C.forEach(c=>{
+      const targets=insUniq(c.tables.map(storeOf).filter(Boolean));
+      const sources=ingFor(c).length?ingFor(c):[`col:${c.method.primary}`];
+      sources.forEach(from=>targets.forEach(to=>{
+        const n=c.tables.filter(t=>storeOf(t)===to).length;
+        link(from,to,`${n} table${n>1?'s':''}`,'write');
+      }));
+    });
+
+    /* 5 · detection & response */
+    const A=ins.content.analytics, H=ins.content.hunting, W=ins.content.workbooks, P=ins.content.playbooks, F=ins.content.parsers;
+    if(A.length){
+      const sevCards=['High','Medium','Low','Informational','Unknown'].map(s=>({s,items:A.filter(a=>a.severity.toLowerCase()===s.toLowerCase())})).filter(x=>x.items.length)
+        .map(x=>card(`ar:${x.s}`,`${x.items.length} ${x.s}`,insUniq(x.items.flatMap(a=>a.tactics)).slice(0,2).map(prettyT).join(', ')||'severity',SEV_COLOR[x.s],`${x.s} severity analytics rules:\n${x.items.slice(0,14).map(a=>'• '+a.name).join('\n')}${x.items.length>14?'\n…':''}`));
+      zone('consume').items.push({...container('use:analytics','Analytics rules','#7c3aed',sevCards,5),label:`🔍 Analytics rules (${A.length})`});
+      zone('consume').items.push({...container('use:incident','Incident management','#8b5cf6',[card('incident','Alerts → Incidents','Sentinel groups alerts','#8b5cf6','Scheduled / NRT rules raise alerts that Sentinel aggregates into incidents.')],1),label:'🎛 Incident management'});
+    }
+    if(H.length) zone('consume').items.push({...container('use:hunting','Hunting queries','#6366f1',[card('hunting:all',`${H.length} hunting queries`,insUniq(H.flatMap(h=>h.tactics)).slice(0,2).map(prettyT).join(', ')||'proactive search','#6366f1',H.slice(0,14).map(h=>'• '+h.name).join('\n'))],1),label:`🎯 Hunting queries (${H.length})`});
+    if(W.length) zone('consume').items.push({...container('use:workbooks','Workbooks','#2563eb',W.map(w=>card(`wb:${w.name}`,w.name,`${w.tables.length} table${w.tables.length===1?'':'s'} visualised`,'#2563eb',`Workbook: ${w.name}\nTables: ${w.tables.join(', ')||'n/a'}`)),3),label:`📊 Workbooks (${W.length})`});
+    if(F.length) zone('consume').items.push({...container('use:parsers','Parsers & functions','#14b8a6',F.map(f=>card(`fn:${f.name}`,f.name,f.alias&&f.alias!==f.name?`alias ${f.alias}`:'KQL function','#14b8a6',`${f.name}\nTables: ${f.tables.join(', ')||'n/a'}`)),3),label:`ƒ Parsers & functions (${F.length})`});
+    if(P.length) zone('consume').items.push({...container('use:playbooks','Playbooks','#ec4899',P.map(p=>card(`pb:${p.name}`,p.name,`${p.trigger} trigger`,'#ec4899',`Playbook: ${p.name}\nTrigger: ${p.trigger}\nConnectors: ${p.connectors.join(', ')||'n/a'}`)),3),label:`⚡ Playbooks (${P.length})`});
+
+    const tablesOf=cont=>(cont==='store:custom'?custom:cont==='store:builtin'?builtin:queried).map(t=>t.name.toLowerCase());
+    ['store:custom','store:builtin','store:queried'].forEach(sc=>{
+      if(!zone('storage').items.some(i=>i.id===sc)) return;
+      const names=new Set(tablesOf(sc));
+      const hit=list=>list.filter(x=>(x.tables||[]).some(t=>names.has(t.toLowerCase()))).length;
+      const a=hit(A), h=hit(H), w=hit(W), f=hit(F);
+      if(a) link(sc,'use:analytics',`${a} rule${a>1?'s':''}`,'query');
+      if(h) link(sc,'use:hunting',`${h} quer${h>1?'ies':'y'}`,'query');
+      if(w) link(sc,'use:workbooks',`${w} workbook${w>1?'s':''}`,'query');
+      if(f) link(sc,'use:parsers',`${f} parser${f>1?'s':''}`,'query');
+    });
+    if(A.length) link('use:analytics','use:incident','alert → incident','alert');
+    if(A.length&&P.length) link('use:incident','use:playbooks','can trigger','auto','dashed');
+    else if(P.length&&H.length===0) { /* standalone playbooks stay unlinked */ }
+
+    return {
+      title:`azure-sentinel-solution-${String(meta?.solutionName||'solution').toLowerCase().replace(/[^a-z0-9]+/g,'-')}`,
+      zones:zones.filter(z=>z.items.length),connections,
+      legend:[
+        {color:FLOW.data,style:'solid',label:'data collection flow'},{color:FLOW.write,style:'solid',label:'written to table'},
+        {color:FLOW.query,style:'solid',label:'queried by content'},{color:FLOW.alert,style:'solid',label:'alert → incident'},
+        {color:FLOW.auto,style:'dashed',label:'response automation'}
+      ]
+    };
+  };
+  function prettyT(t){ return String(t||'').replace(/([a-z])([A-Z])/g,'$1 $2'); }
+
+  window.renderBlueprintGraph=function(){
+    const model=STATE.virtualView; if(!model||!ensureD3()) return;
+    if(STATE.simulation){ STATE.simulation.stop(); STATE.simulation=null; }
+    const svg=d3.select('#viz'), layer=d3.select('#zoomLayer');
+    layer.selectAll('*').remove();
+    const dark=document.documentElement.classList.contains('dark');
+    const viewW=Math.max(900,svg.node().clientWidth||1400);
+    const margin=24, gap=54, n=Math.max(1,model.zones.length);
+    const zoneW=Math.max(215,(viewW-margin*2-gap*(n-1))/n);
+    const pad=10, headerH=46, cardH=58, cardGap=8, contHead=30;
+    const rects=new Map();
+    const layouts=model.zones.map((zone,zi)=>{
+      let y=margin+headerH+14; const x=margin+zi*(zoneW+gap);
+      const conts=zone.items.map(c=>{
+        const h=contHead+c.items.length*(cardH+cardGap)+pad-2;
+        const cl={c,x:x+pad,y,w:zoneW-pad*2,h,cards:[]};
+        rects.set(c.id,{x:cl.x,y:cl.y,w:cl.w,h:cl.h});
+        c.items.forEach((row,ri)=>row.nodes.forEach(node=>{
+          const r={x:cl.x+pad,y:y+contHead+ri*(cardH+cardGap),w:cl.w-pad*2,h:cardH};
+          rects.set(node.id,r); cl.cards.push({node,...r});
+        }));
+        y+=h+14; return cl;
+      });
+      return {zone,x,w:zoneW,conts,bottom:y};
+    });
+    const maxBottom=Math.max(...layouts.map(l=>l.bottom),360);
+    const canvasW=margin*2+zoneW*n+gap*(n-1), legendH=54, canvasH=maxBottom+legendH+10;
+    svg.attr('viewBox',`0 0 ${canvasW} ${canvasH}`).attr('preserveAspectRatio','xMidYMin meet');
+    const cw=svg.node().getBoundingClientRect().width||viewW;
+    const panel=svg.node().parentElement; if(panel) panel.style.height=Math.max(380,Math.round(canvasH*(cw/canvasW)+16))+'px';
+
+    const defs=layer.append('defs');
+    model.legend.forEach((l,i)=>defs.append('marker').attr('id',`sm-arrow-${i}`).attr('viewBox','0 -5 10 10').attr('refX',9).attr('refY',0).attr('markerWidth',7).attr('markerHeight',7).attr('orient','auto').append('path').attr('d','M0,-5L10,0L0,5').attr('fill',l.color));
+    const arrowIndex=color=>Math.max(0,model.legend.findIndex(l=>l.color===color));
+
+    layouts.forEach(l=>{
+      const fill=dark?l.zone.softDark:l.zone.soft;
+      layer.append('rect').attr('x',l.x).attr('y',margin).attr('width',l.w).attr('height',maxBottom-margin).attr('rx',16).attr('fill',fill).attr('stroke',l.zone.accent).attr('stroke-width',2);
+      layer.append('path').attr('d',`M${l.x},${margin+16} a16,16 0 0 1 16,-16 h${l.w-32} a16,16 0 0 1 16,16 v${headerH-16} h-${l.w} z`).attr('fill',l.zone.accent);
+      layer.append('text').attr('x',l.x+16).attr('y',margin+headerH/2+6).attr('fill','#fff').attr('font-size',15).attr('font-weight',800).text(l.zone.label);
+      l.conts.forEach(cl=>{
+        layer.append('rect').attr('x',cl.x).attr('y',cl.y).attr('width',cl.w).attr('height',cl.h).attr('rx',12).attr('fill',dark?'#1e293b':'#ffffff').attr('stroke',cl.c.accent).attr('stroke-width',1.4);
+        layer.append('path').attr('d',`M${cl.x},${cl.y+12} a12,12 0 0 1 12,-12 h${cl.w-24} a12,12 0 0 1 12,12 v${contHead-12} h-${cl.w} z`).attr('fill',cl.c.accent).attr('opacity',.14);
+        layer.append('text').attr('x',cl.x+10).attr('y',cl.y+20).attr('fill',dark?'#e2e8f0':cl.c.accent).attr('font-size',11.5).attr('font-weight',800).text(cl.c.label.length>34?cl.c.label.slice(0,33)+'…':cl.c.label);
+      });
+    });
+
+    const outCount=new Map(), inCount=new Map(), outIdx=new Map(), inIdx=new Map();
+    model.connections.forEach(c=>{ outCount.set(c.from,(outCount.get(c.from)||0)+1); inCount.set(c.to,(inCount.get(c.to)||0)+1); });
+    const conLayer=layer.append('g').attr('class','stage-edges');
+    model.connections.forEach(c=>{
+      const a=rects.get(c.from), b=rects.get(c.to); if(!a||!b) return;
+      const oi=outIdx.get(c.from)||0; outIdx.set(c.from,oi+1);
+      const ii=inIdx.get(c.to)||0; inIdx.set(c.to,ii+1);
+      let d, mx, my;
+      if(b.x>=a.x+a.w-2){
+        const sy=a.y+a.h*(oi+1)/(outCount.get(c.from)+1), ty=b.y+b.h*(ii+1)/(inCount.get(c.to)+1);
+        const sx=a.x+a.w, tx=b.x, bend=Math.max(18,(tx-sx)*.5);
+        d=`M${sx},${sy} C${sx+bend},${sy} ${tx-bend},${ty} ${tx},${ty}`; mx=(sx+tx)/2; my=(sy+ty)/2;
+      }else{
+        const sx=a.x+a.w/2+ (oi-(outCount.get(c.from)-1)/2)*12, tx=b.x+b.w/2;
+        const sy=a.y+a.h, ty=b.y;
+        d=`M${sx},${sy} C${sx},${sy+24} ${tx},${ty-24} ${tx},${ty}`; mx=(sx+tx)/2; my=(sy+ty)/2;
+      }
+      const p=conLayer.append('path').attr('d',d).attr('fill','none').attr('stroke',c.color).attr('stroke-width',2.4).attr('opacity',.9)
+        .attr('stroke-dasharray',c.style==='dashed'?'7 5':null).attr('marker-end',`url(#sm-arrow-${arrowIndex(c.color)})`);
+      p.append('title').text(c.label);
+      const lbl=String(c.label); const tw=lbl.length*5.6+10;
+      conLayer.append('rect').attr('x',mx-tw/2).attr('y',my-8).attr('width',tw).attr('height',15).attr('rx',7).attr('fill',dark?'#0f172a':'#ffffff').attr('stroke',c.color).attr('stroke-width',.9);
+      conLayer.append('text').attr('x',mx).attr('y',my+3).attr('text-anchor','middle').attr('font-size',9.5).attr('font-weight',700).attr('fill',c.color).text(lbl);
+    });
+
+    layouts.forEach(l=>l.conts.forEach(cl=>cl.cards.forEach(cd=>{
+      const node=cd.node; const accent=node.accent||'#64748b';
+      const g=layer.append('g').attr('class','blueprint-card').on('click',()=>{
+        if(node.expandKey){
+          if(STATE.blueprintExpanded.has(node.expandKey)) STATE.blueprintExpanded.delete(node.expandKey); else STATE.blueprintExpanded.add(node.expandKey);
+          STATE.virtualView=buildVirtualSolutionView(STATE.artifacts,STATE.meta); renderBlueprintGraph(); return;
+        }
+        const el=$('#artifactMeta'); if(el) el.innerHTML=`<div style="font-weight:700">${escapeHtml(node.title)}</div><div style="white-space:pre-wrap;margin-top:4px">${escapeHtml(node.tooltip||node.sub||'')}</div>`;
+      });
+      g.append('rect').attr('x',cd.x).attr('y',cd.y).attr('width',cd.w).attr('height',cd.h).attr('rx',9).attr('fill',dark?'#273449':'#ffffff').attr('stroke',accent).attr('stroke-width',1.2);
+      g.append('rect').attr('x',cd.x).attr('y',cd.y).attr('width',5).attr('height',cd.h).attr('rx',2).attr('fill',accent);
+      const maxC=Math.floor((cd.w-22)/6.3);
+      const t=String(node.title||''); g.append('text').attr('x',cd.x+13).attr('y',cd.y+23).attr('font-size',11.5).attr('font-weight',700).attr('fill',dark?'#f1f5f9':'#172554').text(t.length>maxC?t.slice(0,maxC-1)+'…':t);
+      const s=String(node.sub||''); const maxS=Math.floor((cd.w-22)/5.6);
+      g.append('text').attr('x',cd.x+13).attr('y',cd.y+43).attr('font-size',9.8).attr('fill',dark?'#94a3b8':'#475569').text(s.length>maxS?s.slice(0,maxS-1)+'…':s);
+      g.append('title').text(node.tooltip||node.title);
+    })));
+
+    let lx=margin; const ly=maxBottom+26;
+    model.legend.forEach(l=>{
+      layer.append('line').attr('x1',lx).attr('x2',lx+34).attr('y1',ly).attr('y2',ly).attr('stroke',l.color).attr('stroke-width',3).attr('stroke-dasharray',l.style==='dashed'?'7 5':null);
+      layer.append('text').attr('x',lx+42).attr('y',ly+4).attr('font-size',10.5).attr('fill',dark?'#cbd5e1':'#475569').text(l.label);
+      lx+=42+l.label.length*6.2+26;
+    });
+    STATE.zoom=d3.zoomIdentity;
+    if(ZOOM_CTRL) d3.select('#viz').call(ZOOM_CTRL.transform,d3.zoomIdentity);
+  };
+})();
 </script>
 </body>
 </html>

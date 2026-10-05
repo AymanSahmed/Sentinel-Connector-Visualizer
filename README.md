@@ -7,6 +7,44 @@ Live page: https://aymansahmed.github.io/Sentinel-Connector-Visualizer/
 
 ---
 
+## 0. What you see after clicking **Visualize**
+
+The page is a plain-language **Solution Insights report** first, and an engineering graph second.
+
+| Section | Answers |
+|---|---|
+| **Hero summary** | What the solution is, one auto-written sentence on *how it collects data*, publisher / version / support tier |
+| **Answer cards** | Where do the logs come from? · How are they collected? · Is an Azure Function involved? · Where does the data land? · What do I need to deploy it? · What do I get? |
+| **Data ingestion** | One pipeline per connector: **Source → Collection → Ingestion → Log Analytics tables → Used by**, plus auth, schedule, inputs, prerequisites and the *evidence* behind the classification |
+| **Detection & response content** | Analytics rules (severity bar, MITRE ATT&CK heat strip, frequency), hunting queries, workbooks, playbooks (trigger + connectors), parsers, watchlists |
+| **Data tables** | Which connector writes each table and which rules/queries/workbooks read it; schema column counts |
+| **Good to know** | Legacy ingestion warnings, serverless-vs-Function alternatives, previews, billing notes |
+| **Technical map & artifact explorer** | The stage map (below) and the original graph layouts |
+
+### Collection methods the detector reports
+
+| Method | How it is recognised |
+|---|---|
+| **CCF Pull** | `kind: RestApiPoller` / `pollingConfig` with an `apiEndpoint` request; instances are linked to their definition through `connectorDefinitionName` |
+| **CCF Push** | `kind: Push` or the `DeployPushConnectorButton` step (Logs Ingestion API + Entra app) |
+| **CCF Pull · Cloud** | `AmazonWebServicesS3`, `GCP`, `StorageAccountBlobContainer` kinds |
+| **Azure Function** | `Microsoft.Web/sites` resource, `host.json` / `function.json` / `FunctionApp` packaging, or a title stating *using Azure Functions*. The report also says whether the function writes through the Logs Ingestion API (DCR/DCE) or the legacy Data Collector API |
+| **Agent-based** | `CommonSecurityLog` / `Syslog` / Windows data types or `InstallAgent` steps (only when no CCF/Function path is confirmed) |
+| **Native integration** | Built-in kinds, tenant-level permissions, Microsoft diagnostic-settings providers |
+| **HTTP Data Collector (legacy)** | `/api/logs` or workspace shared-key usage, never reported next to a confirmed CCF path |
+
+Every connector card has a collapsible *"Why was it classified as …?"* panel listing strong/medium signals and the file + JSON path that triggered them.
+
+### Content sources
+
+In addition to JSON, the tool now fetches **YAML** analytics rules, hunting queries and parsers (via `js-yaml`), de-duplicates rules that exist as both YAML and ARM templates, and uses `requiredDataConnectors` as a declared rule→connector link. `Package/mainTemplate.json` build artifacts are ignored when deciding what a connector is.
+
+### Stage map
+
+The technical map is a left-to-right flow — **Data sources → Collection method → Ingestion & transform → Log Analytics tables → Detection & response** — with container-to-container arrows labelled with counts (`18 rules`, `1 table`). Click `+N more…` to expand a group. In this layout **Export JSON** produces the presentation model (`title`, `zones`, `connections`, `legend`); **Export insights JSON** and **Copy summary (Markdown)** are available in the report header.
+
+---
+
 ## 1. Quick Start
 
 ### Local launch (recommended to avoid `file://` CORS noise)
@@ -40,15 +78,15 @@ start http://localhost:5500/index.html
 
 User action pipeline inside `handleVisualize()`:
 
-1. Discover JSON files (`listSolutionJsonPaths`).
-2. Fetch raw JSON (`fetchSolutionFiles`).
-3. Classify each JSON (`classifyArtifact`).
-4. Aggregate to structured artifact groups (`buildArtifacts`).
-5. Extract solution metadata (`extractSolutionMeta`).
+1. Discover all solution JSON and content YAML files (`listSolutionJsonPaths`).
+2. Fetch the complete inventory in parallel (`fetchSolutionFiles`); visibility filters no longer limit detection.
+3. Classify file artifacts and harvest embedded ARM resources (`classifyArtifact`, `harvestEmbeddedArtifacts`).
+4. Normalize, deduplicate, and resolve connector/DCR references (`buildArtifacts`).
+5. Extract structured KQL, workbook, DCR, ARM, endpoint, and Logic App references.
 6. Analyze architecture (`analyzeSolutionArchitecture`).
-7. Build graph model (`buildGraph`).
-8. Render graph + meta panels (legend, filters, design overview).
-9. Enable exports & search.
+7. Build the plain-language insights model — collection method, source, auth, tables, content (`buildSolutionInsights`) — and render the report (`renderInsights`).
+8. Build the canonical evidence-backed lineage graph (`buildLineageGraph`) and the stage map (`buildVirtualSolutionView`).
+9. Render graph + meta panels, enable exports & search.
 
 ---
 
@@ -102,9 +140,12 @@ Priority indicators:
 5. Remaining JSON becomes generic `json`.
 
 Extracted fields (when possible):
-- `tables`: Kusto tables referenced (regex scan for patterns like `Foo_CL`, `BarEvents`, well-known built-ins).
+- `references`: structured KQL references to tables, functions, and watchlists.
+- `tables`: Kusto tables referenced by source, join, lookup, union, and custom-table expressions.
 - `streams`: For DCR mapping connectors.
 - `endpoints`: Host/domain extraction via recursive key + URL scanning.
+- `armDependencies`: `dependsOn`, `resourceId`, `subscriptionResourceId`, and `reference` expressions.
+- `connections`: Logic App API connections, operation IDs, and HTTP endpoints.
 - `metrics`: Query stats (line count, length).
 - `publisher`, `domain`, `mechanism` (normalized ingestion type).
 - `schedule` for analytics rules.
@@ -121,7 +162,7 @@ Helper functions:
 
 ## 5. Architecture Detection (`analyzeSolutionArchitecture(art)`)
 
-Simplified deterministic model focusing only on connector JSON features.
+Evidence-weighted model covering file, connector, core-template, and legacy ingestion signals.
 
 Signals gathered per connector:
 - CCF signal set:
@@ -136,36 +177,77 @@ Signals gathered per connector:
   - `data-collector` (text `datacollector` or mechanism contains `http data collector`)
 
 Decision:
-1. Only CCF signals → `CCF`
-2. Only HTTP signals → `HTTP Data Collector API`
-3. Both → Whichever set has more distinct signals; tie defaults to `CCF`
-4. No signals → `Unknown`
+1. Only CCF anchors → `CCF`
+2. Only HTTP anchors → `HTTP Data Collector API`
+3. Both anchor families → `Mixed`
+4. Legacy CEF/Syslog/AMA signals without modern anchors → `Legacy (CEF/AMA)`
+5. No decisive anchor → `Unknown`
 
-Return object (minimal):
+The result includes confidence, line-level findings, reasoning, and signal catalogs.
+
+Return object:
 ```js
-{ type, ccfSignals: [...], httpSignals: [...] }
+{ type, confidence, connectors, counts, core, findings, reasoningLines, evidenceLines, signalsCatalog }
 ```
-
-This version intentionally omits confidence weighting, endpoints, or mixed resolution complexity.
 
 ---
 
-## 6. Graph Model (`buildGraph(artifacts, solutionName)`)
+## 6. Graph Model (`buildLineageGraph(artifacts, solutionName, analysis)`)
 
 Node types (example labels):
 - `solution`, `connector`, `dependency` (DCR), `table`, `stream`, `workbook`, `analyticrule`, `huntingquery`, `playbook`, `watchlist`, `kqlfunction`, `notebook`, `functioninfra`, `deployment`, `filecore`, `json`, `endpoint` (if surfaced as separate nodes in variants).
 
-Edges:
-- Root solution → each artifact group.
-- Connector → tables / streams / DCRs it uses.
-- DCR → tables produced.
-- Table → analytics / hunting queries / workbooks referencing them.
-- Additional semantic edges (infra, endpoints) depending on variant logic.
+Every node has a canonical type-qualified key while retaining a human-readable `displayId`.
 
-Rendering:
+Every edge carries:
+- relationship type
+- confidence score
+- source file
+- JSON/query location
+- detector that produced the relationship
+
+Lineage includes:
+- endpoint → connector
+- connector → DCR / stream / table
+- input stream → DCR flow → output stream / table
+- table → parser/function → analytics, hunting, and workbooks
+- watchlist/function references from KQL
+- playbook → API connection / endpoint
+- ARM `dependsOn` resource relationships
+
+All layouts render the same canonical graph:
+- Solution Blueprint (default): grouped zones for Data Ingestion, Detection & Analytics, and Response & Visualization.
 - Force layout (physics simulation).
 - Radial layout (concentric rings by type).
 - Grid layout (categorical grouping).
+
+Declared relationships use solid lines. Inferred relationships use dashed/dotted lines according to confidence. Hover an edge to see confidence and detection evidence.
+
+### Solution Blueprint (stage map) JSON
+
+When the default Solution Blueprint layout is active, **Export JSON** produces the presentation model directly. Each `zone` is one stage of the flow (sources → collection → ingestion → tables → detection & response):
+
+```js
+{
+  title,
+  zones: [{
+    id,
+    label,
+    color,
+    items: [{
+      type: "subcontainer",
+      id,
+      label,
+      color,
+      items: [{ type: "row", nodes: [{ id, title, sub, accent, tooltip }] }]
+    }]
+  }],
+  connections: [{ from, to, style, color, label, kind }],   // from/to are container or card ids
+  legend: [{ color, style, label }]
+}
+```
+
+Large groups initially show three to five cards and a `+N more` card. Click it to expand the group in place. Edges are aggregated between containers (for example *"18 rules"* from a table container to the analytics container) so the diagram stays readable.
 - Label algorithm wraps text, clamps lines, determines rectangle size, and scales font.
 
 ---
@@ -377,4 +459,3 @@ Weighted architecture example (if reintroduced):
 - Provide debug array `archDetails` listing matched signals + weights.
 
 Not currently implemented to keep UI simple; add only if necessary.
-
