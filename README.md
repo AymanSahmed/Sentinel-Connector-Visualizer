@@ -468,3 +468,21 @@ Weighted architecture example (if reintroduced):
 - Provide debug array `archDetails` listing matched signals + weights.
 
 Not currently implemented to keep UI simple; add only if necessary.
+
+
+## React app (`app/`) — work in progress
+
+A React 19 + Vite + Tailwind v4 + shadcn/ui rebuild of the visualizer. The legacy single-file `index.html` stays at the site root; the new app lives in `app/` and is published at `/app/` by `.github/workflows/pages.yml` (https://aymansahmed.github.io/Sentinel-Connector-Visualizer/app/).
+
+```powershell
+cd app
+npm install
+npm run dev        # http://localhost:5173
+npm run build      # static output in app/dist
+```
+
+- **Same detection logic.** `npm run extract-engine` regenerates `src/engine/engine.generated.js` from the inline scripts of `../index.html`, so the two UIs never disagree on counts, collection methods or confidence. Re-run it after changing the detector. `npm run test:engine` runs it headless against GitHub.
+- **UI:** ⌘/Ctrl+K solution palette, badges for architecture/confidence, sortable artifact data table with type filters, hover cards, accordion sidebar, toasts, determinate progress bar, skeletons, resizable panels, light/dark/system theme.
+- **Deep link:** `?solution=1Password` opens a solution directly.
+- **Not ported yet:** the force / radial / grid D3 graph layouts and the lineage graph; the Flow map tab replaces the stage map.
+- **21st.dev:** community components are served behind a signed-in account, so they cannot be fetched anonymously. With an account, add them with `npx shadcn@latest add "https://21st.dev/r/<author>/<component>"`.
