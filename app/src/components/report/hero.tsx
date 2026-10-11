@@ -10,7 +10,8 @@ const unique = <T,>(a: T[]) => [...new Set(a)]
 
 /** One auto-written sentence that tells a newcomer what the solution does and how it collects data. */
 export function summarySentence(ins: Insights): ReactNode {
-  const { solution: s, connectors: c, counts: k } = ins
+  const { solution: s, counts: k } = ins
+  const c = ins.connectors.filter((x) => !x.orphaned)
   const B = ({ children }: { children: ReactNode }) => <strong className="font-semibold underline decoration-white/40 underline-offset-4">{children}</strong>
 
   const ships: string[] = []

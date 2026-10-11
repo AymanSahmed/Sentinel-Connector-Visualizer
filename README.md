@@ -17,8 +17,8 @@ The page is a plain-language **Solution Insights report** first, and an engineer
 | **Answer cards** | Where do the logs come from? · How are they collected? · Is an Azure Function involved? · Where does the data land? · What do I need to deploy it? · What do I get? |
 | **Data ingestion** | One pipeline per connector: **Source → Collection → Ingestion → Log Analytics tables → Used by**, plus auth, schedule, inputs, prerequisites and the *evidence* behind the classification |
 | **Detection & response content** | Analytics rules (severity bar, MITRE ATT&CK heat strip, frequency), hunting queries, workbooks, playbooks (trigger + connectors), parsers, watchlists |
-| **Data tables** | Which connector writes each table and which rules/queries/workbooks read it; schema column counts |
-| **Good to know** | Legacy ingestion warnings, serverless-vs-Function alternatives, previews, billing notes |
+| **Data tables** | Which current-package connector writes each table and which rules/queries/workbooks read it; schema column counts and lake-only support |
+| **Version history / Good to know** | Package release notes, orphaned/deprecated connector warnings, legacy ingestion warnings, previews, and billing notes |
 | **Technical map & artifact explorer** | The stage map (below) and the original graph layouts |
 
 ### Collection methods the detector reports
@@ -31,13 +31,15 @@ The page is a plain-language **Solution Insights report** first, and an engineer
 | **Azure Function** | `Microsoft.Web/sites` resource, `host.json` / `function.json` / `FunctionApp` packaging, or a title stating *using Azure Functions*. The report also says whether the function writes through the Logs Ingestion API (DCR/DCE) or the legacy Data Collector API |
 | **Agent-based** | `CommonSecurityLog` / `Syslog` / Windows data types or `InstallAgent` steps (only when no CCF/Function path is confirmed) |
 | **Native integration** | Built-in kinds, tenant-level permissions, Microsoft diagnostic-settings providers |
-| **HTTP Data Collector (legacy)** | `/api/logs` or workspace shared-key usage, never reported next to a confirmed CCF path |
+| **HTTP Data Collector (legacy)** | Reported as the collection method only when `/api/logs` or workspace shared-key ingestion is the active path. If modern DCR/DCE or Logs Ingestion artifacts are present, old references are shown only as **Legacy API signals found** |
 
 Every connector card has a collapsible *"Why was it classified as …?"* panel listing strong/medium signals and the file + JSON path that triggered them.
 
 ### Content sources
 
-In addition to JSON, the tool now fetches **YAML** analytics rules, hunting queries and parsers (via `js-yaml`), de-duplicates rules that exist as both YAML and ARM templates, and uses `requiredDataConnectors` as a declared rule→connector link. `Package/mainTemplate.json` build artifacts are ignored when deciding what a connector is.
+In addition to JSON, the tool fetches **YAML** analytics rules, hunting queries and parsers (via `js-yaml`) plus `ReleaseNotes.md`. It de-duplicates rules that exist as both YAML and ARM templates and uses `requiredDataConnectors` as a declared rule→connector link. The solution's `data/Solution_<name>.json` manifest is treated as the current package inventory: discovered connector definitions omitted from it remain visible but are marked **Orphaned — not in current package** and excluded from current-package rollups. `Package/mainTemplate.json` build artifacts are ignored when deciding what a connector is.
+
+Repository tree and artifact requests have a timeout, retry with a visible error state, and are cached across solution switches. The inventory indicator reports full status only when GitHub's tree was not truncated and every listed file was fetched.
 
 Logic App **playbooks** are recognised by content (`Microsoft.Logic/workflows`) and location (`Playbooks/`), even when the file is called `azuredeploy.json`. Variants such as `alert-trigger`, `incident-trigger` and `*-logingestionapi` are listed separately with their trigger, API connections and the external services they call. Solutions that ship only playbooks are reported as **automation-only**; if the playbooks write results back to Log Analytics (Logs Ingestion API / Data Collector API), the report says so.
 

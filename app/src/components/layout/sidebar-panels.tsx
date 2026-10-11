@@ -74,6 +74,13 @@ function MetaPanel({ result }: { result: AnalysisResult }) {
         </Row>
       )}
       <Row label="Solution">{meta.solutionName || result.solution}</Row>
+      {result.inventory && (
+        <Row label="Inventory">
+          <span className={cn(result.inventory.failed === 0 && !result.inventory.truncated ? 'text-emerald-600 dark:text-emerald-400' : 'text-amber-600 dark:text-amber-400')}>
+            {result.inventory.failed === 0 && !result.inventory.truncated ? '✓ Full' : '⚠ Partial'} ({result.inventory.fetched}/{result.inventory.expected} files)
+          </span>
+        </Row>
+      )}
       {insights.solution.publisher && <Row label="Publisher">{insights.solution.publisher}</Row>}
       {meta.categories?.length > 0 && (
         <Row label="Categories">
@@ -108,8 +115,8 @@ function MetaPanel({ result }: { result: AnalysisResult }) {
                 <TableHead className="text-right" title="Distinct CCF artifacts">
                   CCF
                 </TableHead>
-                <TableHead className="text-right" title="Legacy Data Collector API usage, counted once per connector">
-                  HTTP
+                <TableHead className="text-right" title="Legacy Data Collector API signals found, counted once per connector">
+                  Legacy
                 </TableHead>
               </TableRow>
             </TableHeader>

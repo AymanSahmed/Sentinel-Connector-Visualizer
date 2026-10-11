@@ -7,7 +7,7 @@ import { Answers } from './answers'
 import { ConnectorOverview, Connectors, MethodsLegend } from './connectors'
 import { Coverage } from './coverage'
 import { Hero, Kpis } from './hero'
-import { Findings, TablesMatrix } from './tables-findings'
+import { Findings, ReleaseHistory, TablesMatrix } from './tables-findings'
 
 function Heading({ id, title, hint }: { id: string; title: string; hint?: ReactNode }) {
   return (
@@ -41,6 +41,13 @@ export function ReportView({ result }: { result: AnalysisResult }) {
           <>
             <Heading id="sec-tables" title="Data tables" hint="who writes them and who reads them" />
             <TablesMatrix insights={insights} />
+          </>
+        )}
+
+        {insights.solution.releaseHistory.length > 0 && (
+          <>
+            <Heading id="sec-releases" title="Version history" hint="package release notes" />
+            <ReleaseHistory insights={insights} />
           </>
         )}
 

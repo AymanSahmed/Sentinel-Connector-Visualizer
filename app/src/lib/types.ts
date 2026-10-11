@@ -32,7 +32,7 @@ export interface ConnectorInsight {
   publisher: string
   description: string
   files: string[]
-  method: { primary: string; keys: string[]; found: MethodSignal[]; functionIngestion: string | null }
+  method: { primary: string; keys: string[]; found: MethodSignal[]; functionIngestion: string | null; legacyApiSignals: boolean }
   methodInfo: MethodInfo
   source: { title: string; lines: { label: string; value: string; meta?: string }[]; note: string }
   auth: string[]
@@ -49,6 +49,7 @@ export interface ConnectorInsight {
   usesFunction: boolean
   isPreview: boolean
   legacy: boolean
+  orphaned: boolean
   endpointsReferenced: string[]
   consumers: { analytics: number; hunting: number; workbooks: number; parsers: number }
   archCategory?: string
@@ -85,6 +86,7 @@ export interface TableInsight {
   parsers: string[]
   schema: { columns: number; plan?: string; retention?: number } | null
   custom: boolean
+  lakeOnly: boolean
 }
 
 export interface Finding {
@@ -105,6 +107,7 @@ export interface Insights {
     verticals: string[]
     technologies: string[]
     is1P: boolean
+    releaseHistory: { version: string; date: string; changes: string }[]
   }
   connectors: ConnectorInsight[]
   functionAnswer: { state: 'yes' | 'no' | 'optional'; text: string }

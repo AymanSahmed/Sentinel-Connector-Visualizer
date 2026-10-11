@@ -78,7 +78,7 @@ export function buildFlowModel(ins: Insights): FlowModel {
   const card = (id: string, title: string, sub: string, accent: string, tooltip: string): FlowCard => ({ id, title, sub, accent, tooltip })
   const add = (st: StageId, id: string, label: string, accent: string, cards: FlowCard[], limit = 4) => stage(st).containers.push({ id, label, accent, cards, limit })
 
-  const C = ins.connectors
+  const C = ins.connectors.filter((c) => !c.orphaned)
   const { analytics: A, hunting: H, workbooks: W, parsers: F, playbooks: P } = ins.content
 
   /* 1 · sources */

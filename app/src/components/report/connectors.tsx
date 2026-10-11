@@ -123,6 +123,8 @@ export function ConnectorCard({ c, index }: { c: ConnectorInsight; index: number
         {c.publisher && <span className="text-muted-foreground text-xs">by {c.publisher}</span>}
         {c.isPreview && <ToneBadge tone="warning">Preview</ToneBadge>}
         {c.legacy && <ToneBadge tone="warning">Legacy</ToneBadge>}
+        {c.orphaned && <ToneBadge tone="warning">⚠ Orphaned — not in current package</ToneBadge>}
+        {c.method.legacyApiSignals && c.method.primary !== 'http-collector' && <ToneBadge tone="warning">Legacy API signals found</ToneBadge>}
         {c.method.keys.filter((k) => k !== c.method.primary && k !== 'logs-ingestion').map((k) => (
           <Badge key={k} variant="outline" style={{ color: INS_METHODS[k].color, borderColor: INS_METHODS[k].color }}>
             also: {INS_METHODS[k].label}

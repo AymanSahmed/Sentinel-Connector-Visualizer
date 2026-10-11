@@ -938,6 +938,7 @@ details.ins-fold > .ins-conn { border:0; box-shadow:none; border-top:1px solid v
   <div style="display:flex;flex-wrap:wrap;gap:.5rem;align-items:flex-end;">
     <button id="btnLoad" class="btn">Load Solutions</button>
     <button id="btnVisualize" class="btn">Visualize</button>
+    <button id="btnRetry" class="btn" style="display:none;">Retry</button>
     <button id="btnReset" class="btn-muted">Reset</button>
     <button id="btnDark" class="btn-muted">Dark</button>
   </div>
@@ -1157,11 +1158,23 @@ function updateRateLimit(res){
     $('#rateLimit').textContent=`Rate: ${rem}/${lim}${reset?` (reset ${new Date(+reset*1000).toLocaleTimeString()})`:''}`;
   }
 }
+async function fetchWithTimeout(url,options={},timeoutMs=15000){
+  const controller=new AbortController();
+  const timer=setTimeout(()=>controller.abort(),timeoutMs);
+  try{
+    return await fetch(url,{...options,signal:controller.signal});
+  }catch(e){
+    if(e?.name==='AbortError') throw new Error(`Request timed out after ${Math.round(timeoutMs/1000)}s @ ${url}`);
+    throw e;
+  }finally{
+    clearTimeout(timer);
+  }
+}
 async function fetchJson(url,purpose='',tries=3){
   if(STATE.cache.has(url)) return STATE.cache.get(url);
   for(let i=1;i<=tries;i++){
     try{
-      const res=await fetch(url,{headers:ghHeaders()});
+      const res=await fetchWithTimeout(url,{headers:ghHeaders()});
       updateRateLimit(res);
       if(!res.ok) throw new Error(`HTTP ${res.status} ${purpose} @ ${url}`);
       const j=await res.json(); STATE.cache.set(url,j); return j;
@@ -1178,6 +1191,7 @@ const YAML_CONTENT_DIR_RE=/\/(analytic[s]?[ _-]?rules?|hunting[ _-]?queries|pars
 function isSolutionContentFile(path){
   const p=String(path||'');
   if(/\.json$/i.test(p)) return true;
+  if(/(^|\/)ReleaseNotes\.md$/i.test(p)) return true;
   return /\.ya?ml$/i.test(p) && YAML_CONTENT_DIR_RE.test('/'+p);
 }
 let YAML_LOADER=null;
@@ -1197,7 +1211,7 @@ async function fetchText(url,purpose=''){
   if(STATE.cache.has(url)) return STATE.cache.get(url);
   for(let i=1;i<=3;i++){
     try{
-      const res=await fetch(url);
+      const res=await fetchWithTimeout(url);
       if(!res.ok) throw new Error(`HTTP ${res.status} ${purpose} @ ${url}`);
       const text=await res.text(); STATE.cache.set(url,text); return text;
     }catch(e){
@@ -1220,14 +1234,11 @@ async function runPool(items,limit,worker){
 }
 async function listSolutionJsonPaths(owner,repo,branch,solution){
   try{
-    const b=await fetch(`https://api.github.com/repos/${owner}/${repo}/branches/${encodeURIComponent(branch)}`,{headers:ghHeaders()});
-    updateRateLimit(b); if(!b.ok) throw new Error(`Branch lookup failed ${b.status}`);
-    const bj=await b.json(); const sha=bj?.commit?.commit?.tree?.sha;
+    const branchUrl=`https://api.github.com/repos/${owner}/${repo}/branches/${encodeURIComponent(branch)}`;
+    const bj=await fetchJson(branchUrl,'branch lookup'); const sha=bj?.commit?.commit?.tree?.sha;
     if(!sha) throw new Error('Missing tree SHA');
     const tUrl=`https://api.github.com/repos/${owner}/${repo}/git/trees/${sha}?recursive=1`;
-    const t=await fetch(tUrl,{headers:ghHeaders()});
-    updateRateLimit(t); if(!t.ok) throw new Error(`Tree fetch failed ${t.status}`);
-    const tj=await t.json();
+    const tj=await fetchJson(tUrl,'repository tree');
     STATE.inventoryTruncated=!!tj.truncated;
     const prefix=`Solutions/${solution}/`;
     const paths=(tj.tree||[])
@@ -1245,9 +1256,7 @@ async function listSolutionJsonPathsFallback(owner,repo,branch,solution){
   const out=[];
   async function walk(dir){
     const url=`${base}${dir?'/'+dir:''}?ref=${encodeURIComponent(branch)}`;
-    const res=await fetch(url,{headers:ghHeaders()}); updateRateLimit(res);
-    if(!res.ok) throw new Error(`Fallback contents failed ${res.status} @ ${url}`);
-    const items=await res.json();
+    const items=await fetchJson(url,'fallback contents');
     for(const it of items){
       if(it.type==='dir') await walk(dir?`${dir}/${it.name}`:it.name);
       else if(it.type==='file' && isSolutionContentFile(it.name))
@@ -1259,15 +1268,12 @@ async function listSolutionJsonPathsFallback(owner,repo,branch,solution){
 }
 async function detectDefaultBranch(owner,repo){
   try{
-    const r=await fetch(`https://api.github.com/repos/${owner}/${repo}`,{headers:ghHeaders()});
-    if(!r.ok)return null;
-    const j=await r.json(); return j.default_branch;
+    const j=await fetchJson(`https://api.github.com/repos/${owner}/${repo}`,'repository metadata');
+    return j.default_branch;
   }catch{return null;}
 }
 async function listSolutions(owner,repo,branch){
-  const r=await fetch(`https://api.github.com/repos/${owner}/${repo}/contents/Solutions?ref=${encodeURIComponent(branch)}`,{headers:ghHeaders()});
-  updateRateLimit(r); if(!r.ok) throw new Error(`Solutions list failed: ${r.status}`);
-  const j=await r.json();
+  const j=await fetchJson(`https://api.github.com/repos/${owner}/${repo}/contents/Solutions?ref=${encodeURIComponent(branch)}`,'solutions list');
   return (j||[]).filter(x=>x.type==='dir').map(x=>x.name).sort();
 }
 
@@ -4919,7 +4925,7 @@ function updateSolutionMeta(){
       <th style="text-align:left;padding:3px 6px;">Connector</th>
       <th style="text-align:left;padding:3px 6px;">Method</th>
       <th style="text-align:left;padding:3px 6px;" title="Distinct CCF artifacts found (definition UI, DCR config, poller)">CCF sig.</th>
-      <th style="text-align:left;padding:3px 6px;" title="Legacy Data Collector API usage (counted once per connector)">HTTP sig.</th>
+      <th style="text-align:left;padding:3px 6px;" title="Legacy Data Collector API signals found (counted once per connector)">Legacy sig.</th>
     </tr>`;
     tbl.appendChild(head);
 
@@ -5324,7 +5330,9 @@ async function fetchSolutionFiles(owner,repo,branch,paths,includeNonCore){
     const fileName=p.split('/').pop().toLowerCase();
     try{
       let js;
-      if(/\.ya?ml$/i.test(p)){
+      if(/\.md$/i.test(p)){
+        js={__format:'markdown',text:await fetchText(base+p,'release notes')};
+      }else if(/\.ya?ml$/i.test(p)){
         if(!yaml) return null;
         js=yaml.load(await fetchText(base+p,'yaml artifact'));
         if(js && typeof js==='object' && !Array.isArray(js)) js.__format='yaml';
@@ -5392,6 +5400,7 @@ async function handleVisualize(){
   const [owner,repo]=repoVal.split('/',2);
 
   STATE.fetching=true;
+  $('#btnRetry').style.display='none';
   toggleLoader(true);
   setStatus(`Visualizing ${owner}/${repo}@${branchVal}/${solution}`);
   try{
@@ -5433,6 +5442,7 @@ updateSolutionMeta();
     console.error(e);
     setStatus('Visualization failed: '+(e.message||e),true);
     log('Stack: '+(e.stack||''),true);
+    $('#btnRetry').style.display='';
   }finally{
     toggleLoader(false);
     STATE.fetching=false;
@@ -5443,6 +5453,7 @@ function handleReset(){
   STATE.artifacts=null; STATE.meta=null; STATE.createUiAnalysis=null; STATE.solutionAnalysis=null;
   STATE.fullGraph=null; STATE.virtualView=null; STATE.insights=null; STATE.inventory=null; STATE.blueprintExpanded.clear(); STATE.graph={nodes:[],links:[]};
   updateInventoryIndicator();
+  $('#btnRetry').style.display='none';
   if(window.renderInsights) renderInsights();
   if(ensureD3()) d3.select('#zoomLayer').selectAll('*').remove();
   $('#solutionMeta').textContent='';
@@ -5469,6 +5480,7 @@ document.addEventListener('DOMContentLoaded',()=>{
 
   $('#btnLoad').addEventListener('click',handleLoadSolutions);
   $('#btnVisualize').addEventListener('click',handleVisualize);
+  $('#btnRetry').addEventListener('click',handleVisualize);
   $('#btnReset').addEventListener('click',handleReset);
   $('#btnDark').addEventListener('click',()=>setDarkMode(!STATE.dark));
 
@@ -5594,8 +5606,16 @@ const insDir=p=>String(p||'').slice(0,String(p||'').lastIndexOf('/'));
 const insBase=p=>String(p||'').split('/').pop();
 function insPretty(s){ return String(s||'').replace(/[_-]+/g,' ').replace(/([a-z0-9])([A-Z])/g,'$1 $2').replace(/\s+/g,' ').trim(); }
 function insTemplateUrl(u){ return String(u||'').replace(/\{\{\s*([^}]+?)\s*\}\}/g,'‹$1›'); }
-function insTableKey(t){ return String(t||'').replace(/^Custom-/i,'').toLowerCase(); }
-function insTableName(t){ return String(t||'').replace(/^Custom-/i,''); }
+function insTableName(t){
+  const raw=String(t||'').trim();
+  if(!raw) return '';
+  if(/^Custom-/i.test(raw)){
+    const name=raw.replace(/^Custom-/i,'');
+    return /_(CL|CE|CF)$/i.test(name)?name:`${name}_CL`;
+  }
+  return raw;
+}
+function insTableKey(t){ return insTableName(t).toLowerCase(); }
 
 function insIsDefinition(c){
   const r=c.raw||{}, p=r.properties||{};
@@ -5810,8 +5830,9 @@ function insDetectMethods(sig){
   else if(sig.diagSettings) add('native','medium','Enabled through Azure diagnostic settings on the source resource',[{file:'(connector permissions)',where:'permissions.resourceProvider',snippet:'diagnosticSettings'}]);
   const dce=sig.resourceTypes.has('microsoft.insights/datacollectionendpoints')||sig.resourceTypes.has('microsoft.insights/datacollectionrules');
   const legacyApi=flagEv('dataCollectorApi').length>0||(flagEv('sharedKey').length>0&&found.some(f=>f.key==='function'));
-  if(legacyApi&&!found.some(f=>['ccf-pull','ccf-push','ccf-cloud'].includes(f.key)&&f.strength==='strong')) add('http-collector','strong','Workspace shared key / Data Collector API (/api/logs) is referenced',[...flagEv('dataCollectorApi'),...flagEv('sharedKey')]);
-  if((dce||flagEv('logsIngestion').length)&&!found.some(f=>['ccf-pull','ccf-push','ccf-cloud'].includes(f.key)))
+  const hasModernApi=dce||flagEv('logsIngestion').length>0;
+  if(legacyApi&&!hasModernApi&&!found.some(f=>['ccf-pull','ccf-push','ccf-cloud'].includes(f.key)&&f.strength==='strong')) add('http-collector','strong','Workspace shared key / Data Collector API (/api/logs) is referenced',[...flagEv('dataCollectorApi'),...flagEv('sharedKey')]);
+  if(hasModernApi&&!found.some(f=>['ccf-pull','ccf-push','ccf-cloud'].includes(f.key)))
     add('logs-ingestion','medium','Logs Ingestion API / DCE / DCR resources are part of the package',flagEv('logsIngestion'));
   const order=['ccf-push','ccf-pull','ccf-cloud','function','agent','native','logs-ingestion','http-collector'];
   const strongFirst=found.slice().sort((a,b)=>(a.strength===b.strength?0:a.strength==='strong'?-1:1)||order.indexOf(a.key)-order.indexOf(b.key));
@@ -5821,10 +5842,9 @@ function insDetectMethods(sig){
   const fnKey=keys.includes('function');
   let functionIngestion=null;
   if(fnKey){
-    const hasDcrApi=(flagEv('logsIngestion').length>0||dce)&&!legacyApi;
-    functionIngestion=legacyApi?'Data Collector API (legacy, workspace shared key)':hasDcrApi?'Logs Ingestion API (DCR / DCE)':'Log Analytics ingestion (implemented in function code)';
+    functionIngestion=hasModernApi?'Logs Ingestion API (DCR / DCE)':legacyApi?'Data Collector API (legacy, workspace shared key)':'Log Analytics ingestion (implemented in function code)';
   }
-  return {primary,keys,found:strongFirst,functionIngestion};
+  return {primary,keys,found:strongFirst,functionIngestion,legacyApiSignals:legacyApi};
 }
 
 function insPollerLabel(p){
@@ -5843,7 +5863,8 @@ function insAuthLabel(a){
 }
 
 function insBuildSource(method,c,sig,solutionName){
-  const vendor=c.publisher||solutionName||'Vendor';
+  const publisher=String(c.publisher||'').trim();
+  const vendor=!publisher||(/^Microsoft\b/i.test(publisher)&&solutionName&&!/^Microsoft\b/i.test(solutionName))?solutionName:publisher;
   const lines=[]; let title=`${vendor} service`; let note='';
   const pollers=sig.pollers;
   if(method.primary==='ccf-pull'){
@@ -5921,7 +5942,9 @@ function insCollectTableSchemas(files){
       if(/operationalinsights\/workspaces\/tables$/i.test(String(v.type||''))||(v.properties?.schema?.columns&&v.properties?.schema?.name)){
         const schema=v.properties?.schema||{};
         const name=schema.name||armResolve(String(v.name||''),template);
-        if(name&&Array.isArray(schema.columns)) out.set(insTableKey(name),{columns:schema.columns.length,retention:v.properties?.retentionInDays,plan:v.properties?.plan||''});
+        const mode=String(v.properties?.ingestionMode||v.properties?.tier||schema.ingestionMode||'');
+        const lakeOnly=v.properties?.lakeOnlyIngestionSupported===true||schema.lakeOnlyIngestionSupported===true||/^lake[- ]?only$/i.test(mode);
+        if(name&&Array.isArray(schema.columns)) out.set(insTableKey(name),{columns:schema.columns.length,retention:v.properties?.retentionInDays,plan:v.properties?.plan||'',lakeOnly});
       }
     });
   });
@@ -5930,6 +5953,24 @@ function insCollectTableSchemas(files){
 
 function insFindManifest(files){
   return files.find(f=>f.raw&&!Array.isArray(f.raw)&&(f.raw['Data Connectors']||f.raw['Analytic Rules']||f.raw.BasePath)&&/(^|\/)Data\//i.test(f.path))?.raw||null;
+}
+function insManifestConnectorPaths(manifest){
+  if(!manifest||!Array.isArray(manifest['Data Connectors'])) return null;
+  return new Set(manifest['Data Connectors'].map(p=>String(p||'').replace(/\\/g,'/').replace(/^\.?\//,'').toLowerCase()));
+}
+function insConnectorManifestPath(c){
+  const embedded=String(c.path||'').match(/^\(embedded\s+(.+)\)$/)?.[1];
+  return insShort(embedded||c.path||'').replace(/\\/g,'/').toLowerCase();
+}
+function insReleaseHistory(files){
+  const text=files.find(f=>/(^|\/)ReleaseNotes\.md$/i.test(f.path))?.raw?.text||'';
+  const rows=[];
+  String(text).split(/\r?\n/).forEach(line=>{
+    if(!/^\s*\|/.test(line)||/^\s*\|?\s*:?-{3,}/.test(line)||/\|\s*\*\*Version\*\*/i.test(line)) return;
+    const cells=line.split('|').slice(1,-1).map(s=>s.replace(/<br\s*\/?>/gi,' ').replace(/\*\*/g,'').trim());
+    if(cells.length>=3&&/^\d+(?:\.\d+)+/.test(cells[0])) rows.push({version:cells[0],date:cells[1],changes:cells.slice(2).join(' | ')});
+  });
+  return rows;
 }
 function insCleanMarkdown(s){ return String(s||'').replace(/\[([^\]]+)\]\([^)]*\)/g,'$1').replace(/\*\*|__/g,'').replace(/\r/g,'').trim(); }
 function insCleanText(s){
@@ -5942,9 +5983,20 @@ function insCleanText(s){
 
 function insDcrName(d){
   const id=String(d.id||'');
+  if(/^\[/.test(id)){
+    const resolved=armResolve(id,d.raw?.__template||d.raw);
+    if(resolved&&!/[\[\]()]/.test(resolved)) return resolved;
+  }
   if(/^(dcr|datacollectionrule|azuredeploy|maintemplate)(\.json)?$/i.test(id)||/\.json$/i.test(id)){
     const folder=String(d.path||'').split('/').slice(-2,-1)[0]||'';
     return (folder?insPretty(folder).replace(/\s*ccp$/i,'')+' ':'')+'DCR';
+  }
+  if(/[\[\]()]/.test(id)){
+    const declared=String(d.raw?.name||d.raw?.properties?.name||'');
+    const resolved=armResolve(declared,d.raw?.__template||d.raw);
+    if(resolved&&!/[\[\]()]/.test(resolved)) return resolved;
+    const folder=String(d.path||'').split('/').slice(-2,-1)[0]||'';
+    return folder?`${insPretty(folder).replace(/\s*ccp$/i,'')} DCR`:'Data Collection Rule';
   }
   return id;
 }
@@ -5998,13 +6050,16 @@ function insArchCategory(c){
 function insReconcileArchitecture(analysis,ins){
   if(!analysis||!ins) return analysis;
   const counts={};
-  const aligned=Array.isArray(analysis.connectors)&&analysis.connectors.length===ins.connectors.length;
-  ins.connectors.forEach((c,i)=>{
+  const active=ins.connectors.filter(c=>!c.orphaned);
+  const analysisById=new Map((analysis.connectors||[]).map(c=>[String(c.id||'').toLowerCase(),c]));
+  active.forEach(c=>{
     const k=insArchCategory(c);
     c.archCategory=k;
     counts[k]=(counts[k]||0)+1;
-    if(aligned) analysis.connectors[i].category=k;
+    const match=analysisById.get(String(c.name||'').toLowerCase())||analysisById.get(String(c.ids?.[0]||'').toLowerCase());
+    if(match) match.category=k;
   });
+  ins.connectors.filter(c=>c.orphaned).forEach(c=>{ c.archCategory='orphaned'; });
   const present=Object.keys(INS_ARCH_CATEGORIES).filter(k=>counts[k]);
   analysis.categoryCounts=counts;
   analysis.architectureSet=present;
@@ -6041,7 +6096,8 @@ function insReconcileArchitecture(analysis,ins){
     analysis.reasoningLines[0]=`Final: ${analysis.label}${analysis.lowConfidence?` ⚠ low confidence (${Math.round(analysis.confidence*100)}%)`:''}`;
     analysis.reasoningLines.splice(1,0,`Confidence: ${Math.round(analysis.confidence*100)}%`);
     if(analysis.lowConfidence) analysis.reasoningLines.splice(2,0,'⚠ Low confidence — manual review recommended.');
-    if(breakdown) analysis.reasoningLines.splice(analysis.lowConfidence?3:2,0,`Collection methods (${ins.connectors.length} connectors): ${breakdown}`);
+    if(breakdown) analysis.reasoningLines.splice(analysis.lowConfidence?3:2,0,`Collection methods (${active.length} current connectors): ${breakdown}`);
+    if(active.length!==ins.connectors.length) analysis.reasoningLines.splice(analysis.lowConfidence?4:3,0,`${ins.connectors.length-active.length} orphaned connector(s) excluded from the current-package rollup.`);
     analysis.reasoning='Architecture Reasoning:\n'+analysis.reasoningLines.map(l=>'• '+l).join('\n');
   }
   return analysis;
@@ -6049,6 +6105,8 @@ function insReconcileArchitecture(analysis,ins){
 function buildSolutionInsights(art,meta){
   const files=art.files||[];
   const manifest=insFindManifest(files);
+  const manifestConnectorPaths=insManifestConnectorPaths(manifest);
+  const releaseHistory=insReleaseHistory(files);
   const sm=meta?.rawSolutionMeta||{};
   const solutionName=meta?.solutionName||'Solution';
   const logical=insLogicalConnectors(art);
@@ -6096,6 +6154,9 @@ function buildSolutionInsights(art,meta){
     (c.tables||[]).forEach(addTable); sig.dataTypes.forEach(addTable); addTable(sig.graphTable);
     sig.pollers.forEach(p=>{ addTable(p.dataType); addTable(p.stream); });
     dcrs.forEach(d=>d.outputTables.forEach(addTable));
+    [...tableMap.keys()].forEach(k=>{
+      if(!/_(cl|ce|cf)$/.test(k)&&tableMap.has(`${k}_cl`)) tableMap.delete(k);
+    });
     const tables=[...tableMap.values()];
     const source=insBuildSource(method,c,sig,solutionName);
     const authSet=insUniq(sig.pollers.map(p=>insAuthLabel(p.auth)));
@@ -6108,6 +6169,7 @@ function buildSolutionInsights(art,meta){
     const functionApps=(art.functionApps||[]).filter(f=>pkgPaths.has(f.path)).map(f=>f.id);
     const requiredBy=analytics.filter(a=>a.connectorIds.some(i=>ids.includes(i))).length;
     const legacyByName=/deprecat|legacy/i.test(`${c.id} ${c.description||''}`);
+    const orphaned=!!manifestConnectorPaths&&!manifestConnectorPaths.has(insConnectorManifestPath(c));
     return {
       name:title,publisher:c.publisher||'',description:insCleanMarkdown(c.description||''),
       ids,definitionPath:c.path,files:[...pkgPaths].map(insShort),method,methodInfo:INS_METHODS[method.primary],
@@ -6117,7 +6179,7 @@ function buildSolutionInsights(art,meta){
       schedule:{windowMin:windows.length?Math.min(...windows):null,paging:insUniq(sig.pollers.map(p=>p.paging)),qps:insUniq(sig.pollers.map(p=>p.qps).filter(v=>v!=null))},
       pollers:sig.pollers.map(p=>({label:insPollerLabel(p),url:insTemplateUrl(p.url),method:String(p.method||'GET').toUpperCase(),windowMin:p.windowMin,stream:p.stream,table:p.dataType||insTableName(p.stream)})),
       tables,dcrs,hasTransform:dcrs.some(d=>d.transform),hasDce:sig.resourceTypes.has('microsoft.insights/datacollectionendpoints')||sig.pollers.some(p=>!!p.stream)||method.primary==='ccf-push',
-      functionApps,usesFunction:method.keys.includes('function'),requiredBy,isPreview:sig.isPreview,legacy:legacyByName,
+      functionApps,usesFunction:method.keys.includes('function'),requiredBy,isPreview:sig.isPreview,legacy:legacyByName,orphaned,
       endpointsReferenced:[...sig.hosts].slice(0,8)
     };
   });
@@ -6143,15 +6205,17 @@ function buildSolutionInsights(art,meta){
     });
   });
 
+  const activeConnectors=connectors.filter(c=>!c.orphaned);
   const producedBy=new Map();
-  connectors.forEach(c=>c.tables.forEach(t=>{ const k=t.toLowerCase(); (producedBy.get(k)||producedBy.set(k,[]).get(k)).push(c.name); }));
+  activeConnectors.forEach(c=>c.tables.forEach(t=>{ const k=t.toLowerCase(); (producedBy.get(k)||producedBy.set(k,[]).get(k)).push(c.name); }));
   const tableRows=new Map();
   const touch=(name,kind,item)=>{
     const k=name.toLowerCase();
-    if(!tableRows.has(k)) tableRows.set(k,{name,producers:producedBy.get(k)||[],analytics:[],hunting:[],workbooks:[],parsers:[],schema:schemas.get(k)||null,custom:/_(CL|CE|CF)$/i.test(name)});
+    const schema=schemas.get(k)||null;
+    if(!tableRows.has(k)) tableRows.set(k,{name,producers:producedBy.get(k)||[],analytics:[],hunting:[],workbooks:[],parsers:[],schema,custom:/_(CL|CE|CF)$/i.test(name),lakeOnly:!!schema?.lakeOnly});
     if(item) tableRows.get(k)[kind].push(item);
   };
-  connectors.forEach(c=>c.tables.forEach(t=>touch(t)));
+  activeConnectors.forEach(c=>c.tables.forEach(t=>touch(t)));
   analytics.forEach(a=>a.tables.forEach(t=>touch(t,'analytics',a.name)));
   hunting.forEach(h=>h.tables.forEach(t=>touch(t,'hunting',h.name)));
   workbooks.forEach(w=>w.tables.forEach(t=>touch(t,'workbooks',w.name)));
@@ -6177,23 +6241,25 @@ function buildSolutionInsights(art,meta){
   const technologies=insUniq([...techBlock.matchAll(/\[([^\]]+)\]\(/g)].map(m=>m[1].trim()).filter(t=>!/preview|supplemental/i.test(t)));
   const logoSrc=String(manifest?.Logo||'').match(/src=["']([^"']+)["']/i)?.[1]||'';
 
-  const methodKeys=insUniq(connectors.flatMap(c=>c.method.keys.length?[c.method.primary,...c.method.keys.filter(k=>k!==c.method.primary&&c.method.primary==='unknown')]:[c.method.primary]));
-  const primaryMethods=insUniq(connectors.map(c=>c.method.primary));
-  const functionConnectors=connectors.filter(c=>c.usesFunction);
-  const serverless=connectors.filter(c=>['ccf-pull','ccf-push','ccf-cloud','native'].includes(c.method.primary));
+  const methodKeys=insUniq(activeConnectors.flatMap(c=>c.method.keys.length?[c.method.primary,...c.method.keys.filter(k=>k!==c.method.primary&&c.method.primary==='unknown')]:[c.method.primary]));
+  const primaryMethods=insUniq(activeConnectors.map(c=>c.method.primary));
+  const functionConnectors=activeConnectors.filter(c=>c.usesFunction);
+  const serverless=activeConnectors.filter(c=>['ccf-pull','ccf-push','ccf-cloud','native'].includes(c.method.primary));
   let functionAnswer={state:'no',text:'No Azure Function is required.'};
   if(functionConnectors.length){
-    functionAnswer=functionConnectors.length===connectors.length||!serverless.length
+    functionAnswer=functionConnectors.length===activeConnectors.length||!serverless.length
       ?{state:'yes',text:'Yes — data collection runs in an Azure Function App you deploy and operate.'}
-      :{state:'optional',text:`Optional — ${functionConnectors.length} of ${connectors.length} connectors use an Azure Function (customer-hosted); the others are serverless.`};
+      :{state:'optional',text:`Optional — ${functionConnectors.length} of ${activeConnectors.length} connectors use an Azure Function (customer-hosted); the others are serverless.`};
   }else if(/azure functions?/i.test(technologies.join(' '))){
     functionAnswer={state:'optional',text:'The solution lists Azure Functions as a dependency.'};
   }
   const findings=[];
   const inv=STATE.inventory;
   if(inv&&(inv.failed>0||inv.truncated)) findings.push({level:'warn',text:`Partial inventory: ${inv.fetched} of ${inv.expected} listed files were analysed${inv.truncated?' and the GitHub file listing was truncated':''}. Counts and detection may be incomplete.`});
+  connectors.filter(c=>c.orphaned).forEach(c=>findings.push({level:'warn',text:`${c.name}: ⚠ Orphaned — not in current package manifest. It may be deprecated or retained only for migration.`}));
   if(functionConnectors.length&&serverless.length) findings.push({level:'info',text:`Two collection paths ship in the same solution — serverless: ${serverless.map(c=>c.name).join(', ')}; Azure Function: ${functionConnectors.map(c=>c.name).join(', ')}. Prefer the serverless connector for new deployments.`});
-  connectors.filter(c=>c.method.found.some(f=>f.key==='http-collector')).forEach(c=>findings.push({level:'warn',text:`${c.name} references the legacy HTTP Data Collector API (shared key). Microsoft is moving ingestion to the Logs Ingestion API / CCF.`}));
+  connectors.filter(c=>c.method.primary==='http-collector').forEach(c=>findings.push({level:'warn',text:`${c.name} uses the legacy HTTP Data Collector API (shared key). Microsoft is moving ingestion to the Logs Ingestion API / CCF.`}));
+  connectors.filter(c=>c.method.primary!=='http-collector'&&c.method.legacyApiSignals).forEach(c=>findings.push({level:'info',text:`${c.name}: some legacy Data Collector API signals were found in package files, but the detected ingestion method is ${c.methodInfo.label}.`}));
   connectors.filter(c=>c.method.primary==='unknown').forEach(c=>findings.push({level:'warn',text:`${c.name}: the repository JSON does not reveal how data is collected — check the connector page in the Sentinel content hub.`}));
   const previews=connectors.filter(c=>c.isPreview);
   if(previews.length) findings.push({level:'info',text:`${previews.length===connectors.length&&previews.length>1?'All connectors are':previews.map(c=>c.name).slice(0,3).join(', ')+(previews.length>3?` +${previews.length-3} more`:'')+(previews.length===1?' is':' are')} marked as Preview — behaviour and billing may change.`});
@@ -6206,14 +6272,14 @@ function buildSolutionInsights(art,meta){
   const queriedOnly=tables.filter(t=>!t.producers.length);
 
   return {
-    solution:{name:solutionName,publisher:connectors.find(c=>c.publisher)?.publisher||sm.support?.name||manifest?.Author||'',author:manifest?.Author||'',version:sm.version||manifest?.Version||'',
+    solution:{name:solutionName,publisher:activeConnectors.find(c=>c.publisher)?.publisher||sm.support?.name||manifest?.Author||'',author:manifest?.Author||'',version:sm.version||manifest?.Version||'',
       support:sm.support||null,firstPublish:sm.firstPublishDate||'',lastPublish:sm.lastPublishDate||'',categories:meta?.categories||[],domains:meta?.domains||[],
       verticals:normalizeMetaList(sm.categories?.verticals),providers:normalizeMetaList(sm.providers),description:intro,technologies,logo:logoSrc,
-      is1P:manifest?.Is1PConnector===true,path:manifest?'manifest':''},
+      is1P:manifest?.Is1PConnector===true,path:manifest?'manifest':'',releaseHistory},
     connectors,primaryMethods:primaryMethods,methodKeys,functionAnswer,
     content:{analytics,hunting,workbooks,parsers,playbooks,watchlists,notebooks,automationRules,severity,tacticCounts},
     tables,queriedOnly,findings,
-    counts:{connectors:connectors.length,tables:tables.filter(t=>t.producers.length).length,analytics:analytics.length,hunting:hunting.length,workbooks:workbooks.length,playbooks:playbooks.length,parsers:parsers.length,watchlists:watchlists.length,notebooks:notebooks.length,automationRules:automationRules.length}
+    counts:{connectors:activeConnectors.length,orphanedConnectors:connectors.length-activeConnectors.length,tables:tables.filter(t=>t.producers.length).length,analytics:analytics.length,hunting:hunting.length,workbooks:workbooks.length,playbooks:playbooks.length,parsers:parsers.length,watchlists:watchlists.length,notebooks:notebooks.length,automationRules:automationRules.length}
   };
 }
 window.buildSolutionInsights=buildSolutionInsights;
@@ -6238,7 +6304,7 @@ window.buildSolutionInsights=buildSolutionInsights;
   const secId=n=>`ins-sec-${n}`;
 
   function summarySentence(ins){
-    const s=ins.solution, c=ins.connectors, k=ins.counts;
+    const s=ins.solution, c=ins.connectors.filter(x=>!x.orphaned), k=ins.counts;
     const ships=[];
     if(k.analytics) ships.push(plural(k.analytics,'analytics rule'));
     if(k.hunting) ships.push(plural(k.hunting,'hunting query').replace('querys','queries'));
@@ -6417,6 +6483,8 @@ window.buildSolutionInsights=buildSolutionInsights;
       <div class="ins-conn-head">${badge(m)}<h3>${e(c.name)}</h3>
         ${c.publisher?`<span class="ins-muted">by ${e(c.publisher)}</span>`:''}
         ${c.isPreview?pill('Preview','#d97706'):''}${c.legacy?pill('Legacy','#b45309'):''}
+        ${c.orphaned?pill('⚠ Orphaned — not in current package','#d97706'):''}
+        ${c.method.legacyApiSignals&&c.method.primary!=='http-collector'?pill('Legacy API signals found','#d97706'):''}
         ${c.method.keys.filter(k=>k!==c.method.primary&&k!=='logs-ingestion').map(k=>pill('also: '+INS_METHODS[k].label,INS_METHODS[k].color)).join('')}
       </div>
       <p class="ins-how"><b>${e(m.label)}:</b> ${e(m.how)}</p>
@@ -6477,7 +6545,7 @@ window.buildSolutionInsights=buildSolutionInsights;
     const cnt=(list)=>`<td class="ins-num${list.length?'':' zero'}" title="${e(list.join('\n'))}">${list.length||'–'}</td>`;
     const rows=ins.tables.slice(0,60).map(t=>`<tr>
       <td><code class="ins-chip${t.custom?' custom':''}">${e(t.name)}</code></td>
-      <td>${t.producers.length?(t.custom?pill('Custom table','#0d9488'):pill('Built-in table','#64748b')):pill('Queried only','#94a3b8','Not ingested by this solution')}</td>
+      <td>${t.producers.length?(t.custom?pill('Custom table','#0d9488'):pill('Built-in table','#64748b')):pill('Queried only','#94a3b8','Not ingested by this solution')}${t.lakeOnly?' '+pill('Lake-only','#2563eb','Supports Sentinel data lake-only ingestion'):''}</td>
       <td>${t.producers.length?t.producers.map(e).join('<br>'):'<span class="ins-muted">other solutions / Azure</span>'}</td>
       <td>${t.schema?`${t.schema.columns} columns${t.schema.plan?` · ${e(t.schema.plan)}`:''}`:'<span class="ins-muted">–</span>'}</td>
       ${cnt(t.analytics)}${cnt(t.hunting)}${cnt(t.workbooks)}${cnt(t.parsers)}</tr>`).join('');
@@ -6487,6 +6555,11 @@ window.buildSolutionInsights=buildSolutionInsights;
     if(!ins.findings.length) return '';
     const icon={info:'ℹ️',warn:'⚠️',good:'✅'}, color={info:'#2563eb',warn:'#d97706',good:'#059669'};
     return `<ul class="ins-findings">${ins.findings.map(f=>`<li style="--c:${color[f.level]}"><i>${icon[f.level]}</i><span>${e(f.text)}</span></li>`).join('')}</ul>`;
+  }
+  function releasesHtml(ins){
+    const rows=ins.solution.releaseHistory||[];
+    if(!rows.length) return '';
+    return `<div class="ins-card ins-table-wrap"><table class="ins-table"><thead><tr><th>Version</th><th>Date</th><th>Change</th></tr></thead><tbody>${rows.slice(0,12).map(r=>`<tr><td><b>${e(r.version)}</b></td><td>${e(r.date)}</td><td>${e(r.changes)}</td></tr>`).join('')}</tbody></table></div>`;
   }
 
   function connectorOverview(ins){
@@ -6522,6 +6595,7 @@ window.buildSolutionInsights=buildSolutionInsights;
       coverageHtml(ins),
       ins.tables.length?`<h2 class="ins-h2" id="${secId('tables')}">Data tables <small>who writes them and who reads them</small></h2>`:'',
       tablesHtml(ins),
+      ins.solution.releaseHistory?.length?`<h2 class="ins-h2">Version history <small>package release notes</small></h2>`:'', releasesHtml(ins),
       ins.findings.length?`<h2 class="ins-h2" id="${secId('findings')}">Good to know</h2>`:'', findingsHtml(ins)
     ].join('');
   };
@@ -6584,7 +6658,7 @@ window.buildSolutionInsights=buildSolutionInsights;
       if(cards.length>limit) rows.push({type:'row',nodes:[{id:`${id}::toggle`,title:open?'Show less':`+${cards.length-limit} more…`,sub:open?'collapse this group':'click to expand',accent:'#64748b',color:'node-more',expandKey:id,tooltip:`${cards.length} items in this group`}]});
       return {type:'subcontainer',id,label:`${label} (${cards.length})`,color:'sub-custom',accent,items:rows,cardIds:cards.map(c=>c.id)};
     }
-    const C=ins.connectors;
+    const C=ins.connectors.filter(c=>!c.orphaned);
     const zones=STAGES.map(s=>({id:s.id,label:s.label,color:s.id,accent:s.color,soft:s.soft,softDark:s.softDark,items:[]}));
     const zone=id=>zones.find(z=>z.id===id);
     const connections=[];

@@ -35,7 +35,10 @@ export function TablesMatrix({ insights }: { insights: Insights }) {
               <TableRow key={t.name}>
                 <TableCell><TableChip name={t.name} /></TableCell>
                 <TableCell>
-                  {t.producers.length ? (t.custom ? <ToneBadge tone="success">Custom table</ToneBadge> : <ToneBadge>Built-in table</ToneBadge>) : <ToneBadge tone="neutral">Queried only</ToneBadge>}
+                  <span className="flex flex-wrap gap-1">
+                    {t.producers.length ? (t.custom ? <ToneBadge tone="success">Custom table</ToneBadge> : <ToneBadge>Built-in table</ToneBadge>) : <ToneBadge tone="neutral">Queried only</ToneBadge>}
+                    {t.lakeOnly && <ToneBadge>Lake-only</ToneBadge>}
+                  </span>
                 </TableCell>
                 <TableCell className="max-w-64 text-xs">{t.producers.length ? t.producers.join(', ') : <span className="text-muted-foreground">other solutions / Azure</span>}</TableCell>
                 <TableCell className="text-xs">{t.schema ? `${t.schema.columns} columns${t.schema.plan ? ` · ${t.schema.plan}` : ''}` : <span className="text-muted-foreground">–</span>}</TableCell>
@@ -48,6 +51,33 @@ export function TablesMatrix({ insights }: { insights: Insights }) {
           </TableBody>
         </Table>
       </div>
+    </Card>
+  )
+}
+
+export function ReleaseHistory({ insights }: { insights: Insights }) {
+  const rows = insights.solution.releaseHistory
+  if (!rows.length) return null
+  return (
+    <Card className="overflow-hidden p-0">
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead>Version</TableHead>
+            <TableHead>Date</TableHead>
+            <TableHead>Change</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {rows.slice(0, 12).map((r) => (
+            <TableRow key={`${r.version}-${r.date}`}>
+              <TableCell className="font-semibold">{r.version}</TableCell>
+              <TableCell className="whitespace-nowrap">{r.date}</TableCell>
+              <TableCell>{r.changes}</TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
     </Card>
   )
 }
