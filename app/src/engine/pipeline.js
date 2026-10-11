@@ -18,7 +18,7 @@ import {
 } from './engine.generated.js'
 
 export { configureEngine, listSolutions, detectDefaultBranch }
-export { INS_METHODS, INS_ARCH_CATEGORIES, INS_TACTICS } from './engine.generated.js'
+export { INS_METHODS, INS_ARCH_CATEGORIES, INS_TACTICS, INS_VOLUME_UNITS, INS_VOLUME_SPREAD, insVolumeRows, insEstimateVolume, insVolumeKql } from './engine.generated.js'
 
 export async function analyzeSolution({ owner, repo, branch, solution }) {
   STATE.inventory = null

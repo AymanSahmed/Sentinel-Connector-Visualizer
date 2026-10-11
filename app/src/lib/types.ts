@@ -32,7 +32,7 @@ export interface ConnectorInsight {
   publisher: string
   description: string
   files: string[]
-  method: { primary: string; keys: string[]; found: MethodSignal[]; functionIngestion: string | null; legacyApiSignals: boolean }
+  method: { primary: string; keys: string[]; found: MethodSignal[]; functionIngestion: string | null; legacyApiSignals: boolean; legacyApiSignalOnly: boolean; legacyApiEvidence: Evidence[] }
   methodInfo: MethodInfo
   source: { title: string; lines: { label: string; value: string; meta?: string }[]; note: string }
   auth: string[]
@@ -87,6 +87,16 @@ export interface TableInsight {
   schema: { columns: number; plan?: string; retention?: number } | null
   custom: boolean
   lakeOnly: boolean
+}
+
+export interface VolumeRow {
+  table: string
+  producers: string[]
+  unit: string
+  eventsPerUnitPerDay: number
+  bytes: number
+  note: string
+  matched: boolean
 }
 
 export interface Finding {

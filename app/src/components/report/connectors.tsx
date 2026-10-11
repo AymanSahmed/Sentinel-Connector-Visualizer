@@ -124,7 +124,8 @@ export function ConnectorCard({ c, index }: { c: ConnectorInsight; index: number
         {c.isPreview && <ToneBadge tone="warning">Preview</ToneBadge>}
         {c.legacy && <ToneBadge tone="warning">Legacy</ToneBadge>}
         {c.orphaned && <ToneBadge tone="warning">⚠ Orphaned — not in current package</ToneBadge>}
-        {c.method.legacyApiSignals && c.method.primary !== 'http-collector' && <ToneBadge tone="warning">Legacy API signals found</ToneBadge>}
+        {c.method.primary === 'function' && /Logs Ingestion/i.test(c.method.functionIngestion ?? '') && <ToneBadge tone="info">Azure Function + Logs Ingestion API</ToneBadge>}
+        {c.method.legacyApiSignalOnly && <ToneBadge tone="warning">Legacy HTTP Data Collector signal</ToneBadge>}
         {c.method.keys.filter((k) => k !== c.method.primary && k !== 'logs-ingestion').map((k) => (
           <Badge key={k} variant="outline" style={{ color: INS_METHODS[k].color, borderColor: INS_METHODS[k].color }}>
             also: {INS_METHODS[k].label}
@@ -135,6 +136,23 @@ export function ConnectorCard({ c, index }: { c: ConnectorInsight; index: number
       <p className="rounded-lg border px-3 py-2 text-sm" style={{ backgroundColor: `${m.color}14`, borderColor: `${m.color}40` }}>
         <b>{m.label}:</b> {m.how}
       </p>
+      {c.method.primary === 'function' && /Logs Ingestion/i.test(c.method.functionIngestion ?? '') && (
+        <p className="rounded-lg border-l-4 border-l-violet-600 bg-violet-600/10 px-3 py-2 text-sm">
+          ⚡ <b>Azure Function + Logs Ingestion API</b> — data is collected by a Function App you deploy and operate, then written to Log Analytics through a Data Collection Endpoint / Rule.
+        </p>
+      )}
+      {c.method.legacyApiSignalOnly && (
+        <div className="rounded-lg border-l-4 border-l-amber-500 bg-amber-500/10 px-3 py-2 text-sm">
+          ⚠ <b>Legacy HTTP Data Collector API signal found</b> — this is a signal only, not how logs are collected ({c.method.functionIngestion ?? c.methodInfo.label} is detected).
+          {c.method.legacyApiEvidence.map((v, i) => (
+            <div key={i}>
+              <Code>
+                {v.file} {v.where ? `· ${v.where}` : ''} {v.snippet ? `→ ${v.snippet}` : ''}
+              </Code>
+            </div>
+          ))}
+        </div>
+      )}
       {c.description && <p className="text-muted-foreground text-sm">{c.description.slice(0, 420)}{c.description.length > 420 ? '…' : ''}</p>}
 
       <div className="grid gap-5 lg:grid-cols-[1.35fr_1fr_1fr_1fr_.9fr]">

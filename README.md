@@ -18,6 +18,7 @@ The page is a plain-language **Solution Insights report** first, and an engineer
 | **Data ingestion** | One pipeline per connector: **Source → Collection → Ingestion → Log Analytics tables → Used by**, plus auth, schedule, inputs, prerequisites and the *evidence* behind the classification |
 | **Detection & response content** | Analytics rules (severity bar, MITRE ATT&CK heat strip, frequency), hunting queries, workbooks, playbooks (trigger + connectors), parsers, watchlists |
 | **Data tables** | Which current-package connector writes each table and which rules/queries/workbooks read it; schema column counts and lake-only support |
+| **Estimated ingestion volume** | Planning aid: enter users / devices / sources, edit per-table events-per-unit and bytes-per-event assumptions, and get a low / likely / high range in GB/day, GB/month and EPS, plus KQL (`Usage`, `union … count()`) to measure the real figures. The repository itself never states volume, so every number is an editable assumption |
 | **Version history / Good to know** | Package release notes, orphaned/deprecated connector warnings, legacy ingestion warnings, previews, and billing notes |
 | **Technical map & artifact explorer** | The stage map (below) and the original graph layouts |
 
@@ -31,7 +32,8 @@ The page is a plain-language **Solution Insights report** first, and an engineer
 | **Azure Function** | `Microsoft.Web/sites` resource, `host.json` / `function.json` / `FunctionApp` packaging, or a title stating *using Azure Functions*. The report also says whether the function writes through the Logs Ingestion API (DCR/DCE) or the legacy Data Collector API |
 | **Agent-based** | `CommonSecurityLog` / `Syslog` / Windows data types or `InstallAgent` steps (only when no CCF/Function path is confirmed) |
 | **Native integration** | Built-in kinds, tenant-level permissions, Microsoft diagnostic-settings providers |
-| **HTTP Data Collector (legacy)** | Reported as the collection method only when `/api/logs` or workspace shared-key ingestion is the active path. If modern DCR/DCE or Logs Ingestion artifacts are present, old references are shown only as **Legacy API signals found** |
+| **HTTP Data Collector (legacy)** | Reported as the collection method only when `/api/logs` or workspace shared-key ingestion is the active path. If a modern path is detected (CCF, or an Azure Function writing through the Logs Ingestion API / DCR / DCE), the old reference is shown only as a **Legacy HTTP Data Collector signal** with its exact file and JSON path — a signal, not the collection method |
+| **Azure Function + Logs Ingestion API** | Highlighted with its own badge, callout and category when a Function App writes through a DCE/DCR rather than the legacy API |
 
 Every connector card has a collapsible *"Why was it classified as …?"* panel listing strong/medium signals and the file + JSON path that triggered them.
 

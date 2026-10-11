@@ -1188,6 +1188,7 @@ async function fetchJson(url,purpose='',tries=3){
 
 /* Primary listing with fallback */
 const YAML_CONTENT_DIR_RE=/\/(analytic[s]?[ _-]?rules?|hunting[ _-]?queries|parsers?|detections?|summary[ _-]?rules?)\//i;
+const encodeRepoPath=p=>String(p||'').split('/').map(encodeURIComponent).join('/');
 function isSolutionContentFile(path){
   const p=String(path||'');
   if(/\.json$/i.test(p)) return true;
@@ -2495,8 +2496,8 @@ async function extractSolutionMeta(owner,repo,branch,solution,paths){
   const mtPath=paths.find(p=>/main(template)?\.json$/i.test(p));
   const smPath=paths.find(p=>/solutionmetadata\.json$/i.test(p));
   let mt={}, sm={};
-  if(mtPath) mt=await fetchJson(base+mtPath,'mainTemplate')||{};
-  if(smPath) sm=await fetchJson(base+smPath,'solutionMetadata')||{};
+  try{ if(mtPath) mt=await fetchJson(base+encodeRepoPath(mtPath),'mainTemplate')||{}; }catch(e){ log(`mainTemplate metadata skipped: ${e.message}`,true); }
+  try{ if(smPath) sm=await fetchJson(base+encodeRepoPath(smPath),'solutionMetadata')||{}; }catch(e){ log(`solutionMetadata skipped: ${e.message}`,true); }
 
   function paramPick(...cands){
     for(const cand of cands){
@@ -5331,13 +5332,13 @@ async function fetchSolutionFiles(owner,repo,branch,paths,includeNonCore){
     try{
       let js;
       if(/\.md$/i.test(p)){
-        js={__format:'markdown',text:await fetchText(base+p,'release notes')};
+        js={__format:'markdown',text:await fetchText(base+encodeRepoPath(p),'release notes')};
       }else if(/\.ya?ml$/i.test(p)){
         if(!yaml) return null;
-        js=yaml.load(await fetchText(base+p,'yaml artifact'));
+        js=yaml.load(await fetchText(base+encodeRepoPath(p),'yaml artifact'));
         if(js && typeof js==='object' && !Array.isArray(js)) js.__format='yaml';
       }else{
-        js=await fetchJson(base+p,'artifact');
+        js=await fetchJson(base+encodeRepoPath(p),'artifact');
       }
       done++;
       if(done%20===0) setStatus(`Fetched ${done}/${paths.length} files...`);
@@ -5844,7 +5845,10 @@ function insDetectMethods(sig){
   if(fnKey){
     functionIngestion=hasModernApi?'Logs Ingestion API (DCR / DCE)':legacyApi?'Data Collector API (legacy, workspace shared key)':'Log Analytics ingestion (implemented in function code)';
   }
-  return {primary,keys,found:strongFirst,functionIngestion,legacyApiSignals:legacyApi};
+  const legacyApiEvidence=legacyApi?[...flagEv('dataCollectorApi'),...flagEv('sharedKey')].slice(0,4):[];
+  /* A signal only: another ingestion path is detected, so the legacy API is not how this connector collects logs. */
+  const legacyApiSignalOnly=legacyApi&&primary!=='http-collector'&&!/Data Collector/i.test(functionIngestion||'');
+  return {primary,keys,found:strongFirst,functionIngestion,legacyApiSignals:legacyApi,legacyApiSignalOnly,legacyApiEvidence};
 }
 
 function insPollerLabel(p){
@@ -6024,6 +6028,7 @@ function insApplyTitleHints(method,name){
 }
 const INS_ARCH_CATEGORIES={
   ccf:{label:'CCF',cls:'ccf'},
+  'function-logs':{label:'Azure Function + Logs Ingestion API',cls:'ccf'},
   logs:{label:'Logs Ingestion API',cls:'ccf'},
   function:{label:'Azure Function',cls:'http'},
   http:{label:'HTTP Data Collector API',cls:'http'},
@@ -6038,7 +6043,7 @@ function insArchCategory(c){
   if(p==='function'){
     const via=String(c.method.functionIngestion||'');
     if(/Data Collector/i.test(via)) return 'http';
-    if(/Logs Ingestion/i.test(via)) return 'logs';
+    if(/Logs Ingestion/i.test(via)) return 'function-logs';
     return 'function';
   }
   if(p==='logs-ingestion') return 'logs';
@@ -6046,6 +6051,62 @@ function insArchCategory(c){
   if(p==='agent') return 'legacy';
   if(p==='native') return 'native';
   return 'unclassified';
+}
+/* ---------- Ingestion volume estimator (planning aid) ----------
+   The repository never states data volume. These per-unit profiles are editable rules of thumb, not measurements. */
+const INS_VOLUME_UNITS={users:'Users',devices:'Devices / hosts',sources:'Sources / tenants'};
+const INS_VOLUME_SPREAD={low:.4,high:3};
+const INS_VOLUME_PROFILES=[
+  {re:/^SecurityEvent$/i,unit:'devices',eventsPerUnitPerDay:3000,bytes:900,note:'Windows Security events; domain controllers are far heavier'},
+  {re:/^WindowsEvent$/i,unit:'devices',eventsPerUnitPerDay:3000,bytes:1000,note:'Windows events'},
+  {re:/^Syslog$/i,unit:'devices',eventsPerUnitPerDay:5000,bytes:350,note:'Linux / appliance syslog'},
+  {re:/^CommonSecurityLog$/i,unit:'devices',eventsPerUnitPerDay:60000,bytes:800,note:'CEF from firewalls / proxies; busy firewalls reach millions per day'},
+  {re:/^Heartbeat$/i,unit:'devices',eventsPerUnitPerDay:1440,bytes:300,note:'One heartbeat per minute'},
+  {re:/^Device[A-Za-z]*Events?$|^DeviceProcessEvents$|^DeviceNetworkEvents$/i,unit:'devices',eventsPerUnitPerDay:4000,bytes:1000,note:'Defender for Endpoint advanced hunting tables'},
+  {re:/^(AAD)?SigninLogs$/i,unit:'users',eventsPerUnitPerDay:10,bytes:2800,note:'Interactive sign-ins'},
+  {re:/^AADNonInteractiveUserSignInLogs$/i,unit:'users',eventsPerUnitPerDay:60,bytes:2800,note:'Non-interactive sign-ins'},
+  {re:/^AuditLogs$/i,unit:'users',eventsPerUnitPerDay:2,bytes:2000,note:'Directory audit events'},
+  {re:/^OfficeActivity$/i,unit:'users',eventsPerUnitPerDay:40,bytes:1500,note:'Exchange / SharePoint / Teams activity'},
+  {re:/^AzureActivity$/i,unit:'sources',eventsPerUnitPerDay:2000,bytes:1200,note:'Per subscription'},
+  {re:/^SecurityAlert$|^SecurityIncident$/i,unit:'sources',eventsPerUnitPerDay:20,bytes:3000,note:'Alerts / incidents are low volume'},
+  {re:/_CL$/i,generic:true,unit:'users',eventsPerUnitPerDay:25,bytes:1200,note:'Generic custom-table default — edit for this source'}
+];
+const INS_VOLUME_DEFAULT={unit:'users',eventsPerUnitPerDay:20,bytes:1000,note:'Generic default — edit for this source'};
+function insVolumeProfile(table){
+  const hit=INS_VOLUME_PROFILES.find(p=>p.re.test(table));
+  const {re,generic,...profile}=hit||INS_VOLUME_DEFAULT;
+  return {...profile,matched:!!hit&&!generic};
+}
+function insVolumeRows(ins){
+  return (ins?.tables||[]).filter(t=>t.producers&&t.producers.length).map(t=>({table:t.name,producers:t.producers,...insVolumeProfile(t.name)}));
+}
+function insEstimateVolume(rows,units){
+  const out=(rows||[]).map(r=>{
+    const count=Math.max(0,Number(units?.[r.unit])||0);
+    const events=count*Math.max(0,Number(r.eventsPerUnitPerDay)||0);
+    return {...r,events,eps:events/86400,gbPerDay:events*Math.max(0,Number(r.bytes)||0)/1e9};
+  });
+  const sum=k=>out.reduce((s,r)=>s+r[k],0);
+  const total={events:sum('events'),eps:sum('eps'),gbPerDay:sum('gbPerDay')};
+  const scale=f=>({eps:total.eps*f,gbPerDay:total.gbPerDay*f,gbPerMonth:total.gbPerDay*f*30});
+  return {rows:out,total:{...total,gbPerMonth:total.gbPerDay*30},range:{low:scale(INS_VOLUME_SPREAD.low),likely:scale(1),high:scale(INS_VOLUME_SPREAD.high)}};
+}
+function insVolumeKql(tables){
+  const list=(tables||[]).filter(t=>/^[A-Za-z_][A-Za-z0-9_]*$/.test(t));
+  if(!list.length) return '';
+  const names=list.map(t=>`"${t}"`).join(', ');
+  return [
+    '// Billable GB per day per table (run in the workspace that ingests this solution)',
+    `Usage | where TimeGenerated > ago(30d) and IsBillable == true and DataType in (${names})`,
+    '| summarize GB=round(sum(Quantity)/1000,3) by DataType, Day=bin(TimeGenerated,1d)',
+    '| order by Day desc, GB desc',
+    '',
+    '// Average and peak events per second per table',
+    `union withsource=Table ${list.join(', ')}`,
+    '| where TimeGenerated > ago(7d)',
+    '| summarize Events=count() by Table, Hour=bin(TimeGenerated,1h)',
+    '| summarize AvgEPS=round(avg(Events)/3600.0,3), PeakEPS=round(max(Events)/3600.0,3) by Table'
+  ].join('\n');
 }
 function insReconcileArchitecture(analysis,ins){
   if(!analysis||!ins) return analysis;
@@ -6110,6 +6171,9 @@ function buildSolutionInsights(art,meta){
   const sm=meta?.rawSolutionMeta||{};
   const solutionName=meta?.solutionName||'Solution';
   const logical=insLogicalConnectors(art);
+  /* Orphans are only judged for file-based definitions, and only when the manifest demonstrably matches this layout. */
+  const isFileConnector=c=>!c.embedded&&!/^\(/.test(String(c.path||''));
+  const manifestAnchored=!!manifestConnectorPaths&&logical.some(c=>isFileConnector(c)&&manifestConnectorPaths.has(insConnectorManifestPath(c)));
   const instanceIndex=insIndexInstances(files);
   const allDcrs=(art.dcrs||[]).concat((art.coreFiles||[]).filter(x=>x.coreKind==='dcr'));
   const schemas=insCollectTableSchemas(files);
@@ -6169,7 +6233,7 @@ function buildSolutionInsights(art,meta){
     const functionApps=(art.functionApps||[]).filter(f=>pkgPaths.has(f.path)).map(f=>f.id);
     const requiredBy=analytics.filter(a=>a.connectorIds.some(i=>ids.includes(i))).length;
     const legacyByName=/deprecat|legacy/i.test(`${c.id} ${c.description||''}`);
-    const orphaned=!!manifestConnectorPaths&&!manifestConnectorPaths.has(insConnectorManifestPath(c));
+    const orphaned=manifestAnchored&&isFileConnector(c)&&!manifestConnectorPaths.has(insConnectorManifestPath(c));
     return {
       name:title,publisher:c.publisher||'',description:insCleanMarkdown(c.description||''),
       ids,definitionPath:c.path,files:[...pkgPaths].map(insShort),method,methodInfo:INS_METHODS[method.primary],
@@ -6259,7 +6323,11 @@ function buildSolutionInsights(art,meta){
   connectors.filter(c=>c.orphaned).forEach(c=>findings.push({level:'warn',text:`${c.name}: ⚠ Orphaned — not in current package manifest. It may be deprecated or retained only for migration.`}));
   if(functionConnectors.length&&serverless.length) findings.push({level:'info',text:`Two collection paths ship in the same solution — serverless: ${serverless.map(c=>c.name).join(', ')}; Azure Function: ${functionConnectors.map(c=>c.name).join(', ')}. Prefer the serverless connector for new deployments.`});
   connectors.filter(c=>c.method.primary==='http-collector').forEach(c=>findings.push({level:'warn',text:`${c.name} uses the legacy HTTP Data Collector API (shared key). Microsoft is moving ingestion to the Logs Ingestion API / CCF.`}));
-  connectors.filter(c=>c.method.primary!=='http-collector'&&c.method.legacyApiSignals).forEach(c=>findings.push({level:'info',text:`${c.name}: some legacy Data Collector API signals were found in package files, but the detected ingestion method is ${c.methodInfo.label}.`}));
+  connectors.filter(c=>!c.orphaned&&c.method.primary==='function'&&/Logs Ingestion/i.test(c.method.functionIngestion||'')).forEach(c=>findings.push({level:'info',text:`${c.name}: runs in a customer-hosted Azure Function and writes through the Logs Ingestion API (DCR / DCE).`}));
+  connectors.filter(c=>c.method.legacyApiSignalOnly).forEach(c=>{
+    const ev=(c.method.legacyApiEvidence||[])[0];
+    findings.push({level:'info',text:`${c.name}: a legacy HTTP Data Collector API signal was found${ev?` (${ev.file}${ev.where?' · '+ev.where:''}${ev.snippet?' → '+ev.snippet:''})`:''}. This is a signal only — the detected collection method is ${c.methodInfo.label}${c.method.functionIngestion?`, writing via ${c.method.functionIngestion}`:''}.`});
+  });
   connectors.filter(c=>c.method.primary==='unknown').forEach(c=>findings.push({level:'warn',text:`${c.name}: the repository JSON does not reveal how data is collected — check the connector page in the Sentinel content hub.`}));
   const previews=connectors.filter(c=>c.isPreview);
   if(previews.length) findings.push({level:'info',text:`${previews.length===connectors.length&&previews.length>1?'All connectors are':previews.map(c=>c.name).slice(0,3).join(', ')+(previews.length>3?` +${previews.length-3} more`:'')+(previews.length===1?' is':' are')} marked as Preview — behaviour and billing may change.`});
@@ -6469,6 +6537,7 @@ window.buildSolutionInsights=buildSolutionInsights;
   }
 
   function connectorHtml(c,i){
+    const callout=(color,html)=>`<div style="border-left:4px solid ${color};background:${color}14;padding:.5rem .75rem;border-radius:8px;margin:.5rem 0;font-size:13px">${html}</div>`;
     const m=c.methodInfo;
     const prereqItems=[...c.prerequisites.permissions.map(p=>({n:'Workspace',t:p})),...c.prerequisites.customs.map(x=>({n:x.name,t:x.text}))];
     const facts=[];
@@ -6484,10 +6553,13 @@ window.buildSolutionInsights=buildSolutionInsights;
         ${c.publisher?`<span class="ins-muted">by ${e(c.publisher)}</span>`:''}
         ${c.isPreview?pill('Preview','#d97706'):''}${c.legacy?pill('Legacy','#b45309'):''}
         ${c.orphaned?pill('⚠ Orphaned — not in current package','#d97706'):''}
-        ${c.method.legacyApiSignals&&c.method.primary!=='http-collector'?pill('Legacy API signals found','#d97706'):''}
+        ${c.method.primary==='function'&&/Logs Ingestion/i.test(c.method.functionIngestion||'')?pill('Azure Function + Logs Ingestion API','#7c3aed'):''}
+        ${c.method.legacyApiSignalOnly?pill('Legacy HTTP Data Collector signal','#d97706','Signal only — not the collection method'):''}
         ${c.method.keys.filter(k=>k!==c.method.primary&&k!=='logs-ingestion').map(k=>pill('also: '+INS_METHODS[k].label,INS_METHODS[k].color)).join('')}
       </div>
       <p class="ins-how"><b>${e(m.label)}:</b> ${e(m.how)}</p>
+      ${c.method.primary==='function'&&/Logs Ingestion/i.test(c.method.functionIngestion||'')?callout('#7c3aed','⚡ <b>Azure Function + Logs Ingestion API</b> — data is collected by a Function App you deploy and operate, then written to Log Analytics through a Data Collection Endpoint / Rule.'):''}
+      ${c.method.legacyApiSignalOnly?callout('#d97706',`⚠ <b>Legacy HTTP Data Collector API signal found</b> — this is a signal only, not how logs are collected${c.method.functionIngestion?` (${e(c.method.functionIngestion)} is detected)`:` (${e(c.methodInfo.label)} is detected)`}.${(c.method.legacyApiEvidence||[]).map(v=>`<div><code>${e(v.file||'')} ${v.where?'· '+e(v.where):''} ${v.snippet?'→ '+e(v.snippet):''}</code></div>`).join('')}`):''}
       ${c.description?`<div class="ins-muted">${e(c.description.slice(0,420))}${c.description.length>420?'…':''}</div>`:''}
       <div class="ins-stages">
         ${stage('Source','📡',sourceStage(c),'#0d9488')}
@@ -6562,6 +6634,51 @@ window.buildSolutionInsights=buildSolutionInsights;
     return `<div class="ins-card ins-table-wrap"><table class="ins-table"><thead><tr><th>Version</th><th>Date</th><th>Change</th></tr></thead><tbody>${rows.slice(0,12).map(r=>`<tr><td><b>${e(r.version)}</b></td><td>${e(r.date)}</td><td>${e(r.changes)}</td></tr>`).join('')}</tbody></table></div>`;
   }
 
+  const fmtNum=n=>!isFinite(n)||n<=0?'0':n>=100?Math.round(n).toLocaleString():n>=10?n.toFixed(1):n>=1?n.toFixed(2):n>=.01?n.toFixed(3):'<0.01';
+  function volumeHtml(ins){
+    const V=STATE.volume=STATE.volume||{units:{users:1000,devices:500,sources:10},rows:[]};
+    V.rows=insVolumeRows(ins);
+    if(!V.rows.length) return '<div class="ins-card ins-muted">This solution ingests no tables, so there is no volume to estimate.</div>';
+    const unitInputs=Object.entries(INS_VOLUME_UNITS).map(([k,label])=>`<label style="display:flex;flex-direction:column;gap:2px;font-size:12px;font-weight:600">${e(label)}<input class="input" type="number" min="0" data-vol-unit="${k}" value="${V.units[k]}" style="width:130px"></label>`).join('');
+    const unitOptions=sel=>Object.entries(INS_VOLUME_UNITS).map(([k,l])=>`<option value="${k}"${k===sel?' selected':''}>${e(l)}</option>`).join('');
+    const rows=V.rows.map((r,i)=>`<tr data-vol-row="${i}">
+      <td><code class="ins-chip">${e(r.table)}</code>${r.matched?'':' <span class="ins-muted">generic profile</span>'}<div class="ins-muted" style="font-size:11.5px">${e(r.note)}</div></td>
+      <td><select class="input" data-vol-field="unit" style="width:150px">${unitOptions(r.unit)}</select></td>
+      <td><input class="input" type="number" min="0" data-vol-field="eventsPerUnitPerDay" value="${r.eventsPerUnitPerDay}" style="width:110px"></td>
+      <td><input class="input" type="number" min="0" data-vol-field="bytes" value="${r.bytes}" style="width:90px"></td>
+      <td class="ins-num" data-vol-out="eps"></td><td class="ins-num" data-vol-out="gb"></td></tr>`).join('');
+    return `<div class="ins-card" id="ins-volume">
+      <div class="ins-muted" style="font-size:12px;margin-bottom:.5rem">⚠ Planning estimate only — the repository does not state data volume. Enter your environment size and adjust the editable per-table assumptions; validate with the KQL below or a short pilot.</div>
+      <div style="display:flex;flex-wrap:wrap;gap:1rem;margin-bottom:.75rem">${unitInputs}</div>
+      <div id="ins-vol-summary" style="display:flex;flex-wrap:wrap;gap:.75rem;margin-bottom:.75rem"></div>
+      <div class="ins-table-wrap"><table class="ins-table"><thead><tr><th>Table</th><th>Scales with</th><th>Events / unit / day</th><th>Avg bytes / event</th><th class="ins-num">Likely EPS</th><th class="ins-num">Likely GB / day</th></tr></thead><tbody>${rows}</tbody></table></div>
+      <details class="ins-more"><summary>Measure real volume (KQL)</summary><div><button data-ins-action="copy-vol-kql">⧉ Copy KQL</button><pre style="white-space:pre-wrap;font-size:12px">${e(insVolumeKql(V.rows.map(r=>r.table)))}</pre></div></details>
+    </div>`;
+  }
+  function updateVolume(){
+    const V=STATE.volume; if(!V||!document.getElementById('ins-volume')) return;
+    const est=insEstimateVolume(V.rows,V.units);
+    document.querySelectorAll('#ins-volume tr[data-vol-row]').forEach(tr=>{
+      const r=est.rows[+tr.getAttribute('data-vol-row')]; if(!r) return;
+      tr.querySelector('[data-vol-out="eps"]').textContent=fmtNum(r.eps);
+      tr.querySelector('[data-vol-out="gb"]').textContent=fmtNum(r.gbPerDay);
+    });
+    const box=document.getElementById('ins-vol-summary');
+    if(box) box.innerHTML=[['Low','low'],['Likely','likely'],['High','high']].map(([label,k])=>{
+      const g=est.range[k];
+      return `<div style="flex:1;min-width:170px;border:1px solid var(--panel-border);border-radius:10px;padding:.6rem .8rem;${k==='likely'?'background:var(--panel-alt)':''}"><div class="ins-muted" style="font-size:11px;text-transform:uppercase;letter-spacing:.06em">${label}</div><div style="font-size:20px;font-weight:800">${fmtNum(g.gbPerDay)} <small style="font-size:12px;font-weight:600">GB/day</small></div><div class="ins-muted" style="font-size:12px">${fmtNum(g.gbPerMonth)} GB/month · ${fmtNum(g.eps)} EPS</div></div>`;
+    }).join('');
+  }
+  document.addEventListener('input',ev=>{
+    const t=ev.target, V=STATE.volume;
+    if(!V||!t?.matches) return;
+    if(t.matches('[data-vol-unit]')){ V.units[t.getAttribute('data-vol-unit')]=Math.max(0,Number(t.value)||0); updateVolume(); }
+    else if(t.matches('[data-vol-field]')){
+      const row=V.rows[+t.closest('tr').getAttribute('data-vol-row')], f=t.getAttribute('data-vol-field');
+      if(row){ row[f]=f==='unit'?t.value:Math.max(0,Number(t.value)||0); updateVolume(); }
+    }
+  });
+
   function connectorOverview(ins){
     if(ins.connectors.length<2) return '';
     const rows=ins.connectors.map((c,i)=>`<tr>
@@ -6595,9 +6712,12 @@ window.buildSolutionInsights=buildSolutionInsights;
       coverageHtml(ins),
       ins.tables.length?`<h2 class="ins-h2" id="${secId('tables')}">Data tables <small>who writes them and who reads them</small></h2>`:'',
       tablesHtml(ins),
+      ins.tables.some(t=>t.producers.length)?`<h2 class="ins-h2" id="${secId('volume')}">Estimated ingestion volume <small>planning aid — edit the assumptions</small></h2>`:'',
+      ins.tables.some(t=>t.producers.length)?volumeHtml(ins):'',
       ins.solution.releaseHistory?.length?`<h2 class="ins-h2">Version history <small>package release notes</small></h2>`:'', releasesHtml(ins),
       ins.findings.length?`<h2 class="ins-h2" id="${secId('findings')}">Good to know</h2>`:'', findingsHtml(ins)
     ].join('');
+    updateVolume();
   };
 
   function toMarkdown(ins){
@@ -6623,6 +6743,7 @@ window.buildSolutionInsights=buildSolutionInsights;
     if(goto){ document.getElementById(secId(goto.getAttribute('data-ins-goto')))?.scrollIntoView({behavior:'smooth',block:'start'}); return; }
     const act=ev.target.closest('[data-ins-action]')?.getAttribute('data-ins-action');
     if(act==='copy-md'&&STATE.insights){ navigator.clipboard?.writeText(toMarkdown(STATE.insights)).then(()=>setStatus('Summary copied as Markdown.')); }
+    if(act==='copy-vol-kql'&&STATE.volume){ navigator.clipboard?.writeText(insVolumeKql(STATE.volume.rows.map(r=>r.table))).then(()=>setStatus('Volume KQL copied.')); }
     if(act==='export-insights'&&STATE.insights){
       const blob=new Blob([JSON.stringify(STATE.insights,null,2)],{type:'application/json'});
       const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='sentinel_solution_insights.json'; a.click(); URL.revokeObjectURL(a.href);

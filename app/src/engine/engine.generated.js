@@ -33,6 +33,8 @@ async function fetchJson(url,purpose='',tries=3){
 
 const YAML_CONTENT_DIR_RE=/\/(analytic[s]?[ _-]?rules?|hunting[ _-]?queries|parsers?|detections?|summary[ _-]?rules?)\//i;
 
+const encodeRepoPath=p=>String(p||'').split('/').map(encodeURIComponent).join('/');
+
 function isSolutionContentFile(path){
   const p=String(path||'');
   if(/\.json$/i.test(p)) return true;
@@ -979,8 +981,8 @@ async function extractSolutionMeta(owner,repo,branch,solution,paths){
   const mtPath=paths.find(p=>/main(template)?\.json$/i.test(p));
   const smPath=paths.find(p=>/solutionmetadata\.json$/i.test(p));
   let mt={}, sm={};
-  if(mtPath) mt=await fetchJson(base+mtPath,'mainTemplate')||{};
-  if(smPath) sm=await fetchJson(base+smPath,'solutionMetadata')||{};
+  try{ if(mtPath) mt=await fetchJson(base+encodeRepoPath(mtPath),'mainTemplate')||{}; }catch(e){ log(`mainTemplate metadata skipped: ${e.message}`,true); }
+  try{ if(smPath) sm=await fetchJson(base+encodeRepoPath(smPath),'solutionMetadata')||{}; }catch(e){ log(`solutionMetadata skipped: ${e.message}`,true); }
 
   function paramPick(...cands){
     for(const cand of cands){
@@ -1310,13 +1312,13 @@ async function fetchSolutionFiles(owner,repo,branch,paths,includeNonCore){
     try{
       let js;
       if(/\.md$/i.test(p)){
-        js={__format:'markdown',text:await fetchText(base+p,'release notes')};
+        js={__format:'markdown',text:await fetchText(base+encodeRepoPath(p),'release notes')};
       }else if(/\.ya?ml$/i.test(p)){
         if(!yaml) return null;
-        js=yaml.load(await fetchText(base+p,'yaml artifact'));
+        js=yaml.load(await fetchText(base+encodeRepoPath(p),'yaml artifact'));
         if(js && typeof js==='object' && !Array.isArray(js)) js.__format='yaml';
       }else{
-        js=await fetchJson(base+p,'artifact');
+        js=await fetchJson(base+encodeRepoPath(p),'artifact');
       }
       done++;
       onProgress(done,paths.length);
@@ -1636,7 +1638,10 @@ function insDetectMethods(sig){
   if(fnKey){
     functionIngestion=hasModernApi?'Logs Ingestion API (DCR / DCE)':legacyApi?'Data Collector API (legacy, workspace shared key)':'Log Analytics ingestion (implemented in function code)';
   }
-  return {primary,keys,found:strongFirst,functionIngestion,legacyApiSignals:legacyApi};
+  const legacyApiEvidence=legacyApi?[...flagEv('dataCollectorApi'),...flagEv('sharedKey')].slice(0,4):[];
+  /* A signal only: another ingestion path is detected, so the legacy API is not how this connector collects logs. */
+  const legacyApiSignalOnly=legacyApi&&primary!=='http-collector'&&!/Data Collector/i.test(functionIngestion||'');
+  return {primary,keys,found:strongFirst,functionIngestion,legacyApiSignals:legacyApi,legacyApiSignalOnly,legacyApiEvidence};
 }
 
 function insPollerLabel(p){
@@ -1824,6 +1829,7 @@ function insApplyTitleHints(method,name){
 
 const INS_ARCH_CATEGORIES={
   ccf:{label:'CCF',cls:'ccf'},
+  'function-logs':{label:'Azure Function + Logs Ingestion API',cls:'ccf'},
   logs:{label:'Logs Ingestion API',cls:'ccf'},
   function:{label:'Azure Function',cls:'http'},
   http:{label:'HTTP Data Collector API',cls:'http'},
@@ -1838,7 +1844,7 @@ function insArchCategory(c){
   if(p==='function'){
     const via=String(c.method.functionIngestion||'');
     if(/Data Collector/i.test(via)) return 'http';
-    if(/Logs Ingestion/i.test(via)) return 'logs';
+    if(/Logs Ingestion/i.test(via)) return 'function-logs';
     return 'function';
   }
   if(p==='logs-ingestion') return 'logs';
@@ -1846,6 +1852,68 @@ function insArchCategory(c){
   if(p==='agent') return 'legacy';
   if(p==='native') return 'native';
   return 'unclassified';
+}
+
+const INS_VOLUME_UNITS={users:'Users',devices:'Devices / hosts',sources:'Sources / tenants'};
+
+const INS_VOLUME_SPREAD={low:.4,high:3};
+
+const INS_VOLUME_PROFILES=[
+  {re:/^SecurityEvent$/i,unit:'devices',eventsPerUnitPerDay:3000,bytes:900,note:'Windows Security events; domain controllers are far heavier'},
+  {re:/^WindowsEvent$/i,unit:'devices',eventsPerUnitPerDay:3000,bytes:1000,note:'Windows events'},
+  {re:/^Syslog$/i,unit:'devices',eventsPerUnitPerDay:5000,bytes:350,note:'Linux / appliance syslog'},
+  {re:/^CommonSecurityLog$/i,unit:'devices',eventsPerUnitPerDay:60000,bytes:800,note:'CEF from firewalls / proxies; busy firewalls reach millions per day'},
+  {re:/^Heartbeat$/i,unit:'devices',eventsPerUnitPerDay:1440,bytes:300,note:'One heartbeat per minute'},
+  {re:/^Device[A-Za-z]*Events?$|^DeviceProcessEvents$|^DeviceNetworkEvents$/i,unit:'devices',eventsPerUnitPerDay:4000,bytes:1000,note:'Defender for Endpoint advanced hunting tables'},
+  {re:/^(AAD)?SigninLogs$/i,unit:'users',eventsPerUnitPerDay:10,bytes:2800,note:'Interactive sign-ins'},
+  {re:/^AADNonInteractiveUserSignInLogs$/i,unit:'users',eventsPerUnitPerDay:60,bytes:2800,note:'Non-interactive sign-ins'},
+  {re:/^AuditLogs$/i,unit:'users',eventsPerUnitPerDay:2,bytes:2000,note:'Directory audit events'},
+  {re:/^OfficeActivity$/i,unit:'users',eventsPerUnitPerDay:40,bytes:1500,note:'Exchange / SharePoint / Teams activity'},
+  {re:/^AzureActivity$/i,unit:'sources',eventsPerUnitPerDay:2000,bytes:1200,note:'Per subscription'},
+  {re:/^SecurityAlert$|^SecurityIncident$/i,unit:'sources',eventsPerUnitPerDay:20,bytes:3000,note:'Alerts / incidents are low volume'},
+  {re:/_CL$/i,generic:true,unit:'users',eventsPerUnitPerDay:25,bytes:1200,note:'Generic custom-table default — edit for this source'}
+];
+
+const INS_VOLUME_DEFAULT={unit:'users',eventsPerUnitPerDay:20,bytes:1000,note:'Generic default — edit for this source'};
+
+function insVolumeProfile(table){
+  const hit=INS_VOLUME_PROFILES.find(p=>p.re.test(table));
+  const {re,generic,...profile}=hit||INS_VOLUME_DEFAULT;
+  return {...profile,matched:!!hit&&!generic};
+}
+
+function insVolumeRows(ins){
+  return (ins?.tables||[]).filter(t=>t.producers&&t.producers.length).map(t=>({table:t.name,producers:t.producers,...insVolumeProfile(t.name)}));
+}
+
+function insEstimateVolume(rows,units){
+  const out=(rows||[]).map(r=>{
+    const count=Math.max(0,Number(units?.[r.unit])||0);
+    const events=count*Math.max(0,Number(r.eventsPerUnitPerDay)||0);
+    return {...r,events,eps:events/86400,gbPerDay:events*Math.max(0,Number(r.bytes)||0)/1e9};
+  });
+  const sum=k=>out.reduce((s,r)=>s+r[k],0);
+  const total={events:sum('events'),eps:sum('eps'),gbPerDay:sum('gbPerDay')};
+  const scale=f=>({eps:total.eps*f,gbPerDay:total.gbPerDay*f,gbPerMonth:total.gbPerDay*f*30});
+  return {rows:out,total:{...total,gbPerMonth:total.gbPerDay*30},range:{low:scale(INS_VOLUME_SPREAD.low),likely:scale(1),high:scale(INS_VOLUME_SPREAD.high)}};
+}
+
+function insVolumeKql(tables){
+  const list=(tables||[]).filter(t=>/^[A-Za-z_][A-Za-z0-9_]*$/.test(t));
+  if(!list.length) return '';
+  const names=list.map(t=>`"${t}"`).join(', ');
+  return [
+    '// Billable GB per day per table (run in the workspace that ingests this solution)',
+    `Usage | where TimeGenerated > ago(30d) and IsBillable == true and DataType in (${names})`,
+    '| summarize GB=round(sum(Quantity)/1000,3) by DataType, Day=bin(TimeGenerated,1d)',
+    '| order by Day desc, GB desc',
+    '',
+    '// Average and peak events per second per table',
+    `union withsource=Table ${list.join(', ')}`,
+    '| where TimeGenerated > ago(7d)',
+    '| summarize Events=count() by Table, Hour=bin(TimeGenerated,1h)',
+    '| summarize AvgEPS=round(avg(Events)/3600.0,3), PeakEPS=round(max(Events)/3600.0,3) by Table'
+  ].join('\n');
 }
 
 function insReconcileArchitecture(analysis,ins){
@@ -1912,6 +1980,9 @@ function buildSolutionInsights(art,meta){
   const sm=meta?.rawSolutionMeta||{};
   const solutionName=meta?.solutionName||'Solution';
   const logical=insLogicalConnectors(art);
+  /* Orphans are only judged for file-based definitions, and only when the manifest demonstrably matches this layout. */
+  const isFileConnector=c=>!c.embedded&&!/^\(/.test(String(c.path||''));
+  const manifestAnchored=!!manifestConnectorPaths&&logical.some(c=>isFileConnector(c)&&manifestConnectorPaths.has(insConnectorManifestPath(c)));
   const instanceIndex=insIndexInstances(files);
   const allDcrs=(art.dcrs||[]).concat((art.coreFiles||[]).filter(x=>x.coreKind==='dcr'));
   const schemas=insCollectTableSchemas(files);
@@ -1971,7 +2042,7 @@ function buildSolutionInsights(art,meta){
     const functionApps=(art.functionApps||[]).filter(f=>pkgPaths.has(f.path)).map(f=>f.id);
     const requiredBy=analytics.filter(a=>a.connectorIds.some(i=>ids.includes(i))).length;
     const legacyByName=/deprecat|legacy/i.test(`${c.id} ${c.description||''}`);
-    const orphaned=!!manifestConnectorPaths&&!manifestConnectorPaths.has(insConnectorManifestPath(c));
+    const orphaned=manifestAnchored&&isFileConnector(c)&&!manifestConnectorPaths.has(insConnectorManifestPath(c));
     return {
       name:title,publisher:c.publisher||'',description:insCleanMarkdown(c.description||''),
       ids,definitionPath:c.path,files:[...pkgPaths].map(insShort),method,methodInfo:INS_METHODS[method.primary],
@@ -2061,7 +2132,11 @@ function buildSolutionInsights(art,meta){
   connectors.filter(c=>c.orphaned).forEach(c=>findings.push({level:'warn',text:`${c.name}: ⚠ Orphaned — not in current package manifest. It may be deprecated or retained only for migration.`}));
   if(functionConnectors.length&&serverless.length) findings.push({level:'info',text:`Two collection paths ship in the same solution — serverless: ${serverless.map(c=>c.name).join(', ')}; Azure Function: ${functionConnectors.map(c=>c.name).join(', ')}. Prefer the serverless connector for new deployments.`});
   connectors.filter(c=>c.method.primary==='http-collector').forEach(c=>findings.push({level:'warn',text:`${c.name} uses the legacy HTTP Data Collector API (shared key). Microsoft is moving ingestion to the Logs Ingestion API / CCF.`}));
-  connectors.filter(c=>c.method.primary!=='http-collector'&&c.method.legacyApiSignals).forEach(c=>findings.push({level:'info',text:`${c.name}: some legacy Data Collector API signals were found in package files, but the detected ingestion method is ${c.methodInfo.label}.`}));
+  connectors.filter(c=>!c.orphaned&&c.method.primary==='function'&&/Logs Ingestion/i.test(c.method.functionIngestion||'')).forEach(c=>findings.push({level:'info',text:`${c.name}: runs in a customer-hosted Azure Function and writes through the Logs Ingestion API (DCR / DCE).`}));
+  connectors.filter(c=>c.method.legacyApiSignalOnly).forEach(c=>{
+    const ev=(c.method.legacyApiEvidence||[])[0];
+    findings.push({level:'info',text:`${c.name}: a legacy HTTP Data Collector API signal was found${ev?` (${ev.file}${ev.where?' · '+ev.where:''}${ev.snippet?' → '+ev.snippet:''})`:''}. This is a signal only — the detected collection method is ${c.methodInfo.label}${c.method.functionIngestion?`, writing via ${c.method.functionIngestion}`:''}.`});
+  });
   connectors.filter(c=>c.method.primary==='unknown').forEach(c=>findings.push({level:'warn',text:`${c.name}: the repository JSON does not reveal how data is collected — check the connector page in the Sentinel content hub.`}));
   const previews=connectors.filter(c=>c.isPreview);
   if(previews.length) findings.push({level:'info',text:`${previews.length===connectors.length&&previews.length>1?'All connectors are':previews.map(c=>c.name).slice(0,3).join(', ')+(previews.length>3?` +${previews.length-3} more`:'')+(previews.length===1?' is':' are')} marked as Preview — behaviour and billing may change.`});
@@ -2085,4 +2160,4 @@ function buildSolutionInsights(art,meta){
   };
 }
 
-export { INS_TACTICS, INS_ARCH_CATEGORIES, INS_METHODS, insReconcileArchitecture, insArchCategory, buildSolutionInsights, normalizeMetaList, insTemplateUrl, insPollerLabel, insPretty, insDedupeSimilar, insShort, insCleanMarkdown, insConnectorManifestPath, insApplyTitleHints, insNorm, insAuthLabel, insBuildSource, INS_CLOUD_KINDS, insDcrName, armResolve, insDetectMethods, insUniq, INS_AGENT_TABLES, INS_NATIVE_KINDS, insScanFiles, INS_DOC_HOST_RE, insCleanText, insResolveExpr, insWalk, insBase, insConnectorFiles, insPackageFiles, insDir, insPlaybookSummary, INS_WORKSPACE_HOST_RE, INS_API_NAMES, insTableName, insCollectTableSchemas, insTableKey, insIndexInstances, insLogicalConnectors, insIsPackaging, insIsDefinition, insReleaseHistory, insManifestConnectorPaths, insFindManifest, analyzeCreateUiDefinition, analyzeSolutionArchitecture, extractSolutionMeta, buildArtifacts, classifyArtifact, fetchSolutionFiles, listSolutionJsonPaths, detectDefaultBranch, listSolutions }
+export { INS_VOLUME_SPREAD, INS_VOLUME_UNITS, INS_TACTICS, INS_ARCH_CATEGORIES, INS_METHODS, insVolumeKql, insEstimateVolume, insVolumeRows, insVolumeProfile, INS_VOLUME_DEFAULT, INS_VOLUME_PROFILES, insReconcileArchitecture, insArchCategory, buildSolutionInsights, normalizeMetaList, insTemplateUrl, insPollerLabel, insPretty, insDedupeSimilar, insShort, insCleanMarkdown, insApplyTitleHints, insNorm, insAuthLabel, insBuildSource, INS_CLOUD_KINDS, insDcrName, armResolve, insDetectMethods, insUniq, INS_AGENT_TABLES, INS_NATIVE_KINDS, insScanFiles, INS_DOC_HOST_RE, insCleanText, insResolveExpr, insWalk, insBase, insConnectorFiles, insPackageFiles, insDir, insPlaybookSummary, INS_WORKSPACE_HOST_RE, INS_API_NAMES, insTableName, insCollectTableSchemas, insTableKey, insIndexInstances, insConnectorManifestPath, insLogicalConnectors, insIsPackaging, insIsDefinition, insReleaseHistory, insManifestConnectorPaths, insFindManifest, analyzeCreateUiDefinition, analyzeSolutionArchitecture, extractSolutionMeta, buildArtifacts, classifyArtifact, fetchSolutionFiles, listSolutionJsonPaths, detectDefaultBranch, listSolutions }

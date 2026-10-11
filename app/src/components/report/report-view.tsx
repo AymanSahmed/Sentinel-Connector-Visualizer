@@ -8,6 +8,7 @@ import { ConnectorOverview, Connectors, MethodsLegend } from './connectors'
 import { Coverage } from './coverage'
 import { Hero, Kpis } from './hero'
 import { Findings, ReleaseHistory, TablesMatrix } from './tables-findings'
+import { VolumeEstimator } from './volume-estimator'
 
 function Heading({ id, title, hint }: { id: string; title: string; hint?: ReactNode }) {
   return (
@@ -41,6 +42,13 @@ export function ReportView({ result }: { result: AnalysisResult }) {
           <>
             <Heading id="sec-tables" title="Data tables" hint="who writes them and who reads them" />
             <TablesMatrix insights={insights} />
+          </>
+        )}
+
+        {insights.tables.some((t) => t.producers.length) && (
+          <>
+            <Heading id="sec-volume" title="Estimated ingestion volume" hint="planning aid — edit the assumptions" />
+            <VolumeEstimator key={`${result.repo}/${result.solution}`} insights={insights} />
           </>
         )}
 
