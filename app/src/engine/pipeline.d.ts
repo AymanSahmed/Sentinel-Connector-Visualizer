@@ -16,6 +16,7 @@ export function analyzeSolution(input: { owner: string; repo: string; branch: st
 export const INS_METHODS: Record<string, MethodInfo>
 export const INS_ARCH_CATEGORIES: Record<string, ArchCategory>
 export const INS_TACTICS: string[]
+export const INS_PB_KINDS: Record<string, string>
 export const INS_VOLUME_UNITS: Record<string, string>
 export const INS_VOLUME_SPREAD: { low: number; high: number }
 

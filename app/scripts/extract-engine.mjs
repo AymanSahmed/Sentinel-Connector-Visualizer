@@ -27,7 +27,7 @@ const ROOTS = [
   'listSolutions', 'detectDefaultBranch', 'listSolutionJsonPaths', 'fetchSolutionFiles',
   'buildArtifacts', 'extractSolutionMeta', 'analyzeSolutionArchitecture', 'analyzeCreateUiDefinition',
   'buildSolutionInsights', 'insReconcileArchitecture', 'insVolumeRows', 'insEstimateVolume', 'insVolumeKql',
-  'INS_METHODS', 'INS_ARCH_CATEGORIES', 'INS_TACTICS', 'INS_VOLUME_UNITS', 'INS_VOLUME_SPREAD',
+  'INS_METHODS', 'INS_ARCH_CATEGORIES', 'INS_TACTICS', 'INS_VOLUME_UNITS', 'INS_VOLUME_SPREAD', 'INS_PB_KINDS',
 ]
 
 const html = fs.readFileSync(htmlPath, 'utf8')

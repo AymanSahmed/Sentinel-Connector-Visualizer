@@ -1696,6 +1696,205 @@ function insBuildSource(method,c,sig,solutionName){
   return {title,lines,note};
 }
 
+const INS_WB_VISUALS={
+  table:['Table','table'],grid:['Table','table'],tiles:['Tiles (KPI cards)','tiles'],card:['Tiles (KPI cards)','tiles'],
+  barchart:['Bar chart','chart'],categoricalbar:['Bar chart','chart'],unstackedbar:['Bar chart (unstacked)','chart'],
+  columnchart:['Column chart','chart'],piechart:['Pie chart','chart'],donutchart:['Donut chart','chart'],
+  areachart:['Area chart','chart'],stackedarea:['Area chart (stacked)','chart'],linechart:['Line chart','chart'],
+  timechart:['Time chart','chart'],scatterchart:['Scatter chart','chart'],treemap:['Treemap','chart'],
+  timeline:['Timeline','chart'],heatmap:['Heat map','chart'],map:['Map','map'],graph:['Graph (relationships)','graph'],sankey:['Sankey','graph'],
+  stat:['Tiles (KPI cards)','tiles'],area:['Area chart','chart'],line:['Line chart','chart'],bar:['Bar chart','chart'],pie:['Pie chart','chart'],column:['Column chart','chart'],scatter:['Scatter chart','chart']
+};
+
+function insWorkbookRoot(raw){
+  let found=null;
+  insWalk(raw,(k,v)=>{
+    if(found) return;
+    if(typeof v==='string'&&/serializedData$/i.test(k)){
+      try{ const j=JSON.parse(v); if(j&&Array.isArray(j.items)) found=j; }catch{}
+    }else if(v&&typeof v==='object'&&!Array.isArray(v)&&Array.isArray(v.items)&&/^Notebook\//i.test(String(v.version||''))) found=v;
+  });
+  return found;
+}
+
+function insSplitTop(s){
+  const out=[]; let depth=0, cur='';
+  for(const ch of String(s||'')){
+    if(ch==='(') depth++;
+    if(ch===')') depth--;
+    if(ch===','&&depth===0){ out.push(cur); cur=''; } else cur+=ch;
+  }
+  out.push(cur);
+  return out;
+}
+
+function insKqlShape(q){
+  const text=String(q||'').replace(/\/\/.*$/gm,'');
+  const all=[...text.matchAll(/\|\s*summarize\s+([^|]*)/gi)];
+  if(!all.length) return '';
+  const part=all[all.length-1][1].trim();
+  const m=part.match(/^([\s\S]*?)\bby\b([\s\S]*)$/i);
+  const aggs=insUniq([...(m?m[1]:part).matchAll(/\b(count|dcount|dcountif|countif|sum|sumif|avg|max|min|percentile\w*|make_set|make_list|arg_max|arg_min)\s*\(/gi)].map(x=>x[1].toLowerCase())).slice(0,2);
+  const by=m?insSplitTop(m[2]).map(s=>s.trim().replace(/^\w+\s*=\s*/,'')).map(s=>/^bin\s*\(/i.test(s)?'time':/^\w+\s*\(/.test(s)?((s.match(/\(\s*([A-Za-z_]\w*)/)||[])[1]||''):s.split(/\s+/)[0]).filter(Boolean).slice(0,3):[];
+  return `${aggs.join(' / ')||'aggregate'}${by.length?` by ${by.join(', ')}`:''}`;
+}
+
+function insWorkbookSummary(w){
+  const out={panels:[],visualTypes:{},sections:[],tabs:[],filters:[],timeRange:false,dataSources:[],intro:'',heading:'',
+    counts:{panels:0,charts:0,tables:0,tiles:0,maps:0,graphs:0,text:0,filters:0,metrics:0,links:0}};
+  const root=insWorkbookRoot(w.raw)||insWorkbookRoot(w.embeddedRaw);
+  if(!root) return out;
+  const sources=new Set();
+  const plain=s=>String(s||'').replace(/!?\[([^\]]*)\]\([^)]*\)/g,'$1').replace(/<[^>]+>/g,' ').replace(/[#*_`>|]+/g,' ').replace(/\s+/g,' ').trim();
+  const catKey={chart:'charts',table:'tables',tiles:'tiles',map:'maps',graph:'graphs'};
+  function walk(items,section){
+    (items||[]).forEach(it=>{
+      if(!it||typeof it!=='object') return;
+      const c=it.content||{}, t=it.type;
+      if(t===1){
+        out.counts.text++;
+        const s=plain(c.json);
+        if(!s.includes('{')&&!/warning|missing input/i.test(s)){
+          if(s.length>40&&!out.intro) out.intro=s.slice(0,240);
+          else if(!out.heading&&s.length>=6) out.heading=s.slice(0,120);
+        }
+      }else if(t===3){
+        const vis=String(c.visualization||'table').toLowerCase();
+        const [label,cat]=INS_WB_VISUALS[vis]||[insPretty(vis),'chart'];
+        const query=String(c.query||'');
+        const tables=insUniq(extractKqlReferences(query).tables.map(insTableName));
+        const source=c.queryType===1?'Azure Resource Graph':c.queryType===12?'Azure Resource Manager (REST)':c.queryType===10?'Custom endpoint':(c.queryType==null||c.queryType===0)?'Log Analytics (KQL)':'Other data source';
+        sources.add(source);
+        const named=it.name&&!/^(query|text|links|parameters)\s*[-–]?\s*\w*$/i.test(it.name)?insPretty(it.name):'';
+        out.counts.panels++; out.counts[catKey[cat]]++;
+        out.visualTypes[label]=(out.visualTypes[label]||0)+1;
+        if(out.panels.length<60) out.panels.push({title:c.title||named||`${label}${tables[0]?` of ${tables[0]}`:''}`,chart:label,category:cat,tables,section,shows:insKqlShape(query),source});
+      }else if(t===9){
+        (c.parameters||[]).forEach(p=>{
+          if(!p||typeof p!=='object') return;
+          if(p.type===4) out.timeRange=true;
+          if([1,2,3].includes(p.type)&&!p.isHiddenWhenLocked){
+            const label=String(p.label||p.name||'').replace(/^[^A-Za-z0-9]+/,'').trim();
+            if(label&&!out.filters.some(f=>f.label===label)) out.filters.push({label,type:({1:'Text',2:'Drop-down',3:'Date / time'})[p.type]});
+          }
+        });
+      }else if(t===10){
+        out.counts.metrics++; sources.add('Azure Monitor metrics');
+      }else if(t===11){
+        if(String(c.style||'').toLowerCase()==='tabs') (c.links||[]).forEach(l=>{ const label=String(l.linkLabel||'').trim(); if(label&&!out.tabs.includes(label)) out.tabs.push(label); });
+        else out.counts.links++;
+      }else if(t===12){
+        const title=plain(c.title||it.name).replace(/^group:?\s*/i,'').trim()||'Group';
+        walk(c.items,title);
+        out.sections.push({title,panels:out.panels.filter(p=>p.section===title).length});
+        return;
+      }
+    });
+  }
+  walk(root.items,'');
+  out.counts.filters=out.filters.length;
+  out.textOnly=out.counts.panels===0&&out.counts.text>0;
+  out.dataSources=[...sources];
+  return out;
+}
+
+const INS_PB_KINDS={
+  entities:'Reads incident entities',incident:'Reads the incident / alert',enrich:'Enriches with external data',
+  query:'Queries Log Analytics',watchlist:'Reads / updates a watchlist',intel:'Imports threat intelligence / indicators',
+  auth:'Authenticates to an external service',
+  comment:'Adds a comment to the incident',update:'Updates the incident',log:'Writes results to Log Analytics',
+  approval:'Waits for human approval',contain:'Takes containment / remediation action',notify:'Notifies people (email / chat)',
+  ticket:'Creates or updates a ticket',flow:'Flow control',action:'Action'
+};
+
+const INS_PB_ENTITY_NAMES={account:'Accounts',host:'Hosts',ip:'IP addresses',url:'URLs',filehash:'File hashes',dnsresolution:'DNS records',azureresource:'Azure resources',cloudapplication:'Cloud apps',mailbox:'Mailboxes',malware:'Malware',process:'Processes',registrykey:'Registry keys',securitygroup:'Security groups',iotdevice:'IoT devices',mailmessage:'Mail messages'};
+
+const INS_PB_TYPE_LABELS={ApiConnection:'Connector action',ApiConnectionWebhook:'Connector (waits for callback)',Http:'HTTP call',HttpWebhook:'HTTP (waits for callback)',Function:'Azure Function call',Workflow:'Child playbook',If:'Condition',Switch:'Switch',Foreach:'Loop',Until:'Loop (until)',Scope:'Scope',Response:'Response',Terminate:'Terminate',Wait:'Wait'};
+
+const INS_PB_SHAPING=new Set(['Compose','ParseJson','Select','Table','Query','Join']);
+
+const INS_PB_VARIABLES=new Set(['InitializeVariable','SetVariable','AppendToArrayVariable','AppendToStringVariable','IncrementVariable','DecrementVariable']);
+
+function insPlaybookStepKind(rawName,a){
+  const name=String(rawName).replace(/[_-]+/g,' ');
+  const path=String(a.inputs?.path||''), uri=String(a.inputs?.uri||'');
+  const text=`${name} ${path} ${uri}`;
+  const sentinel=/^\/(incidents|entities|alerts|watchlists|threatintelligence)/i.test(path)||/sentinel/i.test(name);
+  if(/^\/entities\//i.test(path)) return 'entities';
+  if(/\/api\/logs|dataCollection|logs[_ ]?ingestion|send[_ ]?data|log[_ ]?analytics/i.test(text)) return 'log';
+  if(/run[_ ]?query|\/queryData|query[_ ]and[_ ]list|kql/i.test(text)) return 'query';
+  if(/watchlist/i.test(text)) return 'watchlist';
+  if(/threat[_ ]?intelligence|indicator|stix|import[_ ]?to[_ ]?sentinel|to[_ ]?sentinel|upload/i.test(name)) return 'intel';
+  if(/comment/i.test(name+path)&&sentinel||/Incidents\/Comment/i.test(path)) return 'comment';
+  if(/^\/incidents\/subscriptions/i.test(path)||/(get|read)[_ ]incident|alert[_ -]+get[_ ]incident/i.test(name)) return 'incident';
+  if(/^\/incidents\b/i.test(path)||/(update|close|change|set|add|assign)[_ ]?(the[_ ])?(incident|severity|status|tag|label|task|owner)/i.test(name)) return 'update';
+  if(/approv/i.test(text)) return 'approval';
+  if(/\b(disable|block|isolate|revoke|reset|quarantine|suspend|terminate|delete|remove|restrict|lock|ban|force)/i.test(name)||/add[_ ]?(ip|url|domain|hash|indicator)/i.test(name)) return 'contain';
+  if(/servicenow|jira|zendesk|pagerduty|ticket|issue/i.test(text)) return 'ticket';
+  if(/(send|post)[_ ]?(an?[_ ])?(email|mail|message|card|notification|sms)|teams|slack|office365|outlook|sendgrid|notify/i.test(text)) return 'notify';
+  if(/token|authenticat|login|log[_ ]?in|oauth|\bconnect[_ ]|disconnect/i.test(name)) return 'auth';
+  if(/\b(get|lookup|look[_ ]up|report|scan|check|reputation|search|query|retrieve|list|fetch|enrich|analy[sz]e)/i.test(name)) return 'enrich';
+  return 'action';
+}
+
+function insPlaybookAnatomy(def,raw,wf){
+  const flat=[];
+  const rankOf=(actions)=>{
+    const memo={}, rank=(n,seen=new Set())=>{
+      if(memo[n]!=null) return memo[n];
+      if(seen.has(n)) return 0;
+      seen.add(n);
+      const deps=Object.keys(actions[n]?.runAfter||{}).filter(d=>actions[d]);
+      return memo[n]=deps.length?1+Math.max(...deps.map(d=>rank(d,seen))):0;
+    };
+    return rank;
+  };
+  (function walk(actions,depth){
+    const entries=Object.entries(actions||{}).filter(([,a])=>a&&typeof a==='object');
+    const rank=rankOf(actions||{});
+    entries.map(([name,a],i)=>({name,a,i,r:rank(name)})).sort((x,y)=>x.r-y.r||x.i-y.i).forEach(({name,a})=>{
+      flat.push({name,a,depth});
+      walk(a.actions,depth+1); walk(a.else?.actions,depth+1);
+      Object.values(a.cases||{}).forEach(cs=>walk(cs?.actions,depth+1)); walk(a.default?.actions,depth+1);
+    });
+  })(def.actions,0);
+
+  const breakdown={connectorCalls:0,httpCalls:0,conditions:0,loops:0,dataShaping:0,variables:0};
+  const entities=[], steps=[], kinds=[];
+  flat.forEach(({name,a,depth})=>{
+    const type=String(a.type||'');
+    if(/^ApiConnection/.test(type)) breakdown.connectorCalls++;
+    else if(/^(Http|HttpWebhook|Function)$/.test(type)) breakdown.httpCalls++;
+    else if(type==='If'||type==='Switch') breakdown.conditions++;
+    else if(type==='Foreach'||type==='Until') breakdown.loops++;
+    else if(INS_PB_SHAPING.has(type)) breakdown.dataShaping++;
+    else if(INS_PB_VARIABLES.has(type)) breakdown.variables++;
+    const ent=String(a.inputs?.path||'').match(/^\/entities\/([a-z]+)/i);
+    if(ent) entities.push(INS_PB_ENTITY_NAMES[ent[1].toLowerCase()]||insPretty(ent[1]));
+    else{ const byName=name.match(/Entities_-_Get_([A-Za-z_]+)/i); if(byName) entities.push(insPretty(byName[1])); }
+    if(INS_PB_SHAPING.has(type)||INS_PB_VARIABLES.has(type)) return;
+    const flow=/^(If|Switch|Foreach|Until|Scope|Wait|Terminate|Response)$/.test(type);
+    const kind=flow?'flow':insPlaybookStepKind(name,a);
+    const label=insPretty(name.replace(/_\(V\d+\)/i,'').replace(/_\d+$/,''));
+    const prev=steps.find(s=>s.label===label&&s.kind===kind&&s.depth===depth);
+    if(prev){ prev.count++; return; }
+    let api='';
+    if(/^ApiConnection/.test(type)){ const m=JSON.stringify(a.inputs?.host||'').match(/\['([a-z0-9_]+)'\]/i); api=m?(INS_API_NAMES[m[1].toLowerCase().replace(/[\s_-]*\d+$/,'')]||insPretty(m[1].replace(/[\s_-]*\d+$/,''))):''; }
+    else if(type==='Http'){ try{ api=new URL(String(a.inputs?.uri||'').replace(/@\{[^}]*\}/g,'x')).host; }catch{} }
+    steps.push({label,kind,type:INS_PB_TYPE_LABELS[type]||insPretty(type),api,depth,count:1});
+    if(!flow) kinds.push(kind);
+  });
+  const capabilities=insUniq(kinds.filter(k=>k!=='action')).map(k=>INS_PB_KINDS[k]);
+  const inputs=Object.keys(raw?.parameters||{}).filter(k=>!/^(PlaybookName|Workspace\w*|DataCollection\w*|\w*Location)$/i.test(k)).map(insPretty);
+  const identity=/system|user/i.test(String(wf?.identity?.type||''))?'Managed identity':'';
+  const DEPLOYS={'microsoft.web/customapis':'Custom Logic Apps connector','microsoft.web/sites':'Azure Function App','microsoft.web/connections':'API connection','microsoft.insights/datacollectionrules':'Data Collection Rule','microsoft.insights/datacollectionendpoints':'Data Collection Endpoint','microsoft.keyvault/vaults':'Key Vault','microsoft.storage/storageaccounts':'Storage account','microsoft.automation/automationaccounts':'Automation account'};
+  const deploys=[]; insWalk(raw,(k,v)=>{ if(k==='type'&&typeof v==='string'&&DEPLOYS[v.toLowerCase()]) deploys.push(DEPLOYS[v.toLowerCase()]); });
+  const hasWorkflow=!!(def.triggers&&Object.keys(def.triggers).length)||flat.length>0;
+  return {steps:steps.slice(0,30),stepCount:steps.length,capabilities,entities:insUniq(entities),breakdown,inputs,identity,deploys:insUniq(deploys),hasWorkflow};
+}
+
+const INS_PB_TRIGGER_TEXT={'Sentinel incident':'Runs when a Microsoft Sentinel incident is created, or when an automation rule / analyst runs it on an incident','Sentinel alert':'Runs on the alert behind an analytics rule (attach it to the rule or run it from an incident)','Sentinel entity (manual)':'Run manually by an analyst on an entity','HTTP request':'Runs when its HTTP endpoint is called','Schedule':'Runs on a schedule'};
+
 function insPlaybookSummary(pb){
   const raw=pb.raw||{};
   let wf=null;
@@ -1726,9 +1925,10 @@ function insPlaybookSummary(pb){
   const allHosts=insUniq((pb.connections?.endpoints||pb.endpoints||[]).filter(h=>!INS_DOC_HOST_RE.test(h)));
   const endpoints=allHosts.filter(h=>!INS_WORKSPACE_HOST_RE.test(h));
   const writesToWorkspace=/logingestion|logs ingestion/i.test(pb.path||'')||allHosts.some(h=>INS_WORKSPACE_HOST_RE.test(h))||apiList.includes('Log Analytics Data Collector');
-  return {name,trigger,connectors:apiList,endpoints,actions:Object.keys(def.actions||{}).length,
+  return {name,trigger,triggerText:INS_PB_TRIGGER_TEXT[trigger]||'',connectors:apiList,endpoints,actions:Object.keys(def.actions||{}).length,
     writesToWorkspace,
-    description:raw.metadata?.description||raw.metadata?.comments||def.description||'',path:pb.path};
+    description:raw.metadata?.description||raw.metadata?.comments||def.description||'',path:pb.path,
+    ...insPlaybookAnatomy(def,raw,wf)};
 }
 
 function insCollectTableSchemas(files){
@@ -1999,7 +2199,8 @@ function buildSolutionInsights(art,meta){
     connectorIds:insUniq((h.requiredConnectors||[]).map(r=>String(r.connectorId||r).toLowerCase())),path:h.path,unresolved:h.references?.unresolved||[]
   }));
   const workbooks=(art.workbooks||[]).map(w=>({name:insPretty(/^(azuredeploy|maintemplate)/i.test(insBase(w.path||'').replace(/\.json$/i,''))?(w.path||'').split('/').slice(-2,-1)[0]:(w.id&&w.id!==insBase(w.path||'').replace(/\.json$/i,'')?w.id:insBase(w.path||'').replace(/\.json$/i,''))),
-    tables:insUniq((w.references?.tables||w.tables||[]).map(insTableName)),description:w.description||'',path:w.path,unresolved:w.references?.unresolved||[]}));
+    tables:insUniq((w.references?.tables||w.tables||[]).map(insTableName)),description:w.description||'',path:w.path,unresolved:w.references?.unresolved||[],
+    ...insWorkbookSummary(w)}));
   const parsers=(art.functions||[]).map(f=>({name:f.id,alias:f.functionAlias||'',tables:insUniq((f.references?.tables||f.tables||[]).map(insTableName)),description:f.description||'',path:f.path}));
   const playbooks=(art.playbooks||[]).map(insPlaybookSummary);
   const watchlists=(art.watchlists||[]).map(w=>({name:insPretty(w.id),description:w.description||''}));
@@ -2160,4 +2361,4 @@ function buildSolutionInsights(art,meta){
   };
 }
 
-export { INS_VOLUME_SPREAD, INS_VOLUME_UNITS, INS_TACTICS, INS_ARCH_CATEGORIES, INS_METHODS, insVolumeKql, insEstimateVolume, insVolumeRows, insVolumeProfile, INS_VOLUME_DEFAULT, INS_VOLUME_PROFILES, insReconcileArchitecture, insArchCategory, buildSolutionInsights, normalizeMetaList, insTemplateUrl, insPollerLabel, insPretty, insDedupeSimilar, insShort, insCleanMarkdown, insApplyTitleHints, insNorm, insAuthLabel, insBuildSource, INS_CLOUD_KINDS, insDcrName, armResolve, insDetectMethods, insUniq, INS_AGENT_TABLES, INS_NATIVE_KINDS, insScanFiles, INS_DOC_HOST_RE, insCleanText, insResolveExpr, insWalk, insBase, insConnectorFiles, insPackageFiles, insDir, insPlaybookSummary, INS_WORKSPACE_HOST_RE, INS_API_NAMES, insTableName, insCollectTableSchemas, insTableKey, insIndexInstances, insConnectorManifestPath, insLogicalConnectors, insIsPackaging, insIsDefinition, insReleaseHistory, insManifestConnectorPaths, insFindManifest, analyzeCreateUiDefinition, analyzeSolutionArchitecture, extractSolutionMeta, buildArtifacts, classifyArtifact, fetchSolutionFiles, listSolutionJsonPaths, detectDefaultBranch, listSolutions }
+export { INS_PB_KINDS, INS_VOLUME_SPREAD, INS_VOLUME_UNITS, INS_TACTICS, INS_ARCH_CATEGORIES, INS_METHODS, insVolumeKql, insEstimateVolume, insVolumeRows, insVolumeProfile, INS_VOLUME_DEFAULT, INS_VOLUME_PROFILES, insReconcileArchitecture, insArchCategory, buildSolutionInsights, normalizeMetaList, insTemplateUrl, insPollerLabel, insPretty, insDedupeSimilar, insShort, insCleanMarkdown, insApplyTitleHints, insNorm, insAuthLabel, insBuildSource, INS_CLOUD_KINDS, insDcrName, armResolve, insDetectMethods, insUniq, INS_AGENT_TABLES, INS_NATIVE_KINDS, insScanFiles, INS_DOC_HOST_RE, insCleanText, insResolveExpr, insWalk, insBase, insConnectorFiles, insPackageFiles, insDir, insPlaybookSummary, insPlaybookAnatomy, INS_PB_TYPE_LABELS, INS_API_NAMES, insPlaybookStepKind, INS_PB_ENTITY_NAMES, INS_PB_VARIABLES, INS_PB_SHAPING, INS_PB_TRIGGER_TEXT, INS_WORKSPACE_HOST_RE, insWorkbookSummary, insKqlShape, insSplitTop, insTableName, INS_WB_VISUALS, insWorkbookRoot, insCollectTableSchemas, insTableKey, insIndexInstances, insConnectorManifestPath, insLogicalConnectors, insIsPackaging, insIsDefinition, insReleaseHistory, insManifestConnectorPaths, insFindManifest, analyzeCreateUiDefinition, analyzeSolutionArchitecture, extractSolutionMeta, buildArtifacts, classifyArtifact, fetchSolutionFiles, listSolutionJsonPaths, detectDefaultBranch, listSolutions }

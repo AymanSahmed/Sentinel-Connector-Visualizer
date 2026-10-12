@@ -67,14 +67,60 @@ export interface RuleInsight {
   description: string
 }
 
+export interface PlaybookStep {
+  label: string
+  kind: string
+  type: string
+  api: string
+  depth: number
+  count: number
+}
+
 export interface PlaybookInsight {
   name: string
   trigger: string
+  triggerText: string
   connectors: string[]
   endpoints: string[]
   actions: number
   description: string
   writesToWorkspace: boolean
+  steps: PlaybookStep[]
+  stepCount: number
+  capabilities: string[]
+  entities: string[]
+  breakdown: { connectorCalls: number; httpCalls: number; conditions: number; loops: number; dataShaping: number; variables: number }
+  inputs: string[]
+  identity: string
+  deploys: string[]
+  hasWorkflow: boolean
+}
+
+export interface WorkbookPanel {
+  title: string
+  chart: string
+  category: 'chart' | 'table' | 'tiles' | 'map' | 'graph'
+  tables: string[]
+  section: string
+  shows: string
+  source: string
+}
+
+export interface WorkbookInsight {
+  name: string
+  tables: string[]
+  description: string
+  panels: WorkbookPanel[]
+  visualTypes: Record<string, number>
+  sections: { title: string; panels: number }[]
+  tabs: string[]
+  filters: { label: string; type: string }[]
+  timeRange: boolean
+  dataSources: string[]
+  intro: string
+  heading: string
+  textOnly: boolean
+  counts: { panels: number; charts: number; tables: number; tiles: number; maps: number; graphs: number; text: number; filters: number; metrics: number; links: number }
 }
 
 export interface TableInsight {
@@ -124,7 +170,7 @@ export interface Insights {
   content: {
     analytics: RuleInsight[]
     hunting: { name: string; tactics: string[]; tables: string[]; description: string }[]
-    workbooks: { name: string; tables: string[]; description: string }[]
+    workbooks: WorkbookInsight[]
     parsers: { name: string; alias: string; tables: string[]; description: string }[]
     playbooks: PlaybookInsight[]
     watchlists: { name: string }[]

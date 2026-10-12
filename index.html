@@ -5902,6 +5902,196 @@ function insBuildSource(method,c,sig,solutionName){
   return {title,lines,note};
 }
 
+/* ---------- Workbook anatomy: panels, chart types, tabs, filters and the data each panel reads ---------- */
+const INS_WB_VISUALS={
+  table:['Table','table'],grid:['Table','table'],tiles:['Tiles (KPI cards)','tiles'],card:['Tiles (KPI cards)','tiles'],
+  barchart:['Bar chart','chart'],categoricalbar:['Bar chart','chart'],unstackedbar:['Bar chart (unstacked)','chart'],
+  columnchart:['Column chart','chart'],piechart:['Pie chart','chart'],donutchart:['Donut chart','chart'],
+  areachart:['Area chart','chart'],stackedarea:['Area chart (stacked)','chart'],linechart:['Line chart','chart'],
+  timechart:['Time chart','chart'],scatterchart:['Scatter chart','chart'],treemap:['Treemap','chart'],
+  timeline:['Timeline','chart'],heatmap:['Heat map','chart'],map:['Map','map'],graph:['Graph (relationships)','graph'],sankey:['Sankey','graph'],
+  stat:['Tiles (KPI cards)','tiles'],area:['Area chart','chart'],line:['Line chart','chart'],bar:['Bar chart','chart'],pie:['Pie chart','chart'],column:['Column chart','chart'],scatter:['Scatter chart','chart']
+};
+function insWorkbookRoot(raw){
+  let found=null;
+  insWalk(raw,(k,v)=>{
+    if(found) return;
+    if(typeof v==='string'&&/serializedData$/i.test(k)){
+      try{ const j=JSON.parse(v); if(j&&Array.isArray(j.items)) found=j; }catch{}
+    }else if(v&&typeof v==='object'&&!Array.isArray(v)&&Array.isArray(v.items)&&/^Notebook\//i.test(String(v.version||''))) found=v;
+  });
+  return found;
+}
+function insSplitTop(s){
+  const out=[]; let depth=0, cur='';
+  for(const ch of String(s||'')){
+    if(ch==='(') depth++;
+    if(ch===')') depth--;
+    if(ch===','&&depth===0){ out.push(cur); cur=''; } else cur+=ch;
+  }
+  out.push(cur);
+  return out;
+}
+/* A short, plain description of what a KQL panel computes, e.g. "count by Country". Heuristic. */
+function insKqlShape(q){
+  const text=String(q||'').replace(/\/\/.*$/gm,'');
+  const all=[...text.matchAll(/\|\s*summarize\s+([^|]*)/gi)];
+  if(!all.length) return '';
+  const part=all[all.length-1][1].trim();
+  const m=part.match(/^([\s\S]*?)\bby\b([\s\S]*)$/i);
+  const aggs=insUniq([...(m?m[1]:part).matchAll(/\b(count|dcount|dcountif|countif|sum|sumif|avg|max|min|percentile\w*|make_set|make_list|arg_max|arg_min)\s*\(/gi)].map(x=>x[1].toLowerCase())).slice(0,2);
+  const by=m?insSplitTop(m[2]).map(s=>s.trim().replace(/^\w+\s*=\s*/,'')).map(s=>/^bin\s*\(/i.test(s)?'time':/^\w+\s*\(/.test(s)?((s.match(/\(\s*([A-Za-z_]\w*)/)||[])[1]||''):s.split(/\s+/)[0]).filter(Boolean).slice(0,3):[];
+  return `${aggs.join(' / ')||'aggregate'}${by.length?` by ${by.join(', ')}`:''}`;
+}
+function insWorkbookSummary(w){
+  const out={panels:[],visualTypes:{},sections:[],tabs:[],filters:[],timeRange:false,dataSources:[],intro:'',heading:'',
+    counts:{panels:0,charts:0,tables:0,tiles:0,maps:0,graphs:0,text:0,filters:0,metrics:0,links:0}};
+  const root=insWorkbookRoot(w.raw)||insWorkbookRoot(w.embeddedRaw);
+  if(!root) return out;
+  const sources=new Set();
+  const plain=s=>String(s||'').replace(/!?\[([^\]]*)\]\([^)]*\)/g,'$1').replace(/<[^>]+>/g,' ').replace(/[#*_`>|]+/g,' ').replace(/\s+/g,' ').trim();
+  const catKey={chart:'charts',table:'tables',tiles:'tiles',map:'maps',graph:'graphs'};
+  function walk(items,section){
+    (items||[]).forEach(it=>{
+      if(!it||typeof it!=='object') return;
+      const c=it.content||{}, t=it.type;
+      if(t===1){
+        out.counts.text++;
+        const s=plain(c.json);
+        if(!s.includes('{')&&!/warning|missing input/i.test(s)){
+          if(s.length>40&&!out.intro) out.intro=s.slice(0,240);
+          else if(!out.heading&&s.length>=6) out.heading=s.slice(0,120);
+        }
+      }else if(t===3){
+        const vis=String(c.visualization||'table').toLowerCase();
+        const [label,cat]=INS_WB_VISUALS[vis]||[insPretty(vis),'chart'];
+        const query=String(c.query||'');
+        const tables=insUniq(extractKqlReferences(query).tables.map(insTableName));
+        const source=c.queryType===1?'Azure Resource Graph':c.queryType===12?'Azure Resource Manager (REST)':c.queryType===10?'Custom endpoint':(c.queryType==null||c.queryType===0)?'Log Analytics (KQL)':'Other data source';
+        sources.add(source);
+        const named=it.name&&!/^(query|text|links|parameters)\s*[-–]?\s*\w*$/i.test(it.name)?insPretty(it.name):'';
+        out.counts.panels++; out.counts[catKey[cat]]++;
+        out.visualTypes[label]=(out.visualTypes[label]||0)+1;
+        if(out.panels.length<60) out.panels.push({title:c.title||named||`${label}${tables[0]?` of ${tables[0]}`:''}`,chart:label,category:cat,tables,section,shows:insKqlShape(query),source});
+      }else if(t===9){
+        (c.parameters||[]).forEach(p=>{
+          if(!p||typeof p!=='object') return;
+          if(p.type===4) out.timeRange=true;
+          if([1,2,3].includes(p.type)&&!p.isHiddenWhenLocked){
+            const label=String(p.label||p.name||'').replace(/^[^A-Za-z0-9]+/,'').trim();
+            if(label&&!out.filters.some(f=>f.label===label)) out.filters.push({label,type:({1:'Text',2:'Drop-down',3:'Date / time'})[p.type]});
+          }
+        });
+      }else if(t===10){
+        out.counts.metrics++; sources.add('Azure Monitor metrics');
+      }else if(t===11){
+        if(String(c.style||'').toLowerCase()==='tabs') (c.links||[]).forEach(l=>{ const label=String(l.linkLabel||'').trim(); if(label&&!out.tabs.includes(label)) out.tabs.push(label); });
+        else out.counts.links++;
+      }else if(t===12){
+        const title=plain(c.title||it.name).replace(/^group:?\s*/i,'').trim()||'Group';
+        walk(c.items,title);
+        out.sections.push({title,panels:out.panels.filter(p=>p.section===title).length});
+        return;
+      }
+    });
+  }
+  walk(root.items,'');
+  out.counts.filters=out.filters.length;
+  out.textOnly=out.counts.panels===0&&out.counts.text>0;
+  out.dataSources=[...sources];
+  return out;
+}
+
+/* ---------- Playbook anatomy: ordered steps, what each does, entities handled ---------- */
+const INS_PB_KINDS={
+  entities:'Reads incident entities',incident:'Reads the incident / alert',enrich:'Enriches with external data',
+  query:'Queries Log Analytics',watchlist:'Reads / updates a watchlist',intel:'Imports threat intelligence / indicators',
+  auth:'Authenticates to an external service',
+  comment:'Adds a comment to the incident',update:'Updates the incident',log:'Writes results to Log Analytics',
+  approval:'Waits for human approval',contain:'Takes containment / remediation action',notify:'Notifies people (email / chat)',
+  ticket:'Creates or updates a ticket',flow:'Flow control',action:'Action'
+};
+const INS_PB_ENTITY_NAMES={account:'Accounts',host:'Hosts',ip:'IP addresses',url:'URLs',filehash:'File hashes',dnsresolution:'DNS records',azureresource:'Azure resources',cloudapplication:'Cloud apps',mailbox:'Mailboxes',malware:'Malware',process:'Processes',registrykey:'Registry keys',securitygroup:'Security groups',iotdevice:'IoT devices',mailmessage:'Mail messages'};
+const INS_PB_TYPE_LABELS={ApiConnection:'Connector action',ApiConnectionWebhook:'Connector (waits for callback)',Http:'HTTP call',HttpWebhook:'HTTP (waits for callback)',Function:'Azure Function call',Workflow:'Child playbook',If:'Condition',Switch:'Switch',Foreach:'Loop',Until:'Loop (until)',Scope:'Scope',Response:'Response',Terminate:'Terminate',Wait:'Wait'};
+const INS_PB_SHAPING=new Set(['Compose','ParseJson','Select','Table','Query','Join']);
+const INS_PB_VARIABLES=new Set(['InitializeVariable','SetVariable','AppendToArrayVariable','AppendToStringVariable','IncrementVariable','DecrementVariable']);
+function insPlaybookStepKind(rawName,a){
+  const name=String(rawName).replace(/[_-]+/g,' ');
+  const path=String(a.inputs?.path||''), uri=String(a.inputs?.uri||'');
+  const text=`${name} ${path} ${uri}`;
+  const sentinel=/^\/(incidents|entities|alerts|watchlists|threatintelligence)/i.test(path)||/sentinel/i.test(name);
+  if(/^\/entities\//i.test(path)) return 'entities';
+  if(/\/api\/logs|dataCollection|logs[_ ]?ingestion|send[_ ]?data|log[_ ]?analytics/i.test(text)) return 'log';
+  if(/run[_ ]?query|\/queryData|query[_ ]and[_ ]list|kql/i.test(text)) return 'query';
+  if(/watchlist/i.test(text)) return 'watchlist';
+  if(/threat[_ ]?intelligence|indicator|stix|import[_ ]?to[_ ]?sentinel|to[_ ]?sentinel|upload/i.test(name)) return 'intel';
+  if(/comment/i.test(name+path)&&sentinel||/Incidents\/Comment/i.test(path)) return 'comment';
+  if(/^\/incidents\/subscriptions/i.test(path)||/(get|read)[_ ]incident|alert[_ -]+get[_ ]incident/i.test(name)) return 'incident';
+  if(/^\/incidents\b/i.test(path)||/(update|close|change|set|add|assign)[_ ]?(the[_ ])?(incident|severity|status|tag|label|task|owner)/i.test(name)) return 'update';
+  if(/approv/i.test(text)) return 'approval';
+  if(/\b(disable|block|isolate|revoke|reset|quarantine|suspend|terminate|delete|remove|restrict|lock|ban|force)/i.test(name)||/add[_ ]?(ip|url|domain|hash|indicator)/i.test(name)) return 'contain';
+  if(/servicenow|jira|zendesk|pagerduty|ticket|issue/i.test(text)) return 'ticket';
+  if(/(send|post)[_ ]?(an?[_ ])?(email|mail|message|card|notification|sms)|teams|slack|office365|outlook|sendgrid|notify/i.test(text)) return 'notify';
+  if(/token|authenticat|login|log[_ ]?in|oauth|\bconnect[_ ]|disconnect/i.test(name)) return 'auth';
+  if(/\b(get|lookup|look[_ ]up|report|scan|check|reputation|search|query|retrieve|list|fetch|enrich|analy[sz]e)/i.test(name)) return 'enrich';
+  return 'action';
+}
+function insPlaybookAnatomy(def,raw,wf){
+  const flat=[];
+  const rankOf=(actions)=>{
+    const memo={}, rank=(n,seen=new Set())=>{
+      if(memo[n]!=null) return memo[n];
+      if(seen.has(n)) return 0;
+      seen.add(n);
+      const deps=Object.keys(actions[n]?.runAfter||{}).filter(d=>actions[d]);
+      return memo[n]=deps.length?1+Math.max(...deps.map(d=>rank(d,seen))):0;
+    };
+    return rank;
+  };
+  (function walk(actions,depth){
+    const entries=Object.entries(actions||{}).filter(([,a])=>a&&typeof a==='object');
+    const rank=rankOf(actions||{});
+    entries.map(([name,a],i)=>({name,a,i,r:rank(name)})).sort((x,y)=>x.r-y.r||x.i-y.i).forEach(({name,a})=>{
+      flat.push({name,a,depth});
+      walk(a.actions,depth+1); walk(a.else?.actions,depth+1);
+      Object.values(a.cases||{}).forEach(cs=>walk(cs?.actions,depth+1)); walk(a.default?.actions,depth+1);
+    });
+  })(def.actions,0);
+
+  const breakdown={connectorCalls:0,httpCalls:0,conditions:0,loops:0,dataShaping:0,variables:0};
+  const entities=[], steps=[], kinds=[];
+  flat.forEach(({name,a,depth})=>{
+    const type=String(a.type||'');
+    if(/^ApiConnection/.test(type)) breakdown.connectorCalls++;
+    else if(/^(Http|HttpWebhook|Function)$/.test(type)) breakdown.httpCalls++;
+    else if(type==='If'||type==='Switch') breakdown.conditions++;
+    else if(type==='Foreach'||type==='Until') breakdown.loops++;
+    else if(INS_PB_SHAPING.has(type)) breakdown.dataShaping++;
+    else if(INS_PB_VARIABLES.has(type)) breakdown.variables++;
+    const ent=String(a.inputs?.path||'').match(/^\/entities\/([a-z]+)/i);
+    if(ent) entities.push(INS_PB_ENTITY_NAMES[ent[1].toLowerCase()]||insPretty(ent[1]));
+    else{ const byName=name.match(/Entities_-_Get_([A-Za-z_]+)/i); if(byName) entities.push(insPretty(byName[1])); }
+    if(INS_PB_SHAPING.has(type)||INS_PB_VARIABLES.has(type)) return;
+    const flow=/^(If|Switch|Foreach|Until|Scope|Wait|Terminate|Response)$/.test(type);
+    const kind=flow?'flow':insPlaybookStepKind(name,a);
+    const label=insPretty(name.replace(/_\(V\d+\)/i,'').replace(/_\d+$/,''));
+    const prev=steps.find(s=>s.label===label&&s.kind===kind&&s.depth===depth);
+    if(prev){ prev.count++; return; }
+    let api='';
+    if(/^ApiConnection/.test(type)){ const m=JSON.stringify(a.inputs?.host||'').match(/\['([a-z0-9_]+)'\]/i); api=m?(INS_API_NAMES[m[1].toLowerCase().replace(/[\s_-]*\d+$/,'')]||insPretty(m[1].replace(/[\s_-]*\d+$/,''))):''; }
+    else if(type==='Http'){ try{ api=new URL(String(a.inputs?.uri||'').replace(/@\{[^}]*\}/g,'x')).host; }catch{} }
+    steps.push({label,kind,type:INS_PB_TYPE_LABELS[type]||insPretty(type),api,depth,count:1});
+    if(!flow) kinds.push(kind);
+  });
+  const capabilities=insUniq(kinds.filter(k=>k!=='action')).map(k=>INS_PB_KINDS[k]);
+  const inputs=Object.keys(raw?.parameters||{}).filter(k=>!/^(PlaybookName|Workspace\w*|DataCollection\w*|\w*Location)$/i.test(k)).map(insPretty);
+  const identity=/system|user/i.test(String(wf?.identity?.type||''))?'Managed identity':'';
+  const DEPLOYS={'microsoft.web/customapis':'Custom Logic Apps connector','microsoft.web/sites':'Azure Function App','microsoft.web/connections':'API connection','microsoft.insights/datacollectionrules':'Data Collection Rule','microsoft.insights/datacollectionendpoints':'Data Collection Endpoint','microsoft.keyvault/vaults':'Key Vault','microsoft.storage/storageaccounts':'Storage account','microsoft.automation/automationaccounts':'Automation account'};
+  const deploys=[]; insWalk(raw,(k,v)=>{ if(k==='type'&&typeof v==='string'&&DEPLOYS[v.toLowerCase()]) deploys.push(DEPLOYS[v.toLowerCase()]); });
+  const hasWorkflow=!!(def.triggers&&Object.keys(def.triggers).length)||flat.length>0;
+  return {steps:steps.slice(0,30),stepCount:steps.length,capabilities,entities:insUniq(entities),breakdown,inputs,identity,deploys:insUniq(deploys),hasWorkflow};
+}
+const INS_PB_TRIGGER_TEXT={'Sentinel incident':'Runs when a Microsoft Sentinel incident is created, or when an automation rule / analyst runs it on an incident','Sentinel alert':'Runs on the alert behind an analytics rule (attach it to the rule or run it from an incident)','Sentinel entity (manual)':'Run manually by an analyst on an entity','HTTP request':'Runs when its HTTP endpoint is called','Schedule':'Runs on a schedule'};
 function insPlaybookSummary(pb){
   const raw=pb.raw||{};
   let wf=null;
@@ -5932,9 +6122,10 @@ function insPlaybookSummary(pb){
   const allHosts=insUniq((pb.connections?.endpoints||pb.endpoints||[]).filter(h=>!INS_DOC_HOST_RE.test(h)));
   const endpoints=allHosts.filter(h=>!INS_WORKSPACE_HOST_RE.test(h));
   const writesToWorkspace=/logingestion|logs ingestion/i.test(pb.path||'')||allHosts.some(h=>INS_WORKSPACE_HOST_RE.test(h))||apiList.includes('Log Analytics Data Collector');
-  return {name,trigger,connectors:apiList,endpoints,actions:Object.keys(def.actions||{}).length,
+  return {name,trigger,triggerText:INS_PB_TRIGGER_TEXT[trigger]||'',connectors:apiList,endpoints,actions:Object.keys(def.actions||{}).length,
     writesToWorkspace,
-    description:raw.metadata?.description||raw.metadata?.comments||def.description||'',path:pb.path};
+    description:raw.metadata?.description||raw.metadata?.comments||def.description||'',path:pb.path,
+    ...insPlaybookAnatomy(def,raw,wf)};
 }
 
 function insCollectTableSchemas(files){
@@ -6190,7 +6381,8 @@ function buildSolutionInsights(art,meta){
     connectorIds:insUniq((h.requiredConnectors||[]).map(r=>String(r.connectorId||r).toLowerCase())),path:h.path,unresolved:h.references?.unresolved||[]
   }));
   const workbooks=(art.workbooks||[]).map(w=>({name:insPretty(/^(azuredeploy|maintemplate)/i.test(insBase(w.path||'').replace(/\.json$/i,''))?(w.path||'').split('/').slice(-2,-1)[0]:(w.id&&w.id!==insBase(w.path||'').replace(/\.json$/i,'')?w.id:insBase(w.path||'').replace(/\.json$/i,''))),
-    tables:insUniq((w.references?.tables||w.tables||[]).map(insTableName)),description:w.description||'',path:w.path,unresolved:w.references?.unresolved||[]}));
+    tables:insUniq((w.references?.tables||w.tables||[]).map(insTableName)),description:w.description||'',path:w.path,unresolved:w.references?.unresolved||[],
+    ...insWorkbookSummary(w)}));
   const parsers=(art.functions||[]).map(f=>({name:f.id,alias:f.functionAlias||'',tables:insUniq((f.references?.tables||f.tables||[]).map(insTableName)),description:f.description||'',path:f.path}));
   const playbooks=(art.playbooks||[]).map(insPlaybookSummary);
   const watchlists=(art.watchlists||[]).map(w=>({name:insPretty(w.id),description:w.description||''}));
@@ -6585,6 +6777,48 @@ window.buildSolutionInsights=buildSolutionInsights;
     if(li.length<=max) return `<ul class="ins-list">${li.join('')}</ul>`;
     return `<ul class="ins-list">${li.slice(0,max).join('')}</ul><details class="ins-more" style="margin-top:.4rem"><summary>Show all ${li.length}</summary><div><ul class="ins-list" style="max-height:420px">${li.slice(max).join('')}</ul></div></details>`;
   }
+  const PB_KIND_STYLE={entities:['Entities','#6366f1'],incident:['Incident','#6366f1'],enrich:['Enrich','#059669'],query:['Query','#0891b2'],watchlist:['Watchlist','#0d9488'],intel:['Threat intel','#b45309'],auth:['Auth','#94a3b8'],comment:['Comment','#2563eb'],update:['Update incident','#2563eb'],log:['Log Analytics','#0891b2'],approval:['Approval','#7c3aed'],contain:['Contain','#dc2626'],notify:['Notify','#d97706'],ticket:['Ticket','#64748b'],flow:['Flow','#94a3b8'],action:['Action','#64748b']};
+  const WB_CAT_ICON={chart:'📈',table:'▦',tiles:'🔢',map:'🗺',graph:'🕸'};
+  const line=(label,html)=>html?`<div style="margin:.25rem 0"><b>${label}:</b> ${html}</div>`:'';
+  function workbookRow(w){
+    const types=Object.entries(w.visualTypes||{}).sort((a,b)=>b[1]-a[1]);
+    const cn=w.counts||{};
+    const summary=[cn.panels&&`${cn.panels} panels`,cn.filters&&`${cn.filters} filters`,w.tabs?.length&&`${w.tabs.length} tabs`].filter(Boolean).join(' · ');
+    const panelRows=(w.panels||[]).map(p=>`<tr><td>${e(p.title)}${p.section?`<div class="ins-muted" style="font-size:11.5px">${e(p.section)}</div>`:''}</td><td>${WB_CAT_ICON[p.category]||''} ${e(p.chart)}</td><td>${e(p.shows||'–')}</td><td>${p.tables.length?p.tables.map(t=>`<code class="ins-chip">${e(t)}</code>`).join(' '):`<span class="ins-muted">${e(p.source)}</span>`}</td></tr>`).join('');
+    const detail=w.panels?.length?`<details class="ins-more" style="margin-top:.3rem"><summary>What this workbook shows (${cn.panels} panels)</summary><div>
+      ${line('Overview',e(w.intro||w.description||w.heading||''))}
+      ${line('Tabs',(w.tabs||[]).map(t=>`<span class="ins-chip">${e(t)}</span>`).join(' '))}
+      ${line('Filters',(w.filters||[]).map(f=>`<span class="ins-chip" title="${e(f.type)}">${e(f.label)}</span>`).join(' ')+(w.timeRange?' <span class="ins-chip">Time range</span>':''))}
+      ${line('Data sources',(w.dataSources||[]).map(e).join(', '))}
+      ${line('Other',[cn.text&&`${cn.text} text blocks`,cn.links&&`${cn.links} link groups`,cn.metrics&&`${cn.metrics} metric panels`].filter(Boolean).join(' · '))}
+      <div class="ins-table-wrap" style="margin-top:.4rem"><table class="ins-table"><thead><tr><th>Panel</th><th>Visual</th><th>Shows</th><th>Data</th></tr></thead><tbody>${panelRows}</tbody></table></div>
+      ${cn.panels>w.panels.length?`<div class="ins-muted">Showing ${w.panels.length} of ${cn.panels} panels.</div>`:''}
+    </div></details>`:'';
+    return `<li><div class="ins-row"><span class="ins-name">${e(w.name)}</span>${summary?`<span class="ins-muted" style="font-size:12px">${e(summary)}</span>`:''}${w.textOnly?pill('Text / guidance only (no charts)','#64748b'):''}</div>
+      ${(w.intro||w.description)?`<span class="ins-muted" style="font-size:12px">${e((w.intro||w.description).slice(0,180))}</span>`:''}
+      ${types.length?`<div class="ins-chips">${types.map(([l,n])=>`<span class="ins-chip">${e(l)}${n>1?` ×${n}`:''}</span>`).join('')}</div>`:''}
+      ${w.tables.length?chips(w.tables,5):''}${detail}</li>`;
+  }
+  function playbookRow(p){
+    const steps=(p.steps||[]).map((s,i)=>{ const [lab,col]=PB_KIND_STYLE[s.kind]||PB_KIND_STYLE.action; return `<div style="margin:.2rem 0 .2rem ${s.depth*16}px">${pill(lab,col)} <b>${e(s.label)}</b>${s.count>1?` ×${s.count}`:''} <span class="ins-muted" style="font-size:12px">${e(s.type)}${s.api?` · ${e(s.api)}`:''}</span></div>`; }).join('');
+    const b=p.breakdown||{};
+    const mix=[b.connectorCalls&&`${b.connectorCalls} connector calls`,b.httpCalls&&`${b.httpCalls} HTTP calls`,b.conditions&&`${b.conditions} conditions`,b.loops&&`${b.loops} loops`,b.dataShaping&&`${b.dataShaping} data-shaping`,b.variables&&`${b.variables} variable steps`].filter(Boolean).join(' · ');
+    const detail=!p.hasWorkflow?`<div class="ins-muted" style="font-size:12px;margin-top:.2rem">Not a workflow — this file deploys ${p.deploys?.length?e(p.deploys.join(', ')):'supporting resources'} used by the solution's playbooks.</div>`
+      :p.steps?.length?`<details class="ins-more" style="margin-top:.3rem"><summary>What it does (${p.stepCount} steps)</summary><div>
+      ${line('Starts',e(p.triggerText||p.trigger))}
+      ${line('Handles',(p.entities||[]).map(x=>`<span class="ins-chip">${e(x)}</span>`).join(' '))}
+      <div style="margin:.4rem 0">${steps}</div>
+      ${line('Composition',e(mix))}
+      ${line('Calls',(p.endpoints||[]).map(h=>`<code class="ins-chip">${e(h)}</code>`).join(' '))}
+      ${line('You provide',(p.inputs||[]).map(e).join(', '))}
+      ${line('Runs as',p.identity?e(p.identity):'')}
+      ${line('Deploys',(p.deploys||[]).map(e).join(', '))}
+    </div></details>`:'';
+    return `<li><div class="ins-row"><span class="ins-name">${e(p.name)}</span>${p.hasWorkflow?pill(p.trigger,TRIG[p.trigger]||'#475569','Trigger'):pill('Supporting resource','#64748b')}${p.writesToWorkspace?pill('writes to Log Analytics','#0891b2'):''}</div>
+      ${p.description?`<span class="ins-muted" style="font-size:12px">${e(p.description.slice(0,180))}</span>`:''}
+      ${(p.capabilities||[]).length?`<div class="ins-chips">${p.capabilities.map(c=>`<span class="ins-chip">${e(c)}</span>`).join('')}</div>`:''}
+      <div class="ins-chips">${p.connectors.map(x=>`<span class="ins-chip">🔗 ${e(x)}</span>`).join('')}<span class="ins-muted" style="font-size:12px">${p.actions} actions</span></div>${detail}</li>`;
+  }
   function coverageHtml(ins){
     const C=ins.content, k=ins.counts;
     const total=Math.max(1,C.analytics.length);
@@ -6599,10 +6833,8 @@ window.buildSolutionInsights=buildSolutionInsights;
       ${listItems(C.analytics.slice().sort((a,b)=>sevOrder.indexOf(a.severity)-sevOrder.indexOf(b.severity)),a=>`<li><div class="ins-row">${pill(a.severity,SEV[a.severity]||SEV.Unknown)}<span class="ins-name">${e(a.name)}</span></div>
         <div class="ins-muted" style="font-size:12px">${[a.tactics.map(prettyTactic).join(', '),a.frequency&&`runs every ${a.frequency.replace(/^PT?/i,'').toLowerCase()}`,a.kind].filter(Boolean).map(e).join(' · ')}</div>${a.tables.length?chips(a.tables,4):''}</li>`)}</div>`:'';
     const hunting=C.hunting.length?`<div class="ins-card"><h3>🎯 Hunting queries <b style="--c:#6366f1">${k.hunting}</b></h3>${listItems(C.hunting,h=>`<li><span class="ins-name">${e(h.name)}</span>${h.tactics.length?`<span class="ins-muted" style="font-size:12px">${e(h.tactics.map(prettyTactic).join(', '))}</span>`:''}</li>`)}</div>`:'';
-    const workbooks=C.workbooks.length?`<div class="ins-card"><h3>📊 Workbooks <b style="--c:#2563eb">${k.workbooks}</b></h3>${listItems(C.workbooks,w=>`<li><span class="ins-name">${e(w.name)}</span>${w.description?`<span class="ins-muted" style="font-size:12px">${e(w.description.slice(0,160))}</span>`:''}${w.tables.length?chips(w.tables,5):''}</li>`)}</div>`:'';
-    const playbooks=C.playbooks.length?`<div class="ins-card"><h3>⚡ Playbooks <b style="--c:#db2777">${k.playbooks}</b></h3>${listItems(C.playbooks,p=>`<li><div class="ins-row"><span class="ins-name">${e(p.name)}</span>${pill(p.trigger,TRIG[p.trigger]||'#475569','Trigger')}</div>
-        ${p.description?`<span class="ins-muted" style="font-size:12px">${e(p.description.slice(0,180))}</span>`:''}
-        <div class="ins-chips">${p.connectors.map(x=>`<span class="ins-chip">🔗 ${e(x)}</span>`).join('')}<span class="ins-muted" style="font-size:12px">${p.actions} actions</span></div></li>`)}</div>`:'';
+    const workbooks=C.workbooks.length?`<div class="ins-card"><h3>📊 Workbooks <b style="--c:#2563eb">${k.workbooks}</b></h3>${listItems(C.workbooks,workbookRow)}</div>`:'';
+    const playbooks=C.playbooks.length?`<div class="ins-card"><h3>⚡ Playbooks <b style="--c:#db2777">${k.playbooks}</b></h3>${listItems(C.playbooks,playbookRow)}</div>`:'';
     const parsers=C.parsers.length?`<div class="ins-card"><h3>ƒ Parsers &amp; functions <b style="--c:#14b8a6">${k.parsers}</b></h3>${listItems(C.parsers,p=>`<li><span class="ins-name">${e(p.name)}</span>${p.alias&&p.alias!==p.name?`<span class="ins-muted" style="font-size:12px">alias ${e(p.alias)}</span>`:''}${p.tables.length?chips(p.tables,4):''}</li>`,6)}</div>`:'';
     const misc=(C.watchlists.length||C.notebooks.length||C.automationRules.length)?`<div class="ins-card"><h3>🧩 Other content</h3>
       ${C.watchlists.length?`<div class="ins-muted">Watchlists</div>${chips(C.watchlists.map(w=>w.name),8)}`:''}
